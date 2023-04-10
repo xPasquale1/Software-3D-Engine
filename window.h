@@ -9,7 +9,7 @@
 
 static uint window_width = 1000;
 static uint window_height = 1000;
-static uint pixel_size = 1;
+static uint pixel_size = 4;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
 static BITMAPINFO bitmapInfo = {};
@@ -126,8 +126,8 @@ inline void draw_triangle(triangle& tri){
 				uint idx = y*buffer_width+x;
 				//TODO depth buffer endlich eine range geben damit eine gute range erfasst werden kann,
 				//oder optional mit floating point zahlen alles machen aber das soll meh sein...
-				float depth = u*pt0.z + v*pt1.z + w*pt2.z;
-				if(depth_buffer[idx] > depth){
+				float depth = (u*pt0.z + v*pt1.z + w*pt2.z)*10000;
+				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = depth;
 					pixels[idx] = tri.color;
 				}
