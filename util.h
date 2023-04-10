@@ -1,6 +1,7 @@
 #pragma once
 
 #include <fstream>
+#include <math.h>
 
 typedef unsigned int uint;
 typedef unsigned char uchar;

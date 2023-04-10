@@ -16,32 +16,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
 #define SPEED 0.1
 
-void update(){
-	float sin_rotx = sin(cam.rot.x);
-	float cos_rotx = cos(cam.rot.x);
-	if(keyboard.button & 0b1000'0000){
-		cam.pos.x -= sin_rotx*SPEED;
-		cam.pos.z += cos_rotx*SPEED;
-	}
-	if(keyboard.button & 0b0010'0000){
-		cam.pos.x += sin_rotx*SPEED;
-		cam.pos.z -= cos_rotx*SPEED;
-	}
-	if(keyboard.button & 0b0001'0000){
-		cam.pos.x += cos_rotx*SPEED;
-		cam.pos.z += sin_rotx*SPEED;
-	}
-	if(keyboard.button & 0b0100'0000){
-		cam.pos.x -= cos_rotx*SPEED;
-		cam.pos.z -= sin_rotx*SPEED;
-	}
-	if(keyboard.button & 0b0000'0100){
-		cam.pos.y -= SPEED;
-	}
-	if(keyboard.button & 0b0000'1000){
-		cam.pos.y += SPEED;
-	}
-}
+void update();
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -84,6 +59,33 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	delete[] depth_buffer;
 	delete[] triangles;
 	return 0;
+}
+
+void update(){
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	if(keyboard.button & 0b1000'0000){
+		cam.pos.x -= sin_rotx*SPEED;
+		cam.pos.z += cos_rotx*SPEED;
+	}
+	if(keyboard.button & 0b0010'0000){
+		cam.pos.x += sin_rotx*SPEED;
+		cam.pos.z -= cos_rotx*SPEED;
+	}
+	if(keyboard.button & 0b0001'0000){
+		cam.pos.x += cos_rotx*SPEED;
+		cam.pos.z += sin_rotx*SPEED;
+	}
+	if(keyboard.button & 0b0100'0000){
+		cam.pos.x -= cos_rotx*SPEED;
+		cam.pos.z -= sin_rotx*SPEED;
+	}
+	if(keyboard.button & 0b0000'0100){
+		cam.pos.y -= SPEED;
+	}
+	if(keyboard.button & 0b0000'1000){
+		cam.pos.y += SPEED;
+	}
 }
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){

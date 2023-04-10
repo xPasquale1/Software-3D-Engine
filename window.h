@@ -9,7 +9,7 @@
 
 static uint window_width = 1000;
 static uint window_height = 1000;
-static uint pixel_size = 4;
+static uint pixel_size = 1;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
 static BITMAPINFO bitmapInfo = {};
@@ -83,39 +83,22 @@ inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color){
 }
 
 inline void draw_line(fvec2& start, fvec2& end, uint color){
-	uint buffer_width = window_width/pixel_size;
-	bool yLonger=false;
-	int incrementVal;
-	float x = start.x;
-	float y = start.y;
-	float x2 = end.x;
-	float y2 = end.y;
-	int shortLen=y2-y;
-	int longLen=x2-x;
+    uint buffer_width = window_width/pixel_size;
+    int dx = end.x-start.x;
+    int dy = end.y-start.y;
+    int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
+    float xinc = dx/(float)steps;
+    float yinc = dy/(float)steps;
+    float x = start.x;
+    float y = start.y;
 
-	if(abs(shortLen)>abs(longLen)){
-		int swap=shortLen;
-		shortLen=longLen;
-		longLen=swap;
-		yLonger=true;
-	}
-
-	if(longLen<0) incrementVal=-1;
-	else incrementVal=1;
-
-	float multDiff;
-	if(longLen==0.0) multDiff=(float)shortLen;
-	else multDiff=(float)shortLen/(float)longLen;
-	if(yLonger){
-		for(int i=0;i!=longLen;i+=incrementVal){
-			pixels[(int)(x+(int)((float)i*multDiff)) + (int)((y+i)*buffer_width)] = color;
-		}
-	}else{
-		for(int i=0;i!=longLen;i+=incrementVal){
-			pixels[(int)(x+i) + (int)((y+(int)((float)i*multDiff))*buffer_width)] = color;
-		}
-	}
+    for(int i = 0; i <= steps; ++i){
+        pixels[(int)y*buffer_width+(int)x] = color;
+        x += xinc;
+        y += yinc;
+    }
 }
+
 
 inline void draw_triangle(triangle& tri){
 	uint buffer_width = window_width/pixel_size;
@@ -141,6 +124,8 @@ inline void draw_triangle(triangle& tri){
 			float w = 1-u-v;
 			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
 				uint idx = y*buffer_width+x;
+				//TODO depth buffer endlich eine range geben damit eine gute range erfasst werden kann,
+				//oder optional mit floating point zahlen alles machen aber das soll meh sein...
 				float depth = u*pt0.z + v*pt1.z + w*pt2.z;
 				if(depth_buffer[idx] > depth){
 					depth_buffer[idx] = depth;
@@ -149,14 +134,13 @@ inline void draw_triangle(triangle& tri){
 			}
 		}
 	}
-	//TODO fix...
 #else
-	fvec2 a = {pt0.x, pt0.y};
-	fvec2 b = {pt1.x, pt1.y};
-	fvec2 c = {pt2.x, pt2.y};
-	draw_line(a, b, tri.color);
-	draw_line(a, c, tri.color);
-	draw_line(b, c, tri.color);
+	fvec2 l1 = {pt0.x, pt0.y};
+	fvec2 l2 = {pt1.x, pt1.y};
+	fvec2 l3 = {pt2.x, pt2.y};
+	draw_line(l1, l2, tri.color);
+	draw_line(l1, l3, tri.color);
+	draw_line(l2, l3, tri.color);
 #endif
 }
 
