@@ -50,7 +50,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		exit(-2);
 	}
 
-	triangle triangles[9000];
+	//TODO Ein Memory-Managment-System implementieren
+	triangle* triangles = new triangle[18000];
 	uint triangle_count = 0;
 
 	uchar color_switcher = 0;
@@ -81,6 +82,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	DestroyWindow(window);
 	delete[] pixels;
 	delete[] depth_buffer;
+	delete[] triangles;
 	return 0;
 }
 
