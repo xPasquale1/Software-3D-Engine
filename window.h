@@ -60,18 +60,10 @@ inline void draw(HWND window){
 	ReleaseDC(window, hdc);
 }
 
-inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){
-	return uint(b|g<<8|r<<16|a<<24);
-}
-inline constexpr uchar R(uint color){
-	return uchar(color>>16);
-}
-inline constexpr uchar G(uint color){
-	return uchar(color>>8);
-}
-inline constexpr uchar B(uint color){
-	return uchar(color);
-}
+inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
+inline constexpr uchar R(uint color){return uchar(color>>16);}
+inline constexpr uchar G(uint color){return uchar(color>>8);}
+inline constexpr uchar B(uint color){return uchar(color);}
 
 inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color){
 	uint buffer_width = window_width/pixel_size;

@@ -33,14 +33,23 @@ struct triangle{
 	uint color;
 };
 
-struct mouse{
+//TODO Könnte besser sein setter und getter Funktionen für maus und tastatur zu schreiben
+struct Mouse{
 	ivec2 pos;
-	char button;
-}; static mouse mouse;
+	char button;	//Bits: LMB, RMB, Rest ungenutzt
+}; static Mouse mouse;
+inline constexpr bool LMB(Mouse& m){return m.button&0b1000'0000;}
+inline constexpr bool RMB(Mouse& m){return m.button&0b0100'0000;}
 
-struct keyboard{
-	char button;	//Bits: W A S D SHIFT SPACE
-}; static keyboard keyboard;
+struct Keyboard{
+	char button;	//Bits: W, A, S, D, SHIFT, SPACE, Rest ungenutzt
+}; static Keyboard keyboard;
+inline constexpr bool W(Keyboard& k){return k.button&0b1000'0000;}
+inline constexpr bool A(Keyboard& k){return k.button&0b0100'0000;}
+inline constexpr bool S(Keyboard& k){return k.button&0b0010'0000;}
+inline constexpr bool D(Keyboard& k){return k.button&0b0001'0000;}
+inline constexpr bool SHIFT(Keyboard& k){return k.button&0b0000'1000;}
+inline constexpr bool SPACE(Keyboard& k){return k.button&0b0000'0100;}
 
 void normalize(fvec3& vec){
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
@@ -59,10 +68,6 @@ inline constexpr float dot(fvec2& a, fvec2& b){
 inline constexpr float cross(fvec2& a, fvec2& b){
 	return (a.x * b.y - a.y * b.x);
 }
-
-//inline constexpr float cross(fvec2 a, fvec2 b){
-//	return (a.x * b.y - a.y * b.x);
-//}
 
 struct AvgFrametime{
 	float ms[8];

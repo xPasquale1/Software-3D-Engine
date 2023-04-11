@@ -64,26 +64,26 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 void update(){
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
-	if(keyboard.button & 0b1000'0000){
+	if(W(keyboard)){
 		cam.pos.x -= sin_rotx*SPEED;
 		cam.pos.z += cos_rotx*SPEED;
 	}
-	if(keyboard.button & 0b0010'0000){
+	if(S(keyboard)){
 		cam.pos.x += sin_rotx*SPEED;
 		cam.pos.z -= cos_rotx*SPEED;
 	}
-	if(keyboard.button & 0b0001'0000){
+	if(D(keyboard)){
 		cam.pos.x += cos_rotx*SPEED;
 		cam.pos.z += sin_rotx*SPEED;
 	}
-	if(keyboard.button & 0b0100'0000){
+	if(A(keyboard)){
 		cam.pos.x -= cos_rotx*SPEED;
 		cam.pos.z -= sin_rotx*SPEED;
 	}
-	if(keyboard.button & 0b0000'0100){
+	if(SPACE(keyboard)){
 		cam.pos.y -= SPEED;
 	}
-	if(keyboard.button & 0b0000'1000){
+	if(SHIFT(keyboard)){
 		cam.pos.y += SPEED;
 	}
 }
