@@ -298,7 +298,7 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     	    tri.point[j].y = v[1];
     	    tri.point[j].z = v[2];
     	}
-    	triangle buffer[20];	//TODO Platz für 20 Dreiecke
+    	triangle buffer[32];
     	buffer[0] = tri;
     	byte count = clipping(buffer);
     	for(byte j=0; j < count; ++j){
