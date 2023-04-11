@@ -6,6 +6,7 @@
 
 //Geht nur von 0-9!!!
 //TODO alle Funktionen hier sind nur auf die 5x5 font abgestimmt, sollte man verallgemeinern
+//TODO skaliert nicht richtig mit verschiedenen Größen und pixel_size werten, idk why
 inline void draw_number(uint x, uint y, uint size, uchar number, uint color){
 	short idx = (number+48)*5;
 	for(uint i=0; i < 5; ++i){

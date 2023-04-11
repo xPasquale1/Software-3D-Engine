@@ -125,6 +125,22 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 		SetCursorPos(300, 300);
 		return 0L;
 	}
+	case WM_LBUTTONDOWN:{
+		mouse.button |= 0b1000'0000;
+		break;
+	}
+	case WM_LBUTTONUP:{
+		mouse.button &= 0b0111'1111;
+		break;
+	}
+	case WM_RBUTTONDOWN:{
+		mouse.button |= 0b0100'0000;
+		break;
+	}
+	case WM_RBUTTONUP:{
+		mouse.button &= 0b1011'1111;
+		break;
+	}
 	case WM_KEYDOWN:{
 		switch(wParam){
 		case 0x57:	//W
