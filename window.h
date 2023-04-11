@@ -62,9 +62,9 @@ inline void draw(HWND window){
 	StretchDIBits(hdc, 0, window_height, window_width, -window_height, 0, 0, buffer_width, buffer_height, pixels, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);
 	//TODO huh??
-//#ifdef PERFORMANCE_ANALYZER
-//	perfAnalyzer.record_data(2);
-//#endif
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.record_data(2);
+#endif
 }
 
 inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
@@ -268,6 +268,7 @@ inline constexpr uint color_picker(uint i){
 inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
+	perfAnalyzer.data[perfAnalyzer.counter[1]/32+8] = 0;
 #endif
 	float rotm[3][3];
 	float aspect_ratio = window_width/window_height;
@@ -320,7 +321,7 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
 #endif
     	}
     }
-    perfAnalyzer.indexes[1] += 8;
+    perfAnalyzer.counter[1] += 32;
 #ifdef PERFORMANCE_ANALYZER
     perfAnalyzer.record_data(0);
 #endif

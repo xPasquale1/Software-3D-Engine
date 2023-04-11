@@ -62,22 +62,23 @@ inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
 
+//TODO Performance von clipping oder der dreieck zeichnung allein ist nicht wirklich so möglich...
 #define PERFORMANCE_ANALYZER
 struct PerfAnalyzer{
 	//Indexe: 0 clipping, 1 rasterizer, 2 drawing
 	float data[24] = {};
-	uchar indexes[3] = {};
+	uchar counter[3] = {};
 	std::chrono::system_clock::time_point tp[3];
 	void start_timer(uchar idx){tp[idx] = std::chrono::system_clock::now();}
 	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();}
 	void record_data(uchar idx){
 		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
-		data[indexes[idx]/8] = ms;
-		indexes[idx] += 8;
+		data[counter[idx]/32+idx*8] = ms;
+		counter[idx] += 32;
 	}
 	void record_data_no_inc(uchar idx){
 		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
-		data[indexes[idx]/8] += ms;
+		data[counter[idx]/32+idx*8] += ms;
 	}
 	float get_avg_data(uchar idx){
 		float out = 0;
