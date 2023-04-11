@@ -54,16 +54,15 @@ inline void clear_window(){
 
 inline void draw(HWND window){
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.start_timer(2);
+	perfAnalyzer.start_timer(1);
 #endif
 	int buffer_width = window_width/pixel_size;
 	int buffer_height = window_height/pixel_size;
 	HDC hdc = GetDC(window);
 	StretchDIBits(hdc, 0, window_height, window_width, -window_height, 0, 0, buffer_width, buffer_height, pixels, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);
-	//TODO huh??
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.record_data(2);
+	perfAnalyzer.record_data(1);
 #endif
 }
 
@@ -268,7 +267,6 @@ inline constexpr uint color_picker(uint i){
 inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
-	perfAnalyzer.data[perfAnalyzer.counter[1]/32+8] = 0;
 #endif
 	float rotm[3][3];
 	float aspect_ratio = window_width/window_height;
@@ -312,16 +310,9 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     		//TODO Entferne
     		if(count > 1) buffer[j].color = color_picker(j);
     		else buffer[j].color = tri.color;
-#ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.start_timer(1);
-#endif
     		draw_triangle(buffer[j]);
-#ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.record_data_no_inc(1);
-#endif
     	}
     }
-    perfAnalyzer.counter[1] += 32;
 #ifdef PERFORMANCE_ANALYZER
     perfAnalyzer.record_data(0);
 #endif
