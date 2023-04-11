@@ -2,6 +2,7 @@
 
 #include <fstream>
 #include <math.h>
+#include <chrono>
 
 typedef unsigned int uint;
 typedef unsigned char uchar;
@@ -57,32 +58,35 @@ void normalize(fvec3& vec){
 	return;
 }
 
-inline constexpr float dot(fvec3& a, fvec3& b){
-	return (a.x * b.x + a.y * b.y + a.z * b.z);
-}
+inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
+inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
+inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
 
-inline constexpr float dot(fvec2& a, fvec2& b){
-	return (a.x * b.x + a.y * b.y);
-}
-
-inline constexpr float cross(fvec2& a, fvec2& b){
-	return (a.x * b.y - a.y * b.x);
-}
-
-struct AvgFrametime{
-	float ms[8];
-	float avg_ms;
-	uchar time_point = 0;
-	void add_time(float ms){
-		this->ms[time_point/32] = ms;
-		time_point += 32;
-		float avg = 0;
-		for(uint i=0; i < 8; ++i){
-			avg += this->ms[i];
-		}
-		avg_ms = avg/8.;
+#define PERFORMANCE_ANALYZER
+struct PerfAnalyzer{
+	//Indexe: 0 clipping, 1 rasterizer, 2 drawing
+	float data[24] = {};
+	uchar indexes[3] = {};
+	std::chrono::system_clock::time_point tp[3];
+	void start_timer(uchar idx){tp[idx] = std::chrono::system_clock::now();}
+	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();}
+	void record_data(uchar idx){
+		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
+		data[indexes[idx]/8] = ms;
+		indexes[idx] += 8;
 	}
-};
+	void record_data_no_inc(uchar idx){
+		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
+		data[indexes[idx]/8] += ms;
+	}
+	float get_avg_data(uchar idx){
+		float out = 0;
+		for(uchar i=0; i < 8; ++i){
+			out += data[i+8*idx];
+		}
+		return out/8.;
+	}
+}; static PerfAnalyzer perfAnalyzer;
 
 inline void create_cube(triangle* tri, unsigned int& count, float x, float y, float z, float dx, float dy, float dz){
 	tri[count].point[0].x = x;

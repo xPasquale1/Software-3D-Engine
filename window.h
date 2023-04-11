@@ -53,11 +53,18 @@ inline void clear_window(){
 }
 
 inline void draw(HWND window){
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.start_timer(2);
+#endif
 	int buffer_width = window_width/pixel_size;
 	int buffer_height = window_height/pixel_size;
 	HDC hdc = GetDC(window);
 	StretchDIBits(hdc, 0, window_height, window_width, -window_height, 0, 0, buffer_width, buffer_height, pixels, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);
+	//TODO huh??
+//#ifdef PERFORMANCE_ANALYZER
+//	perfAnalyzer.record_data(2);
+//#endif
 }
 
 inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
@@ -259,6 +266,9 @@ inline constexpr uint color_picker(uint i){
 }
 
 inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.start_timer(0);
+#endif
 	float rotm[3][3];
 	float aspect_ratio = window_width/window_height;
 	float sin_rotx = sin(cam.rot.x);
@@ -292,7 +302,6 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     	triangle buffer[20];	//TODO Platz für 20 Dreiecke
     	buffer[0] = tri;
     	byte count = clipping(buffer);
-    	//TODO hier sollte noch ne menge unnötiger code sein...
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].point[0]; fvec3 pt2 = buffer[j].point[1]; fvec3 pt3 = buffer[j].point[2];
     		buffer[j].point[0].x = pt1.x*(cam.focal_length/pt1.z)/aspect_ratio; buffer[j].point[0].y = pt1.y*(cam.focal_length/pt1.z);
@@ -302,9 +311,18 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     		//TODO Entferne
     		if(count > 1) buffer[j].color = color_picker(j);
     		else buffer[j].color = tri.color;
-
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.start_timer(1);
+#endif
     		draw_triangle(buffer[j]);
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.record_data_no_inc(1);
+#endif
     	}
     }
+    perfAnalyzer.indexes[1] += 8;
+#ifdef PERFORMANCE_ANALYZER
+    perfAnalyzer.record_data(0);
+#endif
     return;
 }

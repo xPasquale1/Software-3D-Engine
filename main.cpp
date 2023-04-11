@@ -35,39 +35,23 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	uchar color_switcher = 0;
 
-	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-//	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
-//	for(uint i=0; i < triangle_count; ++i){
-//		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
-//	}
-	triangles[0].color = RGBA(255, 255, 255, 255);
-	triangles[1].color = RGBA(255, 0, 0, 255);
-	triangles[2].color = RGBA(0, 255, 0, 255);
-	triangles[3].color = RGBA(0, 0, 255, 255);
-	triangles[4].color = RGBA(255, 0, 255, 255);
-	triangles[5].color = RGBA(0, 255, 255, 255);
-	triangles[6].color = RGBA(255, 255, 0, 255);
-	triangles[7].color = RGBA(255, 220, 220, 255);
-	triangles[8].color = RGBA(160, 255, 160, 255);
-	triangles[9].color = RGBA(120, 120, 255, 255);
-	triangles[10].color = RGBA(120, 220, 255, 255);
-	triangles[11].color = RGBA(255, 120, 220, 255);
-
-	AvgFrametime ft;
+//	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
+	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
+	for(uint i=0; i < triangle_count; ++i){
+		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
+	}
 
 	while(running){
-
-		auto t1 = std::chrono::system_clock::now();
 		getMessages(window);
 		update();
 		clear_window();
 
 		rasterize(triangles, triangle_count, cam);
 
-		draw_int(5, 5, 4, ft.avg_ms, RGBA(255, 255, 255, 255));
+		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(255, 255, 255, 255));
+		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(255, 255, 255, 255));
+		draw_int(5, 105/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(2), RGBA(255, 255, 255, 255));
 		draw(window);
-		auto millis = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now() - t1).count();
-		ft.add_time(millis);
 	}
 
 	DestroyWindow(window);
