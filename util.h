@@ -172,7 +172,11 @@ void read_obj(const char* filename, triangle* storage, unsigned int* count, floa
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
-	fvec3 points[9000];	//TODO std::list oder vectorq
+	fvec3* points = new(std::nothrow) fvec3[18000];	//TODO std::list, std::vector oder so
+	if(!points){
+		std::cerr << "Konnte keinen Speicher für die Punkte in read_obj allokieren!" << std::endl;
+		return;
+	}
 	unsigned int current_count = *count;
 	unsigned int p_count = 0;
 //	unsigned int n_count = 0;
@@ -267,6 +271,7 @@ void read_obj(const char* filename, triangle* storage, unsigned int* count, floa
 		}
 	}
 	*count += tri_count;
+	delete[] points;
 	std::cout << "Punkte gelesen:     " << p_count << std::endl;
 	std::cout << "Dreiecke gelesen:   " << tri_count << std::endl;
 	std::cout << "Dreiecke insgesamt: " << *count << '\n' << std::endl;

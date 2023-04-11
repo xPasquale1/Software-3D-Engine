@@ -26,7 +26,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 	//TODO Ein Memory-Managment-System implementieren
-	triangle* triangles = new triangle[18000];
+	triangle* triangles = new(std::nothrow) triangle[18000];
+	if(!triangles){
+		std::cerr << "Konnte keinen Speicher für die statischen Dreiecke allokieren!" << std::endl;
+		return -1;
+	}
 	uint triangle_count = 0;
 
 	uchar color_switcher = 0;
@@ -98,8 +102,13 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     	if(buffer_width > 0 && buffer_height > 0){
 			delete[] pixels;
 			delete[] depth_buffer;
-			pixels = new uint[buffer_width*buffer_height];
-			depth_buffer = new uint[buffer_width*buffer_height];
+			pixels = new(std::nothrow) uint[buffer_width*buffer_height];
+			depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
+			if(!pixels || !depth_buffer){
+				std::cerr << "Konnte keinen Speicher für pixel oder depth buffer allokieren!" << std::endl;
+				buffer_width = 0;
+				buffer_height = 0;
+			}
 			bitmapInfo.bmiHeader.biWidth = buffer_width;
 			bitmapInfo.bmiHeader.biHeight = buffer_height;
     	}
