@@ -9,7 +9,7 @@
 
 static uint window_width = 1000;
 static uint window_height = 1000;
-static uint pixel_size = 4;
+static uint pixel_size = 2;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
 static BITMAPINFO bitmapInfo = {};
@@ -117,7 +117,7 @@ inline void draw_triangle(triangle& tri){
 			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
 				uint idx = y*buffer_width+x;
 				//TODO depth buffer endlich eine range geben damit eine gute genauigkeit erfasst werden kann
-				float depth = u*pt0.z + v*pt1.z + w*pt2.z;
+				float depth = w*pt0.z*1000 + u*pt1.z*1000 + v*pt2.z*1000;
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
 					pixels[idx] = tri.color;
@@ -269,7 +269,6 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 
-    uint list_count = 0;
 #ifdef STATS
     std::cout << "Dreiecke vor Löschen: " << w.count << std::endl;
 #endif
