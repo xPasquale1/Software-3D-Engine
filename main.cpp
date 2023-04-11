@@ -37,9 +37,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
 //	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
-	for(uint i=0; i < triangle_count; ++i){
-		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
-	}
+//	for(uint i=0; i < triangle_count; ++i){
+//		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
+//	}
+	triangles[0].color = RGBA(255, 255, 255, 255);
+	triangles[1].color = RGBA(255, 0, 0, 255);
+	triangles[2].color = RGBA(0, 255, 0, 255);
+	triangles[3].color = RGBA(0, 0, 255, 255);
+	triangles[4].color = RGBA(255, 0, 255, 255);
+	triangles[5].color = RGBA(0, 255, 255, 255);
+	triangles[6].color = RGBA(255, 255, 0, 255);
+	triangles[7].color = RGBA(255, 220, 220, 255);
+	triangles[8].color = RGBA(160, 255, 160, 255);
+	triangles[9].color = RGBA(120, 120, 255, 255);
+	triangles[10].color = RGBA(120, 220, 255, 255);
+	triangles[11].color = RGBA(255, 120, 220, 255);
 
 	AvgFrametime ft;
 

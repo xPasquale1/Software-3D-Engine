@@ -116,11 +116,10 @@ inline void draw_triangle(triangle& tri){
 			float w = 1-u-v;
 			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
 				uint idx = y*buffer_width+x;
-				//TODO depth buffer endlich eine range geben damit eine gute range erfasst werden kann,
-				//oder optional mit floating point zahlen alles machen aber das soll meh sein...
-				float depth = (u*pt0.z + v*pt1.z + w*pt2.z)*10000;
+				//TODO depth buffer endlich eine range geben damit eine gute genauigkeit erfasst werden kann
+				float depth = u*pt0.z + v*pt1.z + w*pt2.z;
 				if(depth <= depth_buffer[idx]){
-					depth_buffer[idx] = depth;
+					depth_buffer[idx] = (uint)depth;
 					pixels[idx] = tri.color;
 				}
 			}
@@ -247,11 +246,6 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-struct Pixel_Info{
-	float depth;
-	triangle tri;
-};
-
 inline constexpr uint color_picker(uint i){
 	switch(i){
 	case 0: return RGBA(255, 0, 0, 255);
@@ -275,13 +269,11 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 
-    Pixel_Info list[10000];		//TODO 10000
     uint list_count = 0;
 #ifdef STATS
     std::cout << "Dreiecke vor Löschen: " << w.count << std::endl;
 #endif
     for(uint i=0; i < triangle_count; ++i){
-    	float depth = 0;
     	triangle tri = tris[i];
     	for(int j=0; j < 3; ++j){
     		float d[3];
@@ -297,38 +289,23 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     	    tri.point[j].x = v[0];
     	    tri.point[j].y = v[1];
     	    tri.point[j].z = v[2];
-			depth += v[2];
     	}
-    	depth /= 3.;
     	triangle buffer[20];	//TODO Platz für 20 Dreiecke
     	buffer[0] = tri;
     	byte count = clipping(buffer);
-    	Pixel_Info pi; pi.depth = depth;
+    	//TODO hier sollte noch ne menge unnötiger code sein...
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].point[0]; fvec3 pt2 = buffer[j].point[1]; fvec3 pt3 = buffer[j].point[2];
-    		pi.tri.point[0].x = pt1.x*(cam.focal_length/pt1.z)/aspect_ratio; pi.tri.point[0].y = pt1.y*(cam.focal_length/pt1.z);
-    		pi.tri.point[1].x = pt2.x*(cam.focal_length/pt2.z)/aspect_ratio; pi.tri.point[1].y = pt2.y*(cam.focal_length/pt2.z);
-    		pi.tri.point[2].x = pt3.x*(cam.focal_length/pt3.z)/aspect_ratio; pi.tri.point[2].y = pt3.y*(cam.focal_length/pt3.z);
-    		pi.tri.point[0].z = pt1.z; pi.tri.point[1].z = pt2.z; pi.tri.point[2].z = pt3.z;
+    		buffer[j].point[0].x = pt1.x*(cam.focal_length/pt1.z)/aspect_ratio; buffer[j].point[0].y = pt1.y*(cam.focal_length/pt1.z);
+    		buffer[j].point[1].x = pt2.x*(cam.focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam.focal_length/pt2.z);
+    		buffer[j].point[2].x = pt3.x*(cam.focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam.focal_length/pt3.z);
+    		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
     		//TODO Entferne
-    		if(count > 1) pi.tri.color = color_picker(j);
-    		else pi.tri.color = tri.color;
+    		if(count > 1) buffer[j].color = color_picker(j);
+    		else buffer[j].color = tri.color;
 
-    		list[list_count++] = pi;
+    		draw_triangle(buffer[j]);
     	}
-    }
-    //TODO Ersetze durch depth buffering (sollte erledigt sein?)
-//    std::sort(list, list+list_count, [](auto& i1, auto& i2){return i1.depth > i2.depth;});
-#ifdef STATS
-    std::cout << "Dreiecke nach Löschen: " << list_count << std::endl;
-#endif
-    for(unsigned int i=0; i < list_count; ++i){
-		triangle tria;
-		tria.point[0] = list[i].tri.point[0];
-		tria.point[1] = list[i].tri.point[1];
-		tria.point[2] = list[i].tri.point[2];
-		tria.color = list[i].tri.color;
-		draw_triangle(tria);
     }
     return;
 }
