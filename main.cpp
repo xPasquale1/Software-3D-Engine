@@ -36,7 +36,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	uchar color_switcher = 0;
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	read_obj("objects/terrain0.obj", triangles, &triangle_count, 0, 20, 0);
+	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
 	for(uint i=0; i < triangle_count; ++i){
 		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
 	}

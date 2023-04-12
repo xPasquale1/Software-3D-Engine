@@ -147,7 +147,7 @@ struct plane{
 };
 
 inline bool ray_plane_intersection(plane& p, fvec3& dir, fvec3& pt, fvec3& cp){
-	normalize(dir); normalize(p.normal);	//TODO kann vorraus gesetzt werden
+	normalize(dir);
 	float d = dot(dir, p.normal);
 	if(d > 0){
 		fvec3 i = p.pos;
@@ -229,18 +229,23 @@ inline byte clipping(triangle* buffer){
 	float aspect_ratio = window_width/window_height;
 
 	plane px = {}; px.normal = {XMIN/aspect_ratio, 0, 1};
+	normalize(px.normal);
 	clip_plane(px, buffer, count);
 
 	plane pnx = {}; pnx.normal = {XMAX/aspect_ratio, 0, 1};
+	normalize(pnx.normal);
 	clip_plane(pnx, buffer, count);
 
 	plane py = {}; py.normal = {0, YMIN, 1};
+	normalize(py.normal);
 	clip_plane(py, buffer, count);
 
 	plane pny = {}; pny.normal = {0, YMAX, 1};
+	normalize(pny.normal);
 	clip_plane(pny, buffer, count);
 
 	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
+	normalize(pz.normal);
 	clip_plane(pz, buffer, count);
 
 	return count;

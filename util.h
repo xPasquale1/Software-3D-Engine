@@ -52,7 +52,7 @@ inline constexpr bool D(Keyboard& k){return k.button&0b0001'0000;}
 inline constexpr bool SHIFT(Keyboard& k){return k.button&0b0000'1000;}
 inline constexpr bool SPACE(Keyboard& k){return k.button&0b0000'0100;}
 
-void normalize(fvec3& vec){
+inline constexpr void normalize(fvec3& vec){
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
 	vec.x /= length; vec.y /= length; vec.z /= length;
 	return;
