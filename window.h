@@ -101,7 +101,7 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
 uint texture(float u, float v){
 	int u1 = u*TEST_TEXTURE_WIDTH;
 	int v1 = v*TEST_TEXTURE_HEIGHT;
-	uchar val = test_texture[u1*TEST_TEXTURE_WIDTH+v1];
+	uchar val = test_texture0[u1*TEST_TEXTURE_WIDTH+v1];
 	return RGBA(val, val, val, 255);
 }
 

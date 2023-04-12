@@ -32,6 +32,7 @@ struct fvec3{
 struct triangle{
 	fvec3 point[3];
 	uint color;
+	fvec2 uv[2];
 };
 
 //TODO Könnte besser sein setter und getter Funktionen für maus und tastatur zu schreiben
