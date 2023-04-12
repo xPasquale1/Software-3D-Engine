@@ -120,10 +120,10 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+2].point[2].z = z+dz;
 
 	tri[count+3].point[0].x = x;
-	tri[count+3].point[0].y = y;
+	tri[count+3].point[0].y = y+dy;
 	tri[count+3].point[0].z = z+dz;
 	tri[count+3].point[1].x = x;
-	tri[count+3].point[1].y = y+dy;
+	tri[count+3].point[1].y = y;
 	tri[count+3].point[1].z = z+dz;
 	tri[count+3].point[2].x = x;
 	tri[count+3].point[2].y = y+dy;
@@ -141,13 +141,13 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 
 	tri[count+5].point[0].x = x+dx;
 	tri[count+5].point[0].y = y+dy;
-	tri[count+5].point[0].z = z;
+	tri[count+5].point[0].z = z+dz;
 	tri[count+5].point[1].x = x+dx;
 	tri[count+5].point[1].y = y;
 	tri[count+5].point[1].z = z+dz;
 	tri[count+5].point[2].x = x+dx;
 	tri[count+5].point[2].y = y+dy;
-	tri[count+5].point[2].z = z+dz;
+	tri[count+5].point[2].z = z;
 
 	tri[count+6].point[0].x = x;
 	tri[count+6].point[0].y = y;
@@ -159,10 +159,10 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+6].point[2].y = y;
 	tri[count+6].point[2].z = z+dz;
 
-	tri[count+7].point[0].x = x;
+	tri[count+7].point[0].x = x+dx;
 	tri[count+7].point[0].y = y+dy;
 	tri[count+7].point[0].z = z+dz;
-	tri[count+7].point[1].x = x+dx;
+	tri[count+7].point[1].x = x;
 	tri[count+7].point[1].y = y+dy;
 	tri[count+7].point[1].z = z+dz;
 	tri[count+7].point[2].x = x+dx;
@@ -181,13 +181,13 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 
 	tri[count+9].point[0].x = x+dx;
 	tri[count+9].point[0].y = y+dy;
-	tri[count+9].point[0].z = z;
+	tri[count+9].point[0].z = z+dz;
 	tri[count+9].point[1].x = x;
 	tri[count+9].point[1].y = y+dy;
 	tri[count+9].point[1].z = z+dz;
 	tri[count+9].point[2].x = x+dx;
 	tri[count+9].point[2].y = y+dy;
-	tri[count+9].point[2].z = z+dz;
+	tri[count+9].point[2].z = z;
 
 	tri[count+10].point[0].x = x;
 	tri[count+10].point[0].y = y;
@@ -201,14 +201,14 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 
 	tri[count+11].point[0].x = x+dx;
 	tri[count+11].point[0].y = y;
-	tri[count+11].point[0].z = z;
+	tri[count+11].point[0].z = z+dz;
 	tri[count+11].point[1].x = x;
 	tri[count+11].point[1].y = y;
 	tri[count+11].point[1].z = z+dz;
 	tri[count+11].point[2].x = x+dx;
 	tri[count+11].point[2].y = y;
-	tri[count+11].point[2].z = z+dz;
-	count += 2;
+	tri[count+11].point[2].z = z;
+	count += 12;
 	return;
 }
 

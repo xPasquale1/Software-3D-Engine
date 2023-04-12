@@ -1,10 +1,10 @@
 #pragma once
 
-#define CHECKERBOARD_HEIGHT 35
-#define CHECKERBOARD_WIDTH 35
+#define TEST_TEXTURE_HEIGHT 35
+#define TEST_TEXTURE_WIDTH 35
 
 //1byte pro pixel (ja kann man auch mit bits machen aber das macht es einfacher...)
-static const unsigned char checkerboard[] = {
+static const unsigned char test_texture[] = {
   0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0,
   0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0, 255, 255, 255, 255, 255, 0, 0, 0, 0, 0,

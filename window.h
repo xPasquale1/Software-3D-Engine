@@ -10,7 +10,7 @@
 
 static uint window_width = 1000;
 static uint window_height = 1000;
-static uint pixel_size = 1;
+static uint pixel_size = 2;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
 static BITMAPINFO bitmapInfo = {};
@@ -99,9 +99,9 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
 }
 
 uint texture(float u, float v){
-	int u1 = u*CHECKERBOARD_WIDTH;
-	int v1 = v*CHECKERBOARD_HEIGHT;
-	uchar val = checkerboard[u1*CHECKERBOARD_WIDTH+v1];
+	int u1 = u*TEST_TEXTURE_WIDTH;
+	int v1 = v*TEST_TEXTURE_HEIGHT;
+	uchar val = test_texture[u1*TEST_TEXTURE_WIDTH+v1];
 	return RGBA(val, val, val, 255);
 }
 
