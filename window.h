@@ -4,6 +4,7 @@
 #include <windowsX.h>
 #include <algorithm>
 #include "util.h"
+#include "texture.h"
 
 //#define WIREFRAME
 
@@ -98,10 +99,10 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
 }
 
 uint texture(float u, float v){
-	u *= 21.33333;
-	v *= 21.33333;
-	if((((int)u%2) && !((int)v%2)) || (!((int)u%2) && ((int)v%2))) return 0;
-	return RGBA(255, 255, 255, 255);
+	int u1 = u*CHECKERBOARD_WIDTH;
+	int v1 = v*CHECKERBOARD_HEIGHT;
+	uchar val = checkerboard[u1*CHECKERBOARD_WIDTH+v1];
+	return RGBA(val, val, val, 255);
 }
 
 inline void draw_triangle(triangle& tri){
@@ -134,7 +135,10 @@ inline void draw_triangle(triangle& tri){
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
 //					pixels[idx] = RGBA(255*w, 255*u, 255*v, 255);
-					pixels[idx] = texture(u, v);
+					float div2 = (pt1.z*pt2.z+pt2.z*u*(pt0.z-pt1.z)+pt1.z*v*(pt0.z-pt2.z));
+					float a = (pt2.z*pt0.z*u)/div2;
+					float b = (pt1.z*pt0.z*v)/div2;
+					pixels[idx] = texture(a, b);
 				}
 			}
 		}
