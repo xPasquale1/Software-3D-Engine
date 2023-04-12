@@ -9,7 +9,7 @@
 
 static uint window_width = 1000;
 static uint window_height = 1000;
-static uint pixel_size = 2;
+static uint pixel_size = 1;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
 static BITMAPINFO bitmapInfo = {};
@@ -97,6 +97,12 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
     }
 }
 
+uint texture(float u, float v){
+	u *= 21.33333;
+	v *= 21.33333;
+	if((((int)u%2) && !((int)v%2)) || (!((int)u%2) && ((int)v%2))) return 0;
+	return RGBA(255, 255, 255, 255);
+}
 
 inline void draw_triangle(triangle& tri){
 	uint buffer_width = window_width/pixel_size;
@@ -117,16 +123,18 @@ inline void draw_triangle(triangle& tri){
 		for(uint x = xmin; x <= xmax; x++){
 			fvec2 q = {x - pt0.x, y - pt0.y};
 			float div = cross(vs1, vs2);
-			float u = (float)cross(q, vs2)/div;
-			float v = (float)cross(vs1, q)/div;
-			float w = 1-u-v;
-			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
+			//w -> pt0, u -> pt1, v -> pt2
+			float u = cross(q, vs2)/div;
+			float v = cross(vs1, q)/div;
+			if((u >= 0)&&(v >= 0)&&(u + v < 1)){//Eigentlich sollte es <= 1 sein aber floats sind leider nicht perfekt...
+				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
-				//TODO depth buffer endlich eine range geben damit eine gute genauigkeit erfasst werden kann
+				//TODO depth buffer endlich eine range geben damit eine gute Genauigkeit erfasst werden kann
 				float depth = w*pt0.z*1000 + u*pt1.z*1000 + v*pt2.z*1000;
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
-					pixels[idx] = tri.color;
+//					pixels[idx] = RGBA(255*w, 255*u, 255*v, 255);
+					pixels[idx] = texture(u, v);
 				}
 			}
 		}
