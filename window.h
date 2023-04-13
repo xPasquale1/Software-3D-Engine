@@ -120,6 +120,12 @@ inline void draw_triangle(triangle& tri){
 	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
 
+	float pt12z = pt1.z*pt2.z;
+	float pt01z = pt1.z*pt0.z;
+	float pt02z = pt2.z*pt0.z;
+	float dpt12z = pt0.z-pt1.z;
+	float dpt02z = pt0.z-pt2.z;
+
 	for(uint y = ymin; y <= ymax; y++){
 		for(uint x = xmin; x <= xmax; x++){
 			fvec2 q = {x - pt0.x, y - pt0.y};
@@ -135,9 +141,9 @@ inline void draw_triangle(triangle& tri){
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
 //					pixels[idx] = RGBA(255*w, 255*u, 255*v, 255);
-					float div2 = (pt1.z*pt2.z+pt2.z*u*(pt0.z-pt1.z)+pt1.z*v*(pt0.z-pt2.z));
-					float a = (pt2.z*pt0.z*u)/div2;
-					float b = (pt1.z*pt0.z*v)/div2;
+					float div2 = pt12z+pt2.z*u*dpt12z+pt1.z*v*dpt02z;
+					float a = (pt02z*u)/div2;
+					float b = (pt01z*v)/div2;
 					pixels[idx] = texture(a, b);
 				}
 			}
