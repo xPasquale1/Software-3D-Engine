@@ -7,7 +7,7 @@
 //TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
 //der rasterizer ausserhalb des pixel arrays
 //TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
-//vorteil es muss kein farplane clipping durchgeführt werden, aber sollte evtl. doch gemacht werden
+//vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
 
 static bool running = true;
 static camera cam = {1., {}, {}};
@@ -37,9 +37,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
 //	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
-	for(uint i=0; i < triangle_count; ++i){
-		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
-	}
+//	for(uint i=0; i < triangle_count; ++i){
+//		triangles[i].color = RGBA(color_switcher++, 255-color_switcher, 255, 255);
+//	}
 
 	while(running){
 		getMessages(window);

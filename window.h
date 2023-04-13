@@ -98,9 +98,9 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
     }
 }
 
-uint texture(float u, float v){
-	int u1 = u*TEST_TEXTURE_WIDTH;
-	int v1 = v*TEST_TEXTURE_HEIGHT;
+inline uint texture(float u, float v){
+	int u1 = u*(TEST_TEXTURE_WIDTH);
+	int v1 = v*(TEST_TEXTURE_HEIGHT);
 	uchar val = test_texture0[u1*TEST_TEXTURE_WIDTH+v1];
 	return RGBA(val, val, val, 255);
 }
@@ -180,6 +180,7 @@ inline void remove(triangle* buffer, byte& count, byte& temp_count, byte& i){
 	return;
 }
 
+//TODO  uv Koordinaten anpassen (Können vllt direkt über den t Wert in der ray_plane_intersection Funktion bestimmt werden?)
 inline void clip_plane(plane& p, triangle* buffer, byte& count){
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
@@ -324,9 +325,6 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     		buffer[j].point[1].x = pt2.x*(cam.focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam.focal_length/pt2.z);
     		buffer[j].point[2].x = pt3.x*(cam.focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam.focal_length/pt3.z);
     		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
-    		//TODO Entferne
-    		if(count > 1) buffer[j].color = color_picker(j);
-    		else buffer[j].color = tri.color;
     		draw_triangle(buffer[j]);
     	}
     }

@@ -31,8 +31,8 @@ struct fvec3{
 
 struct triangle{
 	fvec3 point[3];
-	uint color;
-	fvec2 uv[2];
+//	uint color;
+	fvec2 uv[3];
 };
 
 //TODO Könnte besser sein setter und getter Funktionen für maus und tastatur zu schreiben
@@ -90,8 +90,8 @@ struct PerfAnalyzer{
 }; static PerfAnalyzer perfAnalyzer;
 
 inline void create_cube(triangle* tri, unsigned int& count, float x, float y, float z, float dx, float dy, float dz){
-	tri[count].point[0].x = x;
-	tri[count].point[0].y = y;
+	tri[count].point[0].x = x+dx;
+	tri[count].point[0].y = y+dy;
 	tri[count].point[0].z = z;
 	tri[count].point[1].x = x+dx;
 	tri[count].point[1].y = y;
@@ -99,16 +99,18 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count].point[2].x = x;
 	tri[count].point[2].y = y+dy;
 	tri[count].point[2].z = z;
+	tri[count].uv[0] = {0, 0};
 
-	tri[count+1].point[0].x = x+dx;
-	tri[count+1].point[0].y = y+dy;
+	tri[count+1].point[0].x = x;
+	tri[count+1].point[0].y = y;
 	tri[count+1].point[0].z = z;
-	tri[count+1].point[1].x = x;
-	tri[count+1].point[1].y = y+dy;
+	tri[count+1].point[1].x = x+dx;
+	tri[count+1].point[1].y = y;
 	tri[count+1].point[1].z = z;
-	tri[count+1].point[2].x = x+dx;
-	tri[count+1].point[2].y = y;
+	tri[count+1].point[2].x = x;
+	tri[count+1].point[2].y = y+dy;
 	tri[count+1].point[2].z = z;
+	tri[count+1].uv[0] = {1, 1};
 
 	tri[count+2].point[0].x = x;
 	tri[count+2].point[0].y = y;
