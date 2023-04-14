@@ -33,8 +33,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-//	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
+//	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
+	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
 
 	while(running){
 		getMessages(window);
@@ -43,9 +43,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 		rasterize(triangles, triangle_count, cam);
 
-		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(255, 255, 255, 255));
-		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(255, 255, 255, 255));
-		draw_int(5, 105/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(2), RGBA(255, 255, 255, 255));
+		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
+		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
+		draw_int(5, 105/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
 		draw(window);
 	}
 
