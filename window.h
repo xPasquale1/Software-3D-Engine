@@ -101,7 +101,9 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
 inline uint texture(float u, float v){
 	int u1 = u*(TEST_TEXTURE_WIDTH);
 	int v1 = v*(TEST_TEXTURE_HEIGHT);
-	uchar val = test_texture1[u1*TEST_TEXTURE_WIDTH+v1];
+	int idx = u1*TEST_TEXTURE_WIDTH+v1;
+	if(idx < 0 || idx >= TEST_TEXTURE_WIDTH*TEST_TEXTURE_HEIGHT) return 0;
+	uchar val = test_texture1[idx];
 	return RGBA(val, val, val, 255);
 }
 
@@ -131,13 +133,12 @@ inline void draw_triangle(triangle& tri){
 				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
 				//TODO depth buffer endlich eine range geben damit eine gute Genauigkeit erfasst werden kann
-				float depth = w*pt0.z*1000 + u*pt1.z*1000 + v*pt2.z*1000;
+				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
-					float Z = 1./(w*1./pt0.z + u*1./pt1.z + v*1./pt2.z);
 					float s = (w*tri.uv[0].x/tri.point[0].z + u*tri.uv[1].x/tri.point[1].z + v*tri.uv[2].x/tri.point[2].z);
 					float t = (w*tri.uv[0].y/tri.point[0].z + u*tri.uv[1].y/tri.point[1].z + v*tri.uv[2].y/tri.point[2].z);
-					s *= Z; t *= Z;
+					s *= depth; t *= depth;
 					pixels[idx] = texture(s, t);
 				}
 			}

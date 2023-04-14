@@ -125,6 +125,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+2].point[2].x = x;
 	tri[count+2].point[2].y = y;
 	tri[count+2].point[2].z = z+dz;
+	tri[count+2].uv[0] = {0, 1};
+	tri[count+2].uv[1] = {1, 1};
+	tri[count+2].uv[2] = {0, 0};
 
 	tri[count+3].point[0].x = x;
 	tri[count+3].point[0].y = y+dy;
@@ -135,6 +138,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+3].point[2].x = x;
 	tri[count+3].point[2].y = y+dy;
 	tri[count+3].point[2].z = z;
+	tri[count+3].uv[0] = {1, 0};
+	tri[count+3].uv[1] = {0, 0};
+	tri[count+3].uv[2] = {1, 1};
 
 	tri[count+4].point[0].x = x+dx;
 	tri[count+4].point[0].y = y;
@@ -145,6 +151,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+4].point[2].x = x+dx;
 	tri[count+4].point[2].y = y;
 	tri[count+4].point[2].z = z+dz;
+	tri[count+4].uv[0] = {0, 1};
+	tri[count+4].uv[1] = {1, 1};
+	tri[count+4].uv[2] = {0, 0};
 
 	tri[count+5].point[0].x = x+dx;
 	tri[count+5].point[0].y = y+dy;
@@ -155,6 +164,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+5].point[2].x = x+dx;
 	tri[count+5].point[2].y = y+dy;
 	tri[count+5].point[2].z = z;
+	tri[count+5].uv[0] = {1, 0};
+	tri[count+5].uv[1] = {0, 0};
+	tri[count+5].uv[2] = {1, 1};
 
 	tri[count+6].point[0].x = x;
 	tri[count+6].point[0].y = y;
@@ -165,6 +177,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+6].point[2].x = x+dx;
 	tri[count+6].point[2].y = y;
 	tri[count+6].point[2].z = z+dz;
+	tri[count+6].uv[0] = {0, 0};
+	tri[count+6].uv[1] = {1, 0};
+	tri[count+6].uv[2] = {0, 1};
 
 	tri[count+7].point[0].x = x+dx;
 	tri[count+7].point[0].y = y+dy;
@@ -175,6 +190,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+7].point[2].x = x+dx;
 	tri[count+7].point[2].y = y;
 	tri[count+7].point[2].z = z+dz;
+	tri[count+7].uv[0] = {1, 1};
+	tri[count+7].uv[1] = {1, 0};
+	tri[count+7].uv[2] = {0, 1};
 
 	tri[count+8].point[0].x = x;
 	tri[count+8].point[0].y = y+dy;
@@ -185,6 +203,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+8].point[2].x = x;
 	tri[count+8].point[2].y = y+dy;
 	tri[count+8].point[2].z = z+dz;
+	tri[count+8].uv[0] = {0, 0};
+	tri[count+8].uv[1] = {1, 0};
+	tri[count+8].uv[2] = {0, 1};
 
 	tri[count+9].point[0].x = x+dx;
 	tri[count+9].point[0].y = y+dy;
@@ -195,6 +216,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+9].point[2].x = x+dx;
 	tri[count+9].point[2].y = y+dy;
 	tri[count+9].point[2].z = z;
+	tri[count+9].uv[0] = {1, 1};
+	tri[count+9].uv[1] = {0, 1};
+	tri[count+9].uv[2] = {1, 0};
 
 	tri[count+10].point[0].x = x;
 	tri[count+10].point[0].y = y;
@@ -205,6 +229,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+10].point[2].x = x;
 	tri[count+10].point[2].y = y;
 	tri[count+10].point[2].z = z+dz;
+	tri[count+10].uv[0] = {0, 0};
+	tri[count+10].uv[1] = {1, 0};
+	tri[count+10].uv[2] = {0, 1};
 
 	tri[count+11].point[0].x = x+dx;
 	tri[count+11].point[0].y = y;
@@ -215,6 +242,9 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	tri[count+11].point[2].x = x+dx;
 	tri[count+11].point[2].y = y;
 	tri[count+11].point[2].z = z;
+	tri[count+11].uv[0] = {1, 1};
+	tri[count+11].uv[1] = {0, 1};
+	tri[count+11].uv[2] = {1, 0};
 	count += 12;
 	return;
 }
