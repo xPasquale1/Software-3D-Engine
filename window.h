@@ -101,7 +101,7 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
 inline uint texture(float u, float v){
 	int u1 = u*(TEST_TEXTURE_WIDTH);
 	int v1 = v*(TEST_TEXTURE_HEIGHT);
-	uchar val = test_texture0[u1*TEST_TEXTURE_WIDTH+v1];
+	uchar val = test_texture1[u1*TEST_TEXTURE_WIDTH+v1];
 	return RGBA(val, val, val, 255);
 }
 
@@ -119,17 +119,11 @@ inline void draw_triangle(triangle& tri){
 
 	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
-
-	float pt12z = pt1.z*pt2.z;
-	float pt01z = pt1.z*pt0.z;
-	float pt02z = pt2.z*pt0.z;
-	float dpt12z = pt0.z-pt1.z;
-	float dpt02z = pt0.z-pt2.z;
+	float div = cross(vs1, vs2);
 
 	for(uint y = ymin; y <= ymax; y++){
 		for(uint x = xmin; x <= xmax; x++){
 			fvec2 q = {x - pt0.x, y - pt0.y};
-			float div = cross(vs1, vs2);
 			//w -> pt0, u -> pt1, v -> pt2
 			float u = cross(q, vs2)/div;
 			float v = cross(vs1, q)/div;
@@ -140,11 +134,11 @@ inline void draw_triangle(triangle& tri){
 				float depth = w*pt0.z*1000 + u*pt1.z*1000 + v*pt2.z*1000;
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
-//					pixels[idx] = RGBA(255*w, 255*u, 255*v, 255);
-					float div2 = pt12z+pt2.z*u*dpt12z+pt1.z*v*dpt02z;
-					float a = (pt02z*u)/div2;
-					float b = (pt01z*v)/div2;
-					pixels[idx] = texture(a, b);
+					float Z = 1./(w*1./pt0.z + u*1./pt1.z + v*1./pt2.z);
+					float s = (w*tri.uv[0].x/tri.point[0].z + u*tri.uv[1].x/tri.point[1].z + v*tri.uv[2].x/tri.point[2].z);
+					float t = (w*tri.uv[0].y/tri.point[0].z + u*tri.uv[1].y/tri.point[1].z + v*tri.uv[2].y/tri.point[2].z);
+					s *= Z; t *= Z;
+					pixels[idx] = texture(s, t);
 				}
 			}
 		}
