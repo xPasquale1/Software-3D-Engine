@@ -33,6 +33,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
+	default_texture = load_texture("textures/color.tex");
+
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
 	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
 
@@ -53,6 +55,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	delete[] pixels;
 	delete[] depth_buffer;
 	delete[] triangles;
+	delete[] default_texture;
 	return 0;
 }
 

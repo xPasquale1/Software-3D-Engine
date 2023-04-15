@@ -98,12 +98,11 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
     }
 }
 
-inline uint texture(float u, float v){
-	int u1 = u*(TEST_TEXTURE_WIDTH);
-	int v1 = v*(TEST_TEXTURE_HEIGHT);
-	int idx = u1*TEST_TEXTURE_WIDTH+v1;
-	uchar val = test_texture0[idx];
-	return RGBA(val, val, val, 255);
+inline uint texture(uint* texture, float u, float v){
+	int u1 = u*texture[0];
+	int v1 = v*texture[1];
+	int idx = u1*texture[0]+v1+2;
+	return texture[idx];
 }
 
 inline void draw_triangle(triangle& tri){
@@ -138,7 +137,7 @@ inline void draw_triangle(triangle& tri){
 					float s = (w*tri.uv[0].x/tri.point[0].z + u*tri.uv[1].x/tri.point[1].z + v*tri.uv[2].x/tri.point[2].z);
 					float t = (w*tri.uv[0].y/tri.point[0].z + u*tri.uv[1].y/tri.point[1].z + v*tri.uv[2].y/tri.point[2].z);
 					s *= depth; t *= depth;
-					pixels[idx] = texture(s, t);
+					pixels[idx] = texture(default_texture, s, t);
 				}
 			}
 		}
