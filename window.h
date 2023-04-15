@@ -241,6 +241,10 @@ inline byte clipping(triangle* buffer){
 	byte count = 1;
 	float aspect_ratio = window_width/window_height;
 
+	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
+	normalize(pz.normal);
+	clip_plane(pz, buffer, count);
+
 	plane px = {}; px.normal = {XMIN/aspect_ratio, 0, 1};
 	normalize(px.normal);
 	clip_plane(px, buffer, count);
@@ -256,10 +260,6 @@ inline byte clipping(triangle* buffer){
 	plane pny = {}; pny.normal = {0, YMAX, 1};
 	normalize(pny.normal);
 	clip_plane(pny, buffer, count);
-
-	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
-	normalize(pz.normal);
-	clip_plane(pz, buffer, count);
 
 	return count;
 }

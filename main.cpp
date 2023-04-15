@@ -14,9 +14,9 @@ static camera cam = {1., {}, {}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
-#define SPEED 0.1
+#define SPEED 0.05
 
-void update();
+void update(float dt);
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -38,7 +38,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	while(running){
 		getMessages(window);
-		update();
+		update(perfAnalyzer.get_avg_data(0));
 		clear_window();
 
 		rasterize(triangles, triangle_count, cam);
@@ -56,30 +56,30 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	return 0;
 }
 
-void update(){
+void update(float dt){
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	if(W(keyboard)){
-		cam.pos.x -= sin_rotx*SPEED;
-		cam.pos.z += cos_rotx*SPEED;
+		cam.pos.x -= sin_rotx*SPEED*dt;
+		cam.pos.z += cos_rotx*SPEED*dt;
 	}
 	if(S(keyboard)){
-		cam.pos.x += sin_rotx*SPEED;
-		cam.pos.z -= cos_rotx*SPEED;
+		cam.pos.x += sin_rotx*SPEED*dt;
+		cam.pos.z -= cos_rotx*SPEED*dt;
 	}
 	if(D(keyboard)){
-		cam.pos.x += cos_rotx*SPEED;
-		cam.pos.z += sin_rotx*SPEED;
+		cam.pos.x += cos_rotx*SPEED*dt;
+		cam.pos.z += sin_rotx*SPEED*dt;
 	}
 	if(A(keyboard)){
-		cam.pos.x -= cos_rotx*SPEED;
-		cam.pos.z -= sin_rotx*SPEED;
+		cam.pos.x -= cos_rotx*SPEED*dt;
+		cam.pos.z -= sin_rotx*SPEED*dt;
 	}
 	if(SPACE(keyboard)){
-		cam.pos.y -= SPEED;
+		cam.pos.y -= SPEED*dt;
 	}
 	if(SHIFT(keyboard)){
-		cam.pos.y += SPEED;
+		cam.pos.y += SPEED*dt;
 	}
 }
 
@@ -115,9 +115,9 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 		GetCursorPos(&pos);
 		mouse.pos.x = pos.x;
 		mouse.pos.y = pos.y;
-		cam.rot.x -= ((float)pos.x-300) * 0.001;
-		cam.rot.y += ((float)pos.y-300) * 0.001;
-		SetCursorPos(300, 300);
+		cam.rot.x -= ((float)pos.x-500) * 0.001;
+		cam.rot.y += ((float)pos.y-500) * 0.001;
+		SetCursorPos(500, 500);
 		return 0L;
 	}
 	case WM_LBUTTONDOWN:{

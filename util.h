@@ -65,19 +65,19 @@ inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);
 
 #define PERFORMANCE_ANALYZER
 struct PerfAnalyzer{
-	//Indexe: 0 rasterizer, 1 drawing
-	float data[16] = {};
+	//Indexe: 0 rasterizer, 1 drawing, 2 ungenutzt
+	float data[24] = {};
 	uchar counter[2] = {};
-	std::chrono::system_clock::time_point tp[2];
-	void start_timer(uchar idx){tp[idx] = std::chrono::system_clock::now();}
-	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();}
+	std::chrono::high_resolution_clock::time_point tp[2];
+	void start_timer(uchar idx){tp[idx] = std::chrono::high_resolution_clock::now();}
+	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();}
 	void record_data(uchar idx){
-		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
+		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();
 		data[counter[idx]/32+idx*8] = ms;
 		counter[idx] += 32;
 	}
 	void record_data_no_inc(uchar idx){
-		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::system_clock::now()-tp[idx]).count();
+		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();
 		data[counter[idx]/32+idx*8] += ms;
 	}
 	float get_avg_data(uchar idx){
@@ -89,7 +89,7 @@ struct PerfAnalyzer{
 	}
 }; static PerfAnalyzer perfAnalyzer;
 
-inline void create_cube(triangle* tri, unsigned int& count, float x, float y, float z, float dx, float dy, float dz){
+inline void create_cube(triangle* tri, uint& count, float x, float y, float z, float dx, float dy, float dz){
 	tri[count].point[0].x = x+dx;
 	tri[count].point[0].y = y+dy;
 	tri[count].point[0].z = z;
