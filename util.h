@@ -249,19 +249,21 @@ inline void create_cube(triangle* tri, unsigned int& count, float x, float y, fl
 	return;
 }
 
-void read_obj(const char* filename, triangle* storage, unsigned int* count, float x, float y, float z){
+void read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
-	fvec3* points = new(std::nothrow) fvec3[18000];	//TODO std::list, std::vector oder so
-	if(!points){
+	fvec3* points = new(std::nothrow) fvec3[18000];	//TODO dynamischer Kontainer
+	fvec2* uvs = new(std::nothrow) fvec2[18000]; 	//TODO dynamischer Kontainer
+	if(!points || !uvs){
 		std::cerr << "Konnte keinen Speicher für die Punkte in read_obj allokieren!" << std::endl;
 		return;
 	}
-	unsigned int current_count = *count;
-	unsigned int p_count = 0;
+	uint current_count = *count;
+	uint p_count = 0;
+	uint uv_count = 0;
 //	unsigned int n_count = 0;
-	unsigned int tri_count = 0;
+	uint tri_count = 0;
 	while(file >> word){	//Lese Datei Wort für Wort
 		if(word[0] == 'o' && word.size() == 1){
 			file >> word;
@@ -285,38 +287,80 @@ void read_obj(const char* filename, triangle* storage, unsigned int* count, floa
 //			points[n_count].normal.z = std::atof(word.c_str());
 //			++n_count;
 //		}
+		if(word[0] == 'v' && word[1] == 't' && word.size() == 2){
+			file >> word;
+			uvs[uv_count].x = std::atof(word.c_str());
+			file >> word;
+			uvs[uv_count].y = std::atof(word.c_str());
+			++uv_count;
+		}
 		if(word[0] == 'f' && word.size() == 1){
-			//Lese nur die Eckpunkte TODO Flächengröße bestimmen
-			unsigned int order[4];
-			unsigned int c = 0;
+			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/texture koordinaten möglich...
+			uint pt_order[4];
+			uint uv_order[4];
+			uint c = 0;
+			uint c1 = 0;
 			std::string val;
 
+			//Lese Punkt/Texture Koordinate
 			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
 			for(size_t i=0; i < word.size(); ++i){
 				if(word[i] >= '0' && word[i] <= '9') ++c;
 				else break;
 			} val.clear();
-			for(unsigned int i=0; i < c; ++i){
+			for(uint i=0; i < c; ++i){
 				val += word[i];
-			} order[0] = std::atoi(val.c_str())-1;
+			} pt_order[0] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[0] = std::atoi(val.c_str())-1;
 
+			//Lese Punkt/Texture Koordinate
 			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
 			for(size_t i=0; i < word.size(); ++i){
 				if(word[i] >= '0' && word[i] <= '9') ++c;
 				else break;
 			} val.clear();
-			for(unsigned int i=0; i < c; ++i){
+			for(uint i=0; i < c; ++i){
 				val += word[i];
-			} order[1] = std::atoi(val.c_str())-1;
+			} pt_order[1] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[1] = std::atoi(val.c_str())-1;
 
+			//Lese Punkt/Texture Koordinate
 			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
 			for(size_t i=0; i < word.size(); ++i){
 				if(word[i] >= '0' && word[i] <= '9') ++c;
 				else break;
 			} val.clear();
-			for(unsigned int i=0; i < c; ++i){
+			for(uint i=0; i < c; ++i){
 				val += word[i];
-			} order[2] = std::atoi(val.c_str())-1;
+			} pt_order[2] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[2] = std::atoi(val.c_str())-1;
 
 			auto read_pos = file.tellg();
 			file >> word; c = 0; bool quad = true;
@@ -325,25 +369,41 @@ void read_obj(const char* filename, triangle* storage, unsigned int* count, floa
 				file.seekg(read_pos, std::ios::beg);
 			}
 
-			storage[tri_count+current_count].point[0] = points[order[0]];
-			storage[tri_count+current_count].point[1] = points[order[1]];
-			storage[tri_count+current_count].point[2] = points[order[2]];
+			storage[tri_count+current_count].point[0] = points[pt_order[0]];
+			storage[tri_count+current_count].point[1] = points[pt_order[1]];
+			storage[tri_count+current_count].point[2] = points[pt_order[2]];
+			storage[tri_count+current_count].uv[0] = uvs[uv_order[0]];
+			storage[tri_count+current_count].uv[1] = uvs[uv_order[1]];
+			storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
 //			storage[tri_count+current_count].point[0].color = points[order[0]].normal;
 //			storage[tri_count+current_count].point[1].color = points[order[1]].normal;
 //			storage[tri_count+current_count].point[2].color = points[order[2]].normal;
 			++tri_count;
 
 			if(quad){
+				//Suche alle Zahlen die den Punkt beschreiben
 				for(size_t i=0; i < word.size(); ++i){
 					if(word[i] >= '0' && word[i] <= '9') ++c;
 					else break;
 				} val.clear();
-				for(unsigned int i=0; i < c; ++i){
+				for(uint i=0; i < c; ++i){
 					val += word[i];
-				} order[3] = std::atoi(val.c_str())-1;
-				storage[tri_count+current_count].point[0] = points[order[3]];
-				storage[tri_count+current_count].point[1] = points[order[0]];
-				storage[tri_count+current_count].point[2] = points[order[2]];
+				} pt_order[3] = std::atoi(val.c_str())-1;
+				//Suche alle Zahlen die die Texturkoordinaten bestimmen
+				c1 = c+1; c = 0;
+				for(size_t i=c1; i < word.size(); ++i){
+					if(word[i] >= '0' && word[i] <= '9') ++c;
+					else break;
+				} val.clear();
+				for(uint i=c1; i < c+c1; ++i){
+					val += word[i];
+				} uv_order[3] = std::atoi(val.c_str())-1;
+				storage[tri_count+current_count].point[0] = points[pt_order[3]];
+				storage[tri_count+current_count].point[1] = points[pt_order[0]];
+				storage[tri_count+current_count].point[2] = points[pt_order[2]];
+				storage[tri_count+current_count].uv[0] = uvs[uv_order[3]];
+				storage[tri_count+current_count].uv[1] = uvs[uv_order[0]];
+				storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
 //				storage[tri_count+current_count].point[0].color = points[order[3]].normal;
 //				storage[tri_count+current_count].point[1].color = points[order[0]].normal;
 //				storage[tri_count+current_count].point[2].color = points[order[2]].normal;

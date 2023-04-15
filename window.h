@@ -102,7 +102,7 @@ inline uint texture(float u, float v){
 	int u1 = u*(TEST_TEXTURE_WIDTH);
 	int v1 = v*(TEST_TEXTURE_HEIGHT);
 	int idx = u1*TEST_TEXTURE_WIDTH+v1;
-	uchar val = test_texture1[idx];
+	uchar val = test_texture0[idx];
 	return RGBA(val, val, val, 255);
 }
 
@@ -172,7 +172,7 @@ inline bool ray_plane_intersection(plane& p, fvec3& dir, fvec3& pt, fvec3& cp){
 	return false;
 }
 
-inline void remove(triangle* buffer, byte& count, byte& temp_count, byte& i){
+inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count, byte& temp_count, byte& i){
 	buffer[i] = buffer[temp_count-1];
 	--i;
 	--temp_count;
@@ -180,7 +180,7 @@ inline void remove(triangle* buffer, byte& count, byte& temp_count, byte& i){
 	return;
 }
 
-//TODO  uv Koordinaten anpassen (Können vllt direkt über den t Wert in der ray_plane_intersection Funktion bestimmt werden?)
+//TODO uv Koordinaten anpassen (Können vllt direkt über den t Wert in der ray_plane_intersection Funktion bestimmt werden?)
 inline void clip_plane(plane& p, triangle* buffer, byte& count){
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
@@ -198,7 +198,7 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 				remove(buffer, count, temp_count, i);
 				break;
 			}
-			case 1:{	//Das aktuelle Dreieck kann grad geändert werden
+			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				fvec3 dir = in_v[0];
 				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
 				ray_plane_intersection(p, dir, in_v[0], buffer[i].point[1]);
@@ -232,10 +232,10 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 	return;
 }
 
-#define XMIN -1.01f
-#define XMAX 1.01f
-#define YMIN -1.01f
-#define YMAX 1.01f
+#define XMIN -1.001f
+#define XMAX 1.001f
+#define YMIN -1.001f
+#define YMAX 1.001f
 
 inline byte clipping(triangle* buffer){
 	byte count = 1;
