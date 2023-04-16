@@ -35,7 +35,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/color.tex");
+	default_texture = load_texture("textures/checkerboard.tex");
 	if(!default_texture){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
@@ -48,7 +48,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	while(running){
 		getMessages(window);
-		update(perfAnalyzer.get_avg_data(0));
+		update(perfAnalyzer.get_avg_data(0)+1);
 		perfAnalyzer.reset();
 		clear_window();
 

@@ -292,6 +292,7 @@ inline constexpr uint color_picker(uint i){
 	return RGBA(120, 120, 120, 255);
 }
 
+//TODO Clippe Dreiecke die nicht zur Kamera zeigen (aka endlich normalen adden...)
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam){
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
