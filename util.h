@@ -7,6 +7,8 @@
 typedef unsigned int uint;
 typedef unsigned char uchar;
 
+#define PI 3.14159265359
+
 struct ivec2{
 	int x;
 	int y;
@@ -62,6 +64,9 @@ inline constexpr void normalize(fvec3& vec){
 inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
+
+inline constexpr float deg2rad(float deg){return deg*PI/180;}
+inline constexpr float rad2deg(float rad){return rad*180/PI;}
 
 #define PERFORMANCE_ANALYZER
 struct PerfAnalyzer{

@@ -121,12 +121,19 @@ inline void draw_triangle(triangle& tri){
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
 	float div = cross(vs1, vs2);
 
-	for(uint y = ymin; y <= ymax; y++){
-		for(uint x = xmin; x <= xmax; x++){
-			fvec2 q = {x - pt0.x, y - pt0.y};
+	//Berechne uv/z vor
+	float uv0x = tri.uv[0].x/tri.point[0].z; float uv1x = tri.uv[1].x/tri.point[1].z; float uv2x = tri.uv[2].x/tri.point[2].z;
+	float uv0y = tri.uv[0].y/tri.point[0].z; float uv1y = tri.uv[1].y/tri.point[1].z; float uv2y = tri.uv[2].y/tri.point[2].z;
+
+	//TODO u und v kann man bestimmt auch inkrementell für jedes y ändern...
+	for(uint y = ymin; y <= ymax; ++y){
+		fvec2 q = {xmin - pt0.x, y - pt0.y};
+		float u = cross(q, vs2)/div;
+		float v = cross(vs1, q)/div;
+		float delta_u = (pt2.y - pt0.y)/div;
+		float delta_v = (pt1.y - pt0.y)/div;
+		for(uint x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
-			float u = cross(q, vs2)/div;
-			float v = cross(vs1, q)/div;
 			if((u >= 0)&&(v >= 0)&&(u + v < 1)){//Eigentlich sollte es <= 1 sein aber floats sind leider nicht perfekt...
 				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
@@ -134,21 +141,22 @@ inline void draw_triangle(triangle& tri){
 				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
-					float s = (w*tri.uv[0].x/tri.point[0].z + u*tri.uv[1].x/tri.point[1].z + v*tri.uv[2].x/tri.point[2].z);
-					float t = (w*tri.uv[0].y/tri.point[0].z + u*tri.uv[1].y/tri.point[1].z + v*tri.uv[2].y/tri.point[2].z);
+					float s = (w*uv0x + u*uv1x + v*uv2x);
+					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
 					pixels[idx] = texture(default_texture, s, t);
 				}
 			}
+	        q.x += 1; u += delta_u; v -= delta_v;
 		}
 	}
 #else
 	fvec2 l1 = {pt0.x, pt0.y};
 	fvec2 l2 = {pt1.x, pt1.y};
 	fvec2 l3 = {pt2.x, pt2.y};
-	draw_line(l1, l2, tri.color);
-	draw_line(l1, l3, tri.color);
-	draw_line(l2, l3, tri.color);
+	draw_line(l1, l2, RGBA(255, 255, 255, 255));
+	draw_line(l1, l3, RGBA(255, 255, 255, 255));
+	draw_line(l2, l3, RGBA(255, 255, 255, 255));
 #endif
 }
 

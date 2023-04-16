@@ -10,7 +10,7 @@
 //vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
 
 static bool running = true;
-static camera cam = {1., {}, {}};
+static camera cam = {1., {0, -30, 0}, {0, deg2rad(90)}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
@@ -22,7 +22,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	HWND window = getWindow(hInstance, "Window", WindowProc);
 	if(!window){
 		std::cerr << "Konnte Fenster nicht erstellen!" << std::endl;
-		exit(-2);
+		return -1;
 	}
 
 	//TODO Ein Memory-Managment-System implementieren
@@ -33,10 +33,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/color.tex");
+	default_texture = load_texture("textures/checkerboard.tex");
+	if(!default_texture){
+		std::cerr << "Konnte default texture nicht laden!" << std::endl;
+		return -1;
+	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
 	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
+
+	SetCursorPos(500, 500);
 
 	while(running){
 		getMessages(window);
