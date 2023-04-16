@@ -125,13 +125,13 @@ inline void draw_triangle(triangle& tri){
 	float uv0x = tri.uv[0].x/tri.point[0].z; float uv1x = tri.uv[1].x/tri.point[1].z; float uv2x = tri.uv[2].x/tri.point[2].z;
 	float uv0y = tri.uv[0].y/tri.point[0].z; float uv1y = tri.uv[1].y/tri.point[1].z; float uv2y = tri.uv[2].y/tri.point[2].z;
 
-	//TODO u und v kann man bestimmt auch inkrementell für jedes y ändern...
+	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
+	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
+	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
+	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
+	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
 	for(uint y = ymin; y <= ymax; ++y){
-		fvec2 q = {xmin - pt0.x, y - pt0.y};
-		float u = cross(q, vs2)/div;
-		float v = cross(vs1, q)/div;
-		float delta_u = (pt2.y - pt0.y)/div;
-		float delta_v = (pt1.y - pt0.y)/div;
+		float tmp_u = u; float tmp_v = v;
 		for(uint x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
 			if((u >= 0)&&(v >= 0)&&(u + v < 1)){//Eigentlich sollte es <= 1 sein aber floats sind leider nicht perfekt...
@@ -147,8 +147,10 @@ inline void draw_triangle(triangle& tri){
 					pixels[idx] = texture(default_texture, s, t);
 				}
 			}
-	        q.x += 1; u += delta_u; v -= delta_v;
+	        u += deltaX_u; v -= deltaX_v;
 		}
+		u = tmp_u; v = tmp_v;
+		u -= deltaY_u; v += deltaY_v;
 	}
 #else
 	fvec2 l1 = {pt0.x, pt0.y};

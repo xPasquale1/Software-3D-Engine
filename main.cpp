@@ -26,21 +26,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 	//TODO Ein Memory-Managment-System implementieren
-	triangle* triangles = new(std::nothrow) triangle[18000];
+	triangle* triangles = new(std::nothrow) triangle[40000];
 	if(!triangles){
 		std::cerr << "Konnte keinen Speicher für die statischen Dreiecke allokieren!" << std::endl;
 		return -1;
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/checkerboard.tex");
+	default_texture = load_texture("textures/icon.tex");
 	if(!default_texture){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	read_obj("objects/terrain1.obj", triangles, &triangle_count, 0, 20, 0);
+	read_obj("objects/terrain2.obj", triangles, &triangle_count, 0, 20, 0);
 
 	SetCursorPos(500, 500);
 
