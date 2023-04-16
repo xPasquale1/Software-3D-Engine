@@ -15,6 +15,7 @@ static camera cam = {1., {0, -30, 0}, {0, deg2rad(90)}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
+//#define THREADING
 #define SPEED 0.05
 
 void update(float dt);
@@ -48,22 +49,28 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	while(running){
 		getMessages(window);
 		update(perfAnalyzer.get_avg_data(0));
+		perfAnalyzer.reset();
 		clear_window();
 
-//		uint count4 = triangle_count/4;
-//		std::thread t1(rasterize, triangles, 0, count4, &cam);
-//		std::thread t2(rasterize, triangles, count4, 2*count4, &cam);
-//		std::thread t3(rasterize, triangles, 2*count4, 3*count4, &cam);
-//		std::thread t4(rasterize, triangles, 3*count4, triangle_count, &cam);
+#ifdef THREADING
+		uint count4 = triangle_count/4;
+		std::thread t1(rasterize, triangles, 0, count4, &cam);
+		std::thread t2(rasterize, triangles, count4, 2*count4, &cam);
+		std::thread t3(rasterize, triangles, 2*count4, 3*count4, &cam);
+		std::thread t4(rasterize, triangles, 3*count4, triangle_count, &cam);
+		t1.join();
+		t2.join();
+		t3.join();
+		t4.join();
+#else
 		rasterize(triangles, 0, triangle_count, &cam);
-//		t1.join();
-//		t2.join();
-//		t3.join();
-//		t4.join();
+#endif
 
 		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
 		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
 		draw_int(5, 105/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
+		draw_int(5, 155/pixel_size, 8/pixel_size, perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
+		draw_int(5, 205/pixel_size, 8/pixel_size, perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
 		draw(window);
 	}
 

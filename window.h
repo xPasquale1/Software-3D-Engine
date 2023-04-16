@@ -294,6 +294,7 @@ inline constexpr uint color_picker(uint i){
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam){
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
+	perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
 	float rotm[3][3];
 	float aspect_ratio = window_width/window_height;
@@ -335,6 +336,9 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		buffer[j].point[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
     		draw_triangle(buffer[j]);
+#ifdef PERFORMANCE_ANALYZER
+    		perfAnalyzer.drawn_triangles += 1;
+#endif
     	}
     }
 #ifdef PERFORMANCE_ANALYZER

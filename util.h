@@ -73,9 +73,15 @@ struct PerfAnalyzer{
 	//Indexe: 0 rasterizer, 1 drawing, 2 ungenutzt
 	float data[24] = {};
 	uchar counter[2] = {};
+	uint total_triangles = 0;
+	uint drawn_triangles = 0;
 	std::chrono::high_resolution_clock::time_point tp[2];
 	void start_timer(uchar idx){tp[idx] = std::chrono::high_resolution_clock::now();}
 	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();}
+	void reset(){
+		total_triangles = 0;
+		drawn_triangles = 0;
+	}
 	void record_data(uchar idx){
 		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();
 		data[counter[idx]/32+idx*8] = ms;
