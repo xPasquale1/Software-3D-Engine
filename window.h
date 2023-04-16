@@ -291,16 +291,16 @@ inline constexpr uint color_picker(uint i){
 	return RGBA(120, 120, 120, 255);
 }
 
-inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
+inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam){
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
 #endif
 	float rotm[3][3];
 	float aspect_ratio = window_width/window_height;
-	float sin_rotx = sin(cam.rot.x);
-	float cos_rotx = cos(cam.rot.x);
-	float sin_roty = sin(cam.rot.y);
-	float cos_roty = cos(cam.rot.y);
+	float sin_rotx = sin(cam->rot.x);
+	float cos_rotx = cos(cam->rot.x);
+	float sin_roty = sin(cam->rot.y);
+	float cos_roty = cos(cam->rot.y);
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
@@ -308,13 +308,13 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
 #ifdef STATS
     std::cout << "Dreiecke vor Löschen: " << w.count << std::endl;
 #endif
-    for(uint i=0; i < triangle_count; ++i){
+    for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
     	for(int j=0; j < 3; ++j){
     		float d[3];
-    		d[0] = (tri.point[j].x-cam.pos.x);
-    		d[1] = (tri.point[j].y-cam.pos.y);
-    		d[2] = (tri.point[j].z-cam.pos.z);
+    		d[0] = (tri.point[j].x-cam->pos.x);
+    		d[1] = (tri.point[j].y-cam->pos.y);
+    		d[2] = (tri.point[j].z-cam->pos.z);
     		float v[3]{0};
     	    for (uint a=0; a < 3; a++){
     	        for (uint b=0; b < 3; b++){
@@ -330,9 +330,9 @@ inline void rasterize(triangle* tris, uint triangle_count, camera& cam){
     	byte count = clipping(buffer);
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].point[0]; fvec3 pt2 = buffer[j].point[1]; fvec3 pt3 = buffer[j].point[2];
-    		buffer[j].point[0].x = pt1.x*(cam.focal_length/pt1.z)/aspect_ratio; buffer[j].point[0].y = pt1.y*(cam.focal_length/pt1.z);
-    		buffer[j].point[1].x = pt2.x*(cam.focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam.focal_length/pt2.z);
-    		buffer[j].point[2].x = pt3.x*(cam.focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam.focal_length/pt3.z);
+    		buffer[j].point[0].x = pt1.x*(cam->focal_length/pt1.z)/aspect_ratio; buffer[j].point[0].y = pt1.y*(cam->focal_length/pt1.z);
+    		buffer[j].point[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam->focal_length/pt2.z);
+    		buffer[j].point[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
     		draw_triangle(buffer[j]);
     	}

@@ -1,6 +1,7 @@
 #include <iostream>
 #include <chrono>
 #include <math.h>
+#include <thread>
 #include "window.h"
 #include "font.h"
 
@@ -49,7 +50,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		update(perfAnalyzer.get_avg_data(0));
 		clear_window();
 
-		rasterize(triangles, triangle_count, cam);
+//		uint count4 = triangle_count/4;
+//		std::thread t1(rasterize, triangles, 0, count4, &cam);
+//		std::thread t2(rasterize, triangles, count4, 2*count4, &cam);
+//		std::thread t3(rasterize, triangles, 2*count4, 3*count4, &cam);
+//		std::thread t4(rasterize, triangles, 3*count4, triangle_count, &cam);
+		rasterize(triangles, 0, triangle_count, &cam);
+//		t1.join();
+//		t2.join();
+//		t3.join();
+//		t4.join();
 
 		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
 		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
