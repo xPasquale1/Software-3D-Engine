@@ -138,11 +138,12 @@ inline void draw_triangle(triangle& tri){
 				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
 				//TODO depth buffer endlich eine range geben damit eine gute Genauigkeit erfasst werden kann
-				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
+				float depth = (w*pt0.z*1000 + u*pt1.z*1000 + v*pt2.z*1000);
 				if(depth <= depth_buffer[idx]){
 					depth_buffer[idx] = (uint)depth;
 					float s = (w*uv0x + u*uv1x + v*uv2x);
 					float t = (w*uv0y + u*uv1y + v*uv2y);
+					depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
 					s *= depth; t *= depth;
 					pixels[idx] = texture(default_texture, s, t);
 				}

@@ -41,8 +41,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		return -1;
 	}
 
-//	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	read_obj("objects/terrain2.obj", triangles, &triangle_count, 0, 20, 0);
+	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
+//	read_obj("objects/terrain2.obj", triangles, &triangle_count, 0, 20, 0);
 
 	SetCursorPos(500, 500);
 
