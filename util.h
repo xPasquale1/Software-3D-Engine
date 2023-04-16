@@ -418,6 +418,7 @@ void read_obj(const char* filename, triangle* storage, uint* count, float x, flo
 	}
 	*count += tri_count;
 	delete[] points;
+	delete[] uvs;
 	std::cout << "Punkte gelesen:     " << p_count << std::endl;
 	std::cout << "Dreiecke gelesen:   " << tri_count << std::endl;
 	std::cout << "Dreiecke insgesamt: " << *count << '\n' << std::endl;

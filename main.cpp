@@ -33,7 +33,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/icon.tex");
+	default_texture = load_texture("textures/color.tex");
 	if(!default_texture){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
