@@ -61,6 +61,7 @@ inline constexpr void normalize(fvec3& vec){
 	return;
 }
 
+inline constexpr float dot(fvec3* a, fvec3* b){return (a->x * b->x + a->y * b->y + a->z * b->z);}
 inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
@@ -256,7 +257,8 @@ inline void create_cube(triangle* tri, uint& count, float x, float y, float z, f
 	tri[count+11].uv[0] = {1, 1};
 	tri[count+11].uv[1] = {0, 1};
 	tri[count+11].uv[2] = {1, 0};
-	count += 12;
+	//TODO sollte 12 sein
+	count += 1;
 	return;
 }
 
