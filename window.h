@@ -81,10 +81,8 @@ inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color){
 	}
 }
 
-//TODO Entferne bounds checking wieder
 inline void draw_line(fvec2& start, fvec2& end, uint color){
     uint buffer_width = window_width/pixel_size;
-    uint buffer_height = window_height/pixel_size;
     int dx = end.x-start.x;
     int dy = end.y-start.y;
     int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
@@ -94,9 +92,7 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
     float y = start.y;
 
     for(int i = 0; i <= steps; ++i){
-    	int idx = (int)y*buffer_width+(int)x;
-    	if(idx < 0 || idx > buffer_width*buffer_height) continue;
-        pixels[idx] = color;
+        pixels[(int)y*buffer_width+(int)x] = color;
         x += xinc;
         y += yinc;
     }
@@ -181,27 +177,11 @@ inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2
 	    cp.x = start.x+dir.x*t;
 	    cp.y = start.y+dir.y*t;
 	    cp.z = start.z+dir.z*t;
-	    t = abs(t);
-	    end_uv.x = (end_uv.x-start_uv.x)*t;
-	    end_uv.x = std::clamp(end_uv.x, 0.f, 1.f);
-	    end_uv.y = (end_uv.y-start_uv.y)*t;
-	    end_uv.y = std::clamp(end_uv.y, 0.f, 1.f);
+//	    t = abs(t);
+	    end_uv.x = start_uv.x*(1-t)+end_uv.x*t;
+	    end_uv.y = start_uv.y*(1-t)+end_uv.y*t;
 //	    fvec3 interpolated_value = start_value * (1 - t) + end_value * t;
 	    return true;
-	}
-	return false;
-}
-
-inline bool ray_plane_intersection(plane& p, fvec3& dir, fvec3& pt, fvec3& cp){
-	normalize(dir);
-	float d = dot(dir, p.normal);
-	if(d > 0){
-		fvec3 i = p.pos;
-		i.x -= pt.x; i.y -= pt.y; i.z -= pt.z;
-		float t = dot(i, p.normal)/d;
-		cp = pt; dir.x*=t; dir.y*=t; dir.z*=t;
-		cp.x += dir.x; cp.y += dir.y; cp.z += dir.z;
-		return true;
 	}
 	return false;
 }
@@ -214,7 +194,6 @@ inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count,
 	return;
 }
 
-//TODO uv Koordinaten anpassen
 inline void clip_plane(plane& p, triangle* buffer, byte& count){
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
@@ -244,10 +223,8 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				ray_plane_intersection_new(p, in_v[0], out_v[0], in_uv[0], out_uv[0], buffer[i].point[1]);
 				buffer[i].uv[1] = out_uv[0];
-//				ray_plane_intersection(p, dir, in_v[0], buffer[i].point[1]);
 				ray_plane_intersection_new(p, in_v[0], out_v[1], in_uv[0], out_uv[1], buffer[i].point[2]);
 				buffer[i].uv[2] = out_uv[1];
-//				ray_plane_intersection(p, dir, in_v[0], buffer[i].point[2]);
 				buffer[i].point[0] = in_v[0];
 				buffer[i].uv[0] = in_uv[0];
 				break;
@@ -256,14 +233,22 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 				remove(buffer, count, temp_count, i);
 				fvec3 dir = in_v[0];
 				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
-				ray_plane_intersection(p, dir, in_v[0], buffer[tmp_off].point[2]);
+				fvec2 end_uv_tmp = out_uv[0];
+				ray_plane_intersection_new(p, in_v[0], out_v[0], in_uv[0], out_uv[0], buffer[tmp_off].point[2]);
+				buffer[tmp_off].uv[2] = out_uv[0];
 				buffer[tmp_off].point[0] = in_v[0];
+				buffer[tmp_off].uv[0] = in_uv[0];
 				buffer[tmp_off].point[1] = in_v[1];
+				buffer[tmp_off].uv[1] = in_uv[1];
 				dir = in_v[1];
 				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
-				ray_plane_intersection(p, dir, in_v[1], buffer[tmp_off+1].point[2]);
+				out_uv[0] = end_uv_tmp;
+				ray_plane_intersection_new(p, in_v[1], out_v[0], in_uv[1], out_uv[0], buffer[tmp_off+1].point[2]);
+				buffer[tmp_off+1].uv[2] = out_uv[0];
 				buffer[tmp_off+1].point[0] = buffer[tmp_off].point[2];
+				buffer[tmp_off+1].uv[0] = buffer[tmp_off].uv[2];
 				buffer[tmp_off+1].point[1] = in_v[1];
+				buffer[tmp_off+1].uv[1] = in_uv[1];
 				tmp_off += 2;
 				count += 2;
 				break;
@@ -281,22 +266,21 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 #define YMIN -1.001f
 #define YMAX 1.001f
 
-//TODO alle clipping planes wieder testen
 inline byte clipping(triangle* buffer){
 	byte count = 1;
 	float aspect_ratio = window_width/window_height;
 
-//	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
-//	normalize(pz.normal);
-//	clip_plane(pz, buffer, count);
-//
-//	plane px = {}; px.normal = {XMIN/aspect_ratio, 0, 1};
-//	normalize(px.normal);
-//	clip_plane(px, buffer, count);
-//
-//	plane pnx = {}; pnx.normal = {XMAX/aspect_ratio, 0, 1};
-//	normalize(pnx.normal);
-//	clip_plane(pnx, buffer, count);
+	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
+	normalize(pz.normal);
+	clip_plane(pz, buffer, count);
+
+	plane px = {}; px.normal = {XMIN/aspect_ratio, 0, 1};
+	normalize(px.normal);
+	clip_plane(px, buffer, count);
+
+	plane pnx = {}; pnx.normal = {XMAX/aspect_ratio, 0, 1};
+	normalize(pnx.normal);
+	clip_plane(pnx, buffer, count);
 
 	plane py = {}; py.normal = {0, YMIN, 1};
 	normalize(py.normal);

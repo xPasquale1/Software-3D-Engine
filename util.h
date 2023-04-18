@@ -257,8 +257,7 @@ inline void create_cube(triangle* tri, uint& count, float x, float y, float z, f
 	tri[count+11].uv[0] = {1, 1};
 	tri[count+11].uv[1] = {0, 1};
 	tri[count+11].uv[2] = {1, 0};
-	//TODO sollte 12 sein
-	count += 1;
+	count += 12;
 	return;
 }
 

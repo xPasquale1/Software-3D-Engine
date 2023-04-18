@@ -11,7 +11,7 @@
 //vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
 
 static bool running = true;
-static camera cam = {1., {0, -30, 0}, {0, deg2rad(90)}};
+static camera cam = {1., {0, 0, 0}, {0, 0}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 
