@@ -307,7 +307,7 @@ void read_obj(const char* filename, triangle* storage, uint* count, float x, flo
 			++uv_count;
 		}
 		if(word[0] == 'f' && word.size() == 1){
-			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/texture koordinaten möglich...
+			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/textur koordinaten möglich...
 			uint pt_order[4];
 			uint uv_order[4];
 			uint c = 0;

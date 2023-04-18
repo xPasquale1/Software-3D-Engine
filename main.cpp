@@ -2,23 +2,25 @@
 #include <chrono>
 #include <math.h>
 #include <thread>
+#include <vector>
 #include "window.h"
 #include "font.h"
 
-//TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
-//der rasterizer ausserhalb des pixel arrays
-//TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
-//vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
+/*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
+	der rasterizer ausserhalb des pixel arrays
+	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
+	vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
+*/
 
 static bool running = true;
 static camera cam = {1., {0, 0, 0}, {0, 0}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+void update(float dt);
 
 //#define THREADING
+#define THREADCOUNT 6
 #define SPEED 0.05
-
-void update(float dt);
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -35,14 +37,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/checkerboard.tex");
+	default_texture = load_texture("textures/icon.tex");
 	if(!default_texture){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
 	}
 
 	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-//	read_obj("objects/terrain2.obj", triangles, &triangle_count, 0, 20, 0);
+//	read_obj("objects/box0.obj", triangles, &triangle_count, 0, 20, 0);
 
 	SetCursorPos(500, 500);
 
@@ -53,15 +55,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		clear_window();
 
 #ifdef THREADING
-		uint count4 = triangle_count/4;
-		std::thread t1(rasterize, triangles, 0, count4, &cam);
-		std::thread t2(rasterize, triangles, count4, 2*count4, &cam);
-		std::thread t3(rasterize, triangles, 2*count4, 3*count4, &cam);
-		std::thread t4(rasterize, triangles, 3*count4, triangle_count, &cam);
-		t1.join();
-		t2.join();
-		t3.join();
-		t4.join();
+		uint t_count = triangle_count/THREADCOUNT;
+	    std::vector<std::thread> threads;
+	    for(int i=0; i < THREADCOUNT-1; ++i){
+	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &cam));
+	    }
+	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &cam));
+
+	    for(auto& thread : threads){
+	        thread.join();
+	    }
 #else
 		rasterize(triangles, 0, triangle_count, &cam);
 #endif

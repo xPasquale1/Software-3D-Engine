@@ -8,8 +8,8 @@
 
 //#define WIREFRAME
 
-static uint window_width = 800;
-static uint window_height = 800;
+static uint window_width = 1000;
+static uint window_height = 1000;
 static uint pixel_size = 2;
 static uint* pixels = nullptr;
 static uint* depth_buffer = nullptr;
@@ -174,13 +174,9 @@ inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2
 	if(d != 0){	//TODO meh...
 		fvec3 tmp = {p.pos.x-start.x, p.pos.y-start.y, p.pos.z-start.z};
 	    float t = dot(&tmp, &p.normal)/d;
-	    cp.x = start.x+dir.x*t;
-	    cp.y = start.y+dir.y*t;
-	    cp.z = start.z+dir.z*t;
-//	    t = abs(t);
+	    cp = {start.x+dir.x*t, start.y+dir.y*t, start.z+dir.z*t};
 	    end_uv.x = start_uv.x*(1-t)+end_uv.x*t;
 	    end_uv.y = start_uv.y*(1-t)+end_uv.y*t;
-//	    fvec3 interpolated_value = start_value * (1 - t) + end_value * t;
 	    return true;
 	}
 	return false;
