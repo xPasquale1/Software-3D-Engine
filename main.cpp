@@ -10,6 +10,7 @@
 	der rasterizer ausserhalb des pixel arrays
 	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
+	TODO Bilder müssen um 90° nach rechts gedreht werden damit die uv Koordinaten stimmen...
 */
 
 static bool running = true;
@@ -37,14 +38,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/icon.tex");
+	default_texture = load_texture("textures/cottage_texture.tex");
 	if(!default_texture){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
 	}
 
-	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-//	read_obj("objects/box0.obj", triangles, &triangle_count, 0, 20, 0);
+//	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
+	read_obj("objects/cottage.obj", triangles, &triangle_count, 0, 20, 0);
 
 	SetCursorPos(500, 500);
 
