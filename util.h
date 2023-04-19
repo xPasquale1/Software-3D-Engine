@@ -265,8 +265,8 @@ void read_obj(const char* filename, triangle* storage, uint* count, float x, flo
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
-	fvec3* points = new(std::nothrow) fvec3[24000];	//TODO dynamischer Kontainer
-	fvec2* uvs = new(std::nothrow) fvec2[24000]; 	//TODO dynamischer Kontainer
+	fvec3* points = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
+	fvec2* uvs = new(std::nothrow) fvec2[100000]; 	//TODO dynamischer Kontainer
 	if(!points || !uvs){
 		std::cerr << "Konnte keinen Speicher für die Punkte in read_obj allokieren!" << std::endl;
 		return;
@@ -426,7 +426,8 @@ void read_obj(const char* filename, triangle* storage, uint* count, float x, flo
 	*count += tri_count;
 	delete[] points;
 	delete[] uvs;
-	std::cout << "Punkte gelesen:     " << p_count << std::endl;
-	std::cout << "Dreiecke gelesen:   " << tri_count << std::endl;
-	std::cout << "Dreiecke insgesamt: " << *count << '\n' << std::endl;
+	std::cout << "Punkte gelesen:        " << p_count << std::endl;
+	std::cout << "UV-Koordinaten gelesen:" << uv_count << std::endl;
+	std::cout << "Dreiecke gelesen:      " << tri_count << std::endl;
+	std::cout << "Dreiecke insgesamt:    " << *count << '\n' << std::endl;
 }
