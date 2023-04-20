@@ -170,7 +170,7 @@ struct plane{
 inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2& start_uv, fvec2& end_uv, fvec3& cp)noexcept{
 	fvec3 dir = {end.x-start.x, end.y-start.y, end.z-start.z};
 	float d = dot(p.normal, dir);
-	if(d != 0){	//TODO meh...
+	if(d != 0){
 		fvec3 tmp = {p.pos.x-start.x, p.pos.y-start.y, p.pos.z-start.z};
 	    float t = dot(&tmp, &p.normal)/d;
 	    cp = {start.x+dir.x*t, start.y+dir.y*t, start.z+dir.z*t};

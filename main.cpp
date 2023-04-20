@@ -11,6 +11,14 @@
 	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
 	TODO Bilder müssen um 90° nach rechts gedreht werden damit die uv Koordinaten stimmen...
+	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
+	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
+	da Dreiecke eigentlich nie einzeln eingelesen werden)
+	TODO Dreiecke normalenvektoren zuordnen damit clipping deutlich schneller ist (kann man vllt in einem uint speichern,
+	da Werte nicht größer 1 sind und dann das Dreieck noch in eine übliche Cacheline passen würde)
+	TODO Erste Beleuchtungsmodelle überlegen und implementieren
+	TODO globale und statische variablen mit _ oder so kennzeichnen damit funktionen oder lokale variablen diese nicht
+	überschreiben
 */
 
 static bool running = true;
@@ -20,7 +28,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
 
 //#define THREADING
-#define THREADCOUNT 6
+#define THREADCOUNT 8
 #define SPEED 0.05
 
 int ERR_CODE = SUCCESS;
@@ -32,7 +40,6 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		return -1;
 	}
 
-	//TODO Ein Memory-Managment-System implementieren
 	triangle* triangles = new(std::nothrow) triangle[80000];
 	if(!triangles){
 		std::cerr << "Konnte keinen Speicher für die statischen Dreiecke allokieren!" << std::endl;
@@ -95,28 +102,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 void update(float dt){
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
-	if(W(keyboard)){
-		cam.pos.x -= sin_rotx*SPEED*dt;
-		cam.pos.z += cos_rotx*SPEED*dt;
-	}
-	if(S(keyboard)){
-		cam.pos.x += sin_rotx*SPEED*dt;
-		cam.pos.z -= cos_rotx*SPEED*dt;
-	}
-	if(D(keyboard)){
-		cam.pos.x += cos_rotx*SPEED*dt;
-		cam.pos.z += sin_rotx*SPEED*dt;
-	}
-	if(A(keyboard)){
-		cam.pos.x -= cos_rotx*SPEED*dt;
-		cam.pos.z -= sin_rotx*SPEED*dt;
-	}
-	if(SPACE(keyboard)){
-		cam.pos.y -= SPEED*dt;
-	}
-	if(SHIFT(keyboard)){
-		cam.pos.y += SPEED*dt;
-	}
+	cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
+	cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
+	cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
+	cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
+	cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
+	cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
+	cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
+	cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
+	cam.pos.y -= SPACE(keyboard)*SPEED*dt;
+	cam.pos.y += SHIFT(keyboard)*SPEED*dt;
 }
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){

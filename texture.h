@@ -6,7 +6,8 @@
 
 static uint* default_texture = nullptr;
 
-inline constexpr uint RGBA(uchar, uchar, uchar, uchar);	//meh...
+//TODO globale Variablen sollten mit _ beginnen damit sollte diese lokale umbenennt werden
+inline constexpr uint RGBA(uchar, uchar, uchar, uchar);
 int load_texture(const char* name, uint*& _texture){
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Texture-Datei nicht öffnen!");
