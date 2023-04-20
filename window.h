@@ -33,7 +33,7 @@ HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
 	return hwnd;
 }
 
-inline void getMessages(HWND window){
+inline void getMessages(HWND window)noexcept{
 	MSG msg;
 	while(PeekMessage(&msg, window, 0, 0, PM_REMOVE)){
 		TranslateMessage(&msg);
@@ -41,7 +41,7 @@ inline void getMessages(HWND window){
 	}
 }
 
-inline void clear_window(){
+inline void clear_window()noexcept{
 	uint buffer_width = window_width/pixel_size;
 	uint buffer_height = window_height/pixel_size;
 	for(uint y=0; y < buffer_height; ++y){
@@ -53,7 +53,7 @@ inline void clear_window(){
 	}
 }
 
-inline void draw(HWND window){
+inline void draw(HWND window)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(1);
 #endif
@@ -72,7 +72,7 @@ inline constexpr uchar R(uint color){return uchar(color>>16);}
 inline constexpr uchar G(uint color){return uchar(color>>8);}
 inline constexpr uchar B(uint color){return uchar(color);}
 
-inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color){
+inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color)noexcept{
 	uint buffer_width = window_width/pixel_size;
 	for(uint i=y; i < y+dy; ++i){
 		for(uint j=x; j < x+dx; ++j){
@@ -81,7 +81,7 @@ inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color){
 	}
 }
 
-inline void draw_line(fvec2& start, fvec2& end, uint color){
+inline void draw_line(fvec2& start, fvec2& end, uint color)noexcept{
     uint buffer_width = window_width/pixel_size;
     int dx = end.x-start.x;
     int dy = end.y-start.y;
@@ -98,14 +98,14 @@ inline void draw_line(fvec2& start, fvec2& end, uint color){
     }
 }
 
-inline uint texture(uint* texture, float u, float v){
+inline uint texture(uint* texture, float u, float v)noexcept{
 	int u1 = u*texture[0];
 	int v1 = v*texture[1];
 	int idx = u1*texture[0]+v1+2;
 	return texture[idx];
 }
 
-inline void draw_triangle(triangle& tri){
+inline void draw_triangle(triangle& tri)noexcept{
 	uint buffer_width = window_width/pixel_size;
 	uint buffer_height = window_height/pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
@@ -167,7 +167,7 @@ struct plane{
 	fvec3 normal;
 };
 
-inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2& start_uv, fvec2& end_uv, fvec3& cp){
+inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2& start_uv, fvec2& end_uv, fvec3& cp)noexcept{
 	fvec3 dir = {end.x-start.x, end.y-start.y, end.z-start.z};
 	float d = dot(p.normal, dir);
 	if(d != 0){	//TODO meh...
@@ -181,7 +181,7 @@ inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2
 	return false;
 }
 
-inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count, byte& temp_count, byte& i){
+inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count, byte& temp_count, byte& i)noexcept{
 	buffer[i] = buffer[temp_count-1];
 	--i;
 	--temp_count;
@@ -189,7 +189,7 @@ inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count,
 	return;
 }
 
-inline void clip_plane(plane& p, triangle* buffer, byte& count){
+inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
 	byte temp_count = count;	//Index des letzten originalen Dreiecks
@@ -261,7 +261,7 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count){
 #define YMIN -1.001f
 #define YMAX 1.001f
 
-inline byte clipping(triangle* buffer){
+inline byte clipping(triangle* buffer)noexcept{
 	byte count = 1;
 	float aspect_ratio = window_width/window_height;
 
@@ -294,7 +294,7 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline constexpr uint color_picker(uint i){
+inline constexpr uint color_picker(uint i)noexcept{
 	switch(i){
 	case 0: return RGBA(255, 0, 0, 255);
 	case 1: return RGBA(0, 255, 0, 255);
@@ -307,7 +307,7 @@ inline constexpr uint color_picker(uint i){
 }
 
 //TODO Clippe Dreiecke die nicht zur Kamera zeigen (aka endlich normalen adden...)
-inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam){
+inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
 	perfAnalyzer.total_triangles += triangle_count - start_idx;

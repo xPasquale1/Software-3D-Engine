@@ -37,6 +37,11 @@ struct triangle{
 	fvec2 uv[3];
 };
 
+//Error-Code
+enum ErrCode{
+	SUCCESS = 0, BAD_ALLOC
+};
+
 //TODO Könnte besser sein setter und getter Funktionen für maus und tastatur zu schreiben
 struct Mouse{
 	ivec2 pos;
@@ -261,15 +266,15 @@ inline void create_cube(triangle* tri, uint& count, float x, float y, float z, f
 	return;
 }
 
-void read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
+int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
 	fvec3* points = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
 	fvec2* uvs = new(std::nothrow) fvec2[100000]; 	//TODO dynamischer Kontainer
 	if(!points || !uvs){
-		std::cerr << "Konnte keinen Speicher für die Punkte in read_obj allokieren!" << std::endl;
-		return;
+		std::cerr << "Konnte keinen Speicher in read_obj allokieren!" << std::endl;
+		return BAD_ALLOC;
 	}
 	uint current_count = *count;
 	uint p_count = 0;
@@ -430,4 +435,5 @@ void read_obj(const char* filename, triangle* storage, uint* count, float x, flo
 	std::cout << "UV-Koordinaten gelesen:" << uv_count << std::endl;
 	std::cout << "Dreiecke gelesen:      " << tri_count << std::endl;
 	std::cout << "Dreiecke insgesamt:    " << *count << '\n' << std::endl;
+	return SUCCESS;
 }

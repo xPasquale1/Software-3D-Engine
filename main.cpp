@@ -23,6 +23,8 @@ void update(float dt);
 #define THREADCOUNT 6
 #define SPEED 0.05
 
+int ERR_CODE = SUCCESS;
+
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
 	if(!window){
@@ -38,14 +40,18 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	default_texture = load_texture("textures/low_poly_winter.tex");
-	if(!default_texture){
+	ERR_CODE = load_texture("textures/low_poly_winter.tex", default_texture);
+	if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 20, 0);
+	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 20, 0);
+		if(ERR_CODE != SUCCESS){
+		std::cerr << "Konnte Modell nicht laden!" << std::endl;
+		return -1;
+	}
 
 	SetCursorPos(500, 500);
 

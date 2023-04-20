@@ -7,7 +7,7 @@
 static uint* default_texture = nullptr;
 
 inline constexpr uint RGBA(uchar, uchar, uchar, uchar);	//meh...
-uint* load_texture(const char* name){
+int load_texture(const char* name, uint*& _texture){
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Texture-Datei nicht öffnen!");
 	//Lese Breite und Höhe
@@ -16,12 +16,13 @@ uint* load_texture(const char* name){
 	uint width = std::atoi(word.c_str());
 	file >> word;
 	uint height = std::atoi(word.c_str());
-	uint* out = new uint[width*height+2];	//+2 für Breite und Höhe
-	if(!out){
+	delete[] _texture;
+	_texture = new(std::nothrow) uint[width*height+2];	//+2 für Breite und Höhe
+	if(!_texture){
 		std::cerr << "Konnte keinen Speicher für die Texture allokieren!" << std::endl;
-		return nullptr;
+		return BAD_ALLOC;
 	}
-	out[0] = width; out[1] = height;
+	_texture[0] = width; _texture[1] = height;
 	for(uint i=2; i < width*height+2; ++i){
 		file >> word;
 		uchar r = std::atoi(word.c_str());
@@ -31,7 +32,7 @@ uint* load_texture(const char* name){
 		uchar b = std::atoi(word.c_str());
 		file >> word;
 		uchar a = std::atoi(word.c_str());
-		out[i] = RGBA(r, g, b, a);
+		_texture[i] = RGBA(r, g, b, a);
 	}
-	return out;
+	return SUCCESS;
 }
