@@ -14,15 +14,11 @@
 	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
 	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
-	TODO Dreiecke normalenvektoren zuordnen damit clipping deutlich schneller ist (kann man vllt in einem uint speichern,
-	da Werte nicht größer 1 sind und dann das Dreieck noch in eine übliche Cacheline passen würde)
 	TODO Erste Beleuchtungsmodelle überlegen und implementieren
-	TODO globale und statische variablen mit _ oder so kennzeichnen damit funktionen oder lokale variablen diese nicht
-	überschreiben
 */
 
-static bool running = true;
-static camera cam = {1., {0, 0, 0}, {0, 0}};
+static bool _running = true;
+static camera _cam = {1., {0, 0, -20}, {0, 0}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
@@ -47,7 +43,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	ERR_CODE = load_texture("textures/low_poly_winter.tex", default_texture);
+	ERR_CODE = load_texture("textures/low_poly_winter.tex", _default_texture);
 	if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
@@ -62,7 +58,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	SetCursorPos(500, 500);
 
-	while(running){
+	while(_running){
 		getMessages(window);
 		update(perfAnalyzer.get_avg_data(0)+1);
 		perfAnalyzer.reset();
@@ -72,73 +68,73 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		uint t_count = triangle_count/THREADCOUNT;
 	    std::vector<std::thread> threads;
 	    for(int i=0; i < THREADCOUNT-1; ++i){
-	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &cam));
+	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam));
 	    }
-	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &cam));
+	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam));
 
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
 #else
-		rasterize(triangles, 0, triangle_count, &cam);
+		rasterize(triangles, 0, triangle_count, &_cam);
 #endif
 
-		draw_int(5, 5, 8/pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
-		draw_int(5, 55/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
-		draw_int(5, 105/pixel_size, 8/pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
-		draw_int(5, 155/pixel_size, 8/pixel_size, perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
-		draw_int(5, 205/pixel_size, 8/pixel_size, perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
+		draw_int(5, 5, 8/_pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
+		draw_int(5, 55/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
+		draw_int(5, 105/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
+		draw_int(5, 155/_pixel_size, 8/_pixel_size, perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
+		draw_int(5, 205/_pixel_size, 8/_pixel_size, perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
 		draw(window);
 	}
 
 	DestroyWindow(window);
-	delete[] pixels;
-	delete[] depth_buffer;
 	delete[] triangles;
-	delete[] default_texture;
+	delete[] _pixels;
+	delete[] _depth_buffer;
+	delete[] _default_texture;
 	return 0;
 }
 
 void update(float dt){
-	float sin_rotx = sin(cam.rot.x);
-	float cos_rotx = cos(cam.rot.x);
-	cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
-	cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
-	cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
-	cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
-	cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
-	cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
-	cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
-	cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
-	cam.pos.y -= SPACE(keyboard)*SPEED*dt;
-	cam.pos.y += SHIFT(keyboard)*SPEED*dt;
+	float sin_rotx = sin(_cam.rot.x);
+	float cos_rotx = cos(_cam.rot.x);
+	_cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
+	_cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
+	_cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
+	_cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
+	_cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
+	_cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
+	_cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
+	_cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
+	_cam.pos.y -= SPACE(keyboard)*SPEED*dt;
+	_cam.pos.y += SHIFT(keyboard)*SPEED*dt;
 }
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	switch(uMsg){
     case WM_SIZE:{
-    	window_width = LOWORD(lParam);
-    	window_height = HIWORD(lParam);
-    	uint buffer_width = window_width/pixel_size;
-    	uint buffer_height = window_height/pixel_size;
+    	_window_width = LOWORD(lParam);
+    	_window_height = HIWORD(lParam);
+    	uint buffer_width = _window_width/_pixel_size;
+    	uint buffer_height = _window_height/_pixel_size;
     	if(buffer_width > 0 && buffer_height > 0){
-			delete[] pixels;
-			delete[] depth_buffer;
-			pixels = new(std::nothrow) uint[buffer_width*buffer_height];
-			depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
-			if(!pixels || !depth_buffer){
+			delete[] _pixels;
+			delete[] _depth_buffer;
+			_pixels = new(std::nothrow) uint[buffer_width*buffer_height];
+			_depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
+			if(!_pixels || !_depth_buffer){
 				std::cerr << "Konnte keinen Speicher für pixel oder depth buffer allokieren!" << std::endl;
 				buffer_width = 0;
 				buffer_height = 0;
 			}
-			bitmapInfo.bmiHeader.biWidth = buffer_width;
-			bitmapInfo.bmiHeader.biHeight = buffer_height;
+			_bitmapInfo.bmiHeader.biWidth = buffer_width;
+			_bitmapInfo.bmiHeader.biHeight = buffer_height;
     	}
     	return 0L;
     }
     case WM_DESTROY:
     case WM_CLOSE:{
-    	running = false;
+    	_running = false;
     	return 0L;
     }
 	case WM_MOUSEMOVE:{
@@ -146,8 +142,8 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 		GetCursorPos(&pos);
 		mouse.pos.x = pos.x;
 		mouse.pos.y = pos.y;
-		cam.rot.x -= ((float)pos.x-500) * 0.001;
-		cam.rot.y += ((float)pos.y-500) * 0.001;
+		_cam.rot.x -= ((float)pos.x-500) * 0.001;
+		_cam.rot.y += ((float)pos.y-500) * 0.001;
 		SetCursorPos(500, 500);
 		return 0L;
 	}

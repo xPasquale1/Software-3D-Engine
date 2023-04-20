@@ -8,12 +8,12 @@
 
 //#define WIREFRAME
 
-static uint window_width = 1000;
-static uint window_height = 1000;
-static uint pixel_size = 2;
-static uint* pixels = nullptr;
-static uint* depth_buffer = nullptr;
-static BITMAPINFO bitmapInfo = {};
+static uint _window_width = 1000;
+static uint _window_height = 1000;
+static uint _pixel_size = 2;
+static uint* _pixels = nullptr;
+static uint* _depth_buffer = nullptr;
+static BITMAPINFO _bitmapInfo = {};
 
 //Sollte nur einmalig aufgerufen und das handle gespeichert werden
 HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
@@ -23,12 +23,12 @@ HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
 	wc.lpszClassName = "Window-Class";
 	RegisterClass(&wc);
 
-	HWND hwnd = CreateWindow(wc.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0, 0, window_width, window_height, NULL, NULL, hInstance, NULL);
+	HWND hwnd = CreateWindow(wc.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0, 0, _window_width, _window_height, NULL, NULL, hInstance, NULL);
 
-	bitmapInfo.bmiHeader.biSize = sizeof(bitmapInfo.bmiHeader);
-	bitmapInfo.bmiHeader.biPlanes = 1;
-	bitmapInfo.bmiHeader.biBitCount = 32;
-	bitmapInfo.bmiHeader.biCompression = BI_RGB;
+	_bitmapInfo.bmiHeader.biSize = sizeof(_bitmapInfo.bmiHeader);
+	_bitmapInfo.bmiHeader.biPlanes = 1;
+	_bitmapInfo.bmiHeader.biBitCount = 32;
+	_bitmapInfo.bmiHeader.biCompression = BI_RGB;
 
 	return hwnd;
 }
@@ -42,13 +42,13 @@ inline void getMessages(HWND window)noexcept{
 }
 
 inline void clear_window()noexcept{
-	uint buffer_width = window_width/pixel_size;
-	uint buffer_height = window_height/pixel_size;
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
 	for(uint y=0; y < buffer_height; ++y){
 		for(uint x=0; x < buffer_width; ++x){
 			uint idx = y*buffer_width+x;
-			pixels[idx] = 0;
-			depth_buffer[idx] = 0xFFFFFFFF;
+			_pixels[idx] = 0;
+			_depth_buffer[idx] = 0xFFFFFFFF;
 		}
 	}
 }
@@ -57,10 +57,10 @@ inline void draw(HWND window)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(1);
 #endif
-	int buffer_width = window_width/pixel_size;
-	int buffer_height = window_height/pixel_size;
+	int buffer_width = _window_width/_pixel_size;
+	int buffer_height = _window_height/_pixel_size;
 	HDC hdc = GetDC(window);
-	StretchDIBits(hdc, 0, window_height, window_width, -window_height, 0, 0, buffer_width, buffer_height, pixels, &bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
+	StretchDIBits(hdc, 0, _window_height, _window_width, -_window_height, 0, 0, buffer_width, buffer_height, _pixels, &_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.record_data(1);
@@ -73,16 +73,16 @@ inline constexpr uchar G(uint color){return uchar(color>>8);}
 inline constexpr uchar B(uint color){return uchar(color);}
 
 inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color)noexcept{
-	uint buffer_width = window_width/pixel_size;
+	uint buffer_width = _window_width/_pixel_size;
 	for(uint i=y; i < y+dy; ++i){
 		for(uint j=x; j < x+dx; ++j){
-			pixels[i*buffer_width+j] = color;
+			_pixels[i*buffer_width+j] = color;
 		}
 	}
 }
 
 inline void draw_line(fvec2& start, fvec2& end, uint color)noexcept{
-    uint buffer_width = window_width/pixel_size;
+    uint buffer_width = _window_width/_pixel_size;
     int dx = end.x-start.x;
     int dy = end.y-start.y;
     int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
@@ -92,7 +92,7 @@ inline void draw_line(fvec2& start, fvec2& end, uint color)noexcept{
     float y = start.y;
 
     for(int i = 0; i <= steps; ++i){
-        pixels[(int)y*buffer_width+(int)x] = color;
+        _pixels[(int)y*buffer_width+(int)x] = color;
         x += xinc;
         y += yinc;
     }
@@ -106,8 +106,8 @@ inline uint texture(uint* texture, float u, float v)noexcept{
 }
 
 inline void draw_triangle(triangle& tri)noexcept{
-	uint buffer_width = window_width/pixel_size;
-	uint buffer_height = window_height/pixel_size;
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
 	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
 	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
@@ -139,12 +139,12 @@ inline void draw_triangle(triangle& tri)noexcept{
 				uint idx = y*buffer_width+x;
 				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
 				float inc_depth = depth*10000;	//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				if(inc_depth <= depth_buffer[idx]){
-					depth_buffer[idx] = (uint)inc_depth;
+				if(inc_depth <= _depth_buffer[idx]){
+					_depth_buffer[idx] = (uint)inc_depth;
 					float s = (w*uv0x + u*uv1x + v*uv2x);
 					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
-					pixels[idx] = texture(default_texture, s, t);
+					_pixels[idx] = texture(_default_texture, s, t);
 				}
 			}
 	        u += deltaX_u; v -= deltaX_v;
@@ -263,7 +263,7 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
 
 inline byte clipping(triangle* buffer)noexcept{
 	byte count = 1;
-	float aspect_ratio = window_width/window_height;
+	float aspect_ratio = _window_width/_window_height;
 
 	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
 	normalize(pz.normal);
@@ -313,7 +313,7 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
 	perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = window_width/window_height;
+	float aspect_ratio = _window_width/_window_height;
 	float sin_rotx = sin(cam->rot.x);
 	float cos_rotx = cos(cam->rot.x);
 	float sin_roty = sin(cam->rot.y);
@@ -344,6 +344,7 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     	}
     	triangle buffer[32] = {};
     	buffer[0] = tri;
+//    	if(tri.normal.z > 0) continue;
     	byte count = clipping(buffer);
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].point[0]; fvec3 pt2 = buffer[j].point[1]; fvec3 pt3 = buffer[j].point[2];

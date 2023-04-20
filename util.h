@@ -33,8 +33,8 @@ struct fvec3{
 
 struct triangle{
 	fvec3 point[3];
-//	uint color;
 	fvec2 uv[3];
+	fvec3 normal;
 };
 
 //Error-Codes
@@ -104,6 +104,181 @@ struct PerfAnalyzer{
 		return out/8.;
 	}
 }; static PerfAnalyzer perfAnalyzer;
+
+int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
+	std::fstream file; file.open(filename, std::ios::in);
+	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
+	std::string word;
+	fvec3* points = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
+	fvec3* normals = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
+	fvec2* uvs = new(std::nothrow) fvec2[100000]; 		//TODO dynamischer Kontainer
+	if(!points || !uvs){
+		std::cerr << "Konnte keinen Speicher in read_obj allokieren!" << std::endl;
+		return BAD_ALLOC;
+	}
+	uint current_count = *count;
+	uint p_count = 0;
+	uint uv_count = 0;
+	uint n_count = 0;
+	uint tri_count = 0;
+	while(file >> word){	//Lese Datei Wort für Wort
+		if(word[0] == 'o' && word.size() == 1){
+			file >> word;
+			std::cout << "Filename:               " << word << std::endl;
+		}
+		if(word[0] == 'v' && word.size() == 1){
+			file >> word;
+			points[p_count].x = std::atof(word.c_str())+x;
+			file >> word;
+			points[p_count].y = std::atof(word.c_str())+y;
+			file >> word;
+			points[p_count].z = std::atof(word.c_str())+z;
+			++p_count;
+		}
+		if(word[0] == 'v' && word[1] == 'n' && word.size() == 2){
+			file >> word;
+			normals[n_count].x = std::atof(word.c_str());
+			file >> word;
+			normals[n_count].y = std::atof(word.c_str());
+			file >> word;
+			normals[n_count].z = std::atof(word.c_str());
+			++n_count;
+		}
+		if(word[0] == 'v' && word[1] == 't' && word.size() == 2){
+			file >> word;
+			uvs[uv_count].x = std::atof(word.c_str());
+			file >> word;
+			uvs[uv_count].y = std::atof(word.c_str());
+			++uv_count;
+		}
+		if(word[0] == 'f' && word.size() == 1){
+			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/textur koordinaten möglich...
+			uint pt_order[4];
+			uint uv_order[4];
+			uint c = 0;
+			uint c1 = 0;
+			std::string val;
+
+			//Lese Punkt/Texture Koordinate
+			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
+			for(size_t i=0; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=0; i < c; ++i){
+				val += word[i];
+			} pt_order[0] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[0] = std::atoi(val.c_str())-1;
+
+			//Lese Punkt/Texture Koordinate
+			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
+			for(size_t i=0; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=0; i < c; ++i){
+				val += word[i];
+			} pt_order[1] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[1] = std::atoi(val.c_str())-1;
+
+			//Lese Punkt/Texture Koordinate
+			file >> word; c = 0;
+			//Suche alle Zahlen die den Punkt beschreiben
+			for(size_t i=0; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=0; i < c; ++i){
+				val += word[i];
+			} pt_order[2] = std::atoi(val.c_str())-1;
+			//Suche alle Zahlen die die Texturkoordinaten bestimmen
+			c1 = c+1; c = 0;
+			for(size_t i=c1; i < word.size(); ++i){
+				if(word[i] >= '0' && word[i] <= '9') ++c;
+				else break;
+			} val.clear();
+			for(uint i=c1; i < c+c1; ++i){
+				val += word[i];
+			} uv_order[2] = std::atoi(val.c_str())-1;
+
+			auto read_pos = file.tellg();
+			file >> word; c = 0; bool quad = true;
+			if(word[0] < '0' || word[0] > '9' || file.eof()){	//Fläche ist ein Dreieck
+				quad = false;
+				file.seekg(read_pos, std::ios::beg);
+			}
+
+			storage[tri_count+current_count].point[0] = points[pt_order[0]];
+			storage[tri_count+current_count].point[1] = points[pt_order[1]];
+			storage[tri_count+current_count].point[2] = points[pt_order[2]];
+			storage[tri_count+current_count].uv[0] = uvs[uv_order[0]];
+			storage[tri_count+current_count].uv[1] = uvs[uv_order[1]];
+			storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
+			float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;
+			float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
+			float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
+			storage[tri_count+current_count].normal = {x, y, z};
+			++tri_count;
+
+			if(quad){
+				//Suche alle Zahlen die den Punkt beschreiben
+				for(size_t i=0; i < word.size(); ++i){
+					if(word[i] >= '0' && word[i] <= '9') ++c;
+					else break;
+				} val.clear();
+				for(uint i=0; i < c; ++i){
+					val += word[i];
+				} pt_order[3] = std::atoi(val.c_str())-1;
+				//Suche alle Zahlen die die Texturkoordinaten bestimmen
+				c1 = c+1; c = 0;
+				for(size_t i=c1; i < word.size(); ++i){
+					if(word[i] >= '0' && word[i] <= '9') ++c;
+					else break;
+				} val.clear();
+				for(uint i=c1; i < c+c1; ++i){
+					val += word[i];
+				} uv_order[3] = std::atoi(val.c_str())-1;
+				storage[tri_count+current_count].point[0] = points[pt_order[3]];
+				storage[tri_count+current_count].point[1] = points[pt_order[0]];
+				storage[tri_count+current_count].point[2] = points[pt_order[2]];
+				storage[tri_count+current_count].uv[0] = uvs[uv_order[3]];
+				storage[tri_count+current_count].uv[1] = uvs[uv_order[0]];
+				storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
+				float x = (normals[pt_order[3]].x + normals[pt_order[0]].x + normals[pt_order[2]].x)/3.;
+				float y = (normals[pt_order[3]].y + normals[pt_order[0]].y + normals[pt_order[2]].y)/3.;
+				float z = (normals[pt_order[3]].z + normals[pt_order[0]].x + normals[pt_order[2]].z)/3.;
+				storage[tri_count+current_count].normal = {x, y, z};
+				++tri_count;
+			}
+		}
+	}
+	*count += tri_count;
+	delete[] points;
+	delete[] uvs;
+	std::cout << "Punkte gelesen:         " << p_count << std::endl;
+	std::cout << "UV-Koordinaten gelesen: " << uv_count << std::endl;
+	std::cout << "Dreiecke gelesen:       " << tri_count << std::endl;
+	std::cout << "Dreiecke insgesamt:     " << *count << '\n' << std::endl;
+	return SUCCESS;
+}
 
 inline void create_cube(triangle* tri, uint& count, float x, float y, float z, float dx, float dy, float dz){
 	tri[count].point[0].x = x+dx;
@@ -263,176 +438,4 @@ inline void create_cube(triangle* tri, uint& count, float x, float y, float z, f
 	tri[count+11].uv[2] = {1, 0};
 	count += 12;
 	return;
-}
-
-int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
-	std::fstream file; file.open(filename, std::ios::in);
-	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
-	std::string word;
-	fvec3* points = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
-	fvec2* uvs = new(std::nothrow) fvec2[100000]; 		//TODO dynamischer Kontainer
-	if(!points || !uvs){
-		std::cerr << "Konnte keinen Speicher in read_obj allokieren!" << std::endl;
-		return BAD_ALLOC;
-	}
-	uint current_count = *count;
-	uint p_count = 0;
-	uint uv_count = 0;
-//	unsigned int n_count = 0;
-	uint tri_count = 0;
-	while(file >> word){	//Lese Datei Wort für Wort
-		if(word[0] == 'o' && word.size() == 1){
-			file >> word;
-			std::cout << "Filename:           " << word << std::endl;
-		}
-		if(word[0] == 'v' && word.size() == 1){
-			file >> word;
-			points[p_count].x = std::atof(word.c_str())+x;
-			file >> word;
-			points[p_count].y = std::atof(word.c_str())+y;
-			file >> word;
-			points[p_count].z = std::atof(word.c_str())+z;
-			++p_count;
-		}
-//		if(word[0] == 'v' && word[1] == 'n' && word.size() == 2){
-//			file >> word;
-//			points[n_count].normal.x = std::atof(word.c_str());
-//			file >> word;
-//			points[n_count].normal.y = std::atof(word.c_str());
-//			file >> word;
-//			points[n_count].normal.z = std::atof(word.c_str());
-//			++n_count;
-//		}
-		if(word[0] == 'v' && word[1] == 't' && word.size() == 2){
-			file >> word;
-			uvs[uv_count].x = std::atof(word.c_str());
-			file >> word;
-			uvs[uv_count].y = std::atof(word.c_str());
-			++uv_count;
-		}
-		if(word[0] == 'f' && word.size() == 1){
-			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/textur koordinaten möglich...
-			uint pt_order[4];
-			uint uv_order[4];
-			uint c = 0;
-			uint c1 = 0;
-			std::string val;
-
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[0] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[0] = std::atoi(val.c_str())-1;
-
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[1] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[1] = std::atoi(val.c_str())-1;
-
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[2] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(uint i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[2] = std::atoi(val.c_str())-1;
-
-			auto read_pos = file.tellg();
-			file >> word; c = 0; bool quad = true;
-			if(word[0] < '0' || word[0] > '9' || file.eof()){	//Fläche ist ein Dreieck
-				quad = false;
-				file.seekg(read_pos, std::ios::beg);
-			}
-
-			storage[tri_count+current_count].point[0] = points[pt_order[0]];
-			storage[tri_count+current_count].point[1] = points[pt_order[1]];
-			storage[tri_count+current_count].point[2] = points[pt_order[2]];
-			storage[tri_count+current_count].uv[0] = uvs[uv_order[0]];
-			storage[tri_count+current_count].uv[1] = uvs[uv_order[1]];
-			storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-//			storage[tri_count+current_count].point[0].color = points[order[0]].normal;
-//			storage[tri_count+current_count].point[1].color = points[order[1]].normal;
-//			storage[tri_count+current_count].point[2].color = points[order[2]].normal;
-			++tri_count;
-
-			if(quad){
-				//Suche alle Zahlen die den Punkt beschreiben
-				for(size_t i=0; i < word.size(); ++i){
-					if(word[i] >= '0' && word[i] <= '9') ++c;
-					else break;
-				} val.clear();
-				for(uint i=0; i < c; ++i){
-					val += word[i];
-				} pt_order[3] = std::atoi(val.c_str())-1;
-				//Suche alle Zahlen die die Texturkoordinaten bestimmen
-				c1 = c+1; c = 0;
-				for(size_t i=c1; i < word.size(); ++i){
-					if(word[i] >= '0' && word[i] <= '9') ++c;
-					else break;
-				} val.clear();
-				for(uint i=c1; i < c+c1; ++i){
-					val += word[i];
-				} uv_order[3] = std::atoi(val.c_str())-1;
-				storage[tri_count+current_count].point[0] = points[pt_order[3]];
-				storage[tri_count+current_count].point[1] = points[pt_order[0]];
-				storage[tri_count+current_count].point[2] = points[pt_order[2]];
-				storage[tri_count+current_count].uv[0] = uvs[uv_order[3]];
-				storage[tri_count+current_count].uv[1] = uvs[uv_order[0]];
-				storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-//				storage[tri_count+current_count].point[0].color = points[order[3]].normal;
-//				storage[tri_count+current_count].point[1].color = points[order[0]].normal;
-//				storage[tri_count+current_count].point[2].color = points[order[2]].normal;
-				++tri_count;
-			}
-		}
-	}
-	*count += tri_count;
-	delete[] points;
-	delete[] uvs;
-	std::cout << "Punkte gelesen:        " << p_count << std::endl;
-	std::cout << "UV-Koordinaten gelesen:" << uv_count << std::endl;
-	std::cout << "Dreiecke gelesen:      " << tri_count << std::endl;
-	std::cout << "Dreiecke insgesamt:    " << *count << '\n' << std::endl;
-	return SUCCESS;
 }

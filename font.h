@@ -25,6 +25,16 @@ void _number_recurse(uint x, uint y, uint size, int num, uint color, int iter){
 	}
 }
 
+void draw_character(uint x, uint y, uint size, uchar character, uint color){
+	short idx = character*5;
+	for(uint i=0; i < 5; ++i){
+		for(uint j=0; j < 5; ++j){
+			if((font5x5[idx]<<j)&0b10000) draw_rectangle(x+j*size, y+i*size, size, size, color);
+		}
+		++idx;
+	}
+}
+
 void draw_int(uint x, uint y, uint size, int num, uint color){
 	if(num == 0){
 		draw_number(x, y, size, 0, color);
@@ -34,17 +44,7 @@ void draw_int(uint x, uint y, uint size, int num, uint color){
 	if(num < 0){
 		_rec_offset = 1;
 		num *= -1;
-		draw_rectangle(x+size, y+2*size, 3*size, size, color);	//TODO sollte mit dem ascii zeichen ersetzt werden
+		draw_character(x, y, size, '-', color);
 	}
 	_number_recurse(x, y, size, num, color, 0);
-}
-
-void draw_character(uint x, uint y, uint size, uchar character, uint color){
-	short idx = character*5;
-	for(uint i=0; i < 5; ++i){
-		for(uint j=0; j < 5; ++j){
-			if((font5x5[idx]<<j)&0b10000) draw_rectangle(x+j*size, y+i*size, size, size, color);
-		}
-		++idx;
-	}
 }
