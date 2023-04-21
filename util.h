@@ -34,7 +34,7 @@ struct fvec3{
 struct triangle{
 	fvec3 point[3];
 	fvec2 uv[3];
-	fvec3 normal;
+//	fvec3 normal;
 };
 
 //Error-Codes
@@ -69,6 +69,7 @@ inline constexpr float dot(fvec3* a, fvec3* b){return (a->x * b->x + a->y * b->y
 inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
+inline constexpr fvec3 cross(fvec3& a, fvec3& b){return {a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x};}
 
 inline constexpr float deg2rad(float deg){return deg*PI/180;}
 inline constexpr float rad2deg(float rad){return rad*180/PI;}
@@ -105,6 +106,7 @@ struct PerfAnalyzer{
 	}
 }; static PerfAnalyzer perfAnalyzer;
 
+//TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
 int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
@@ -152,7 +154,7 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 			++uv_count;
 		}
 		if(word[0] == 'f' && word.size() == 1){
-			//Lese nur die Eckpunkte TODO Max. nur 4 Punkte/textur koordinaten möglich...
+			//Lese nur die Eckpunkte
 			uint pt_order[4];
 			uint uv_order[4];
 			uint c = 0;
@@ -232,10 +234,10 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 			storage[tri_count+current_count].uv[0] = uvs[uv_order[0]];
 			storage[tri_count+current_count].uv[1] = uvs[uv_order[1]];
 			storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-			float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;
-			float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
-			float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
-			storage[tri_count+current_count].normal = {x, y, z};
+//			float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;
+//			float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
+//			float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
+//			storage[tri_count+current_count].normal = {x, y, z};
 			++tri_count;
 
 			if(quad){
@@ -262,10 +264,10 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 				storage[tri_count+current_count].uv[0] = uvs[uv_order[3]];
 				storage[tri_count+current_count].uv[1] = uvs[uv_order[0]];
 				storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-				float x = (normals[pt_order[3]].x + normals[pt_order[0]].x + normals[pt_order[2]].x)/3.;
-				float y = (normals[pt_order[3]].y + normals[pt_order[0]].y + normals[pt_order[2]].y)/3.;
-				float z = (normals[pt_order[3]].z + normals[pt_order[0]].x + normals[pt_order[2]].z)/3.;
-				storage[tri_count+current_count].normal = {x, y, z};
+//				float x = (normals[pt_order[3]].x + normals[pt_order[0]].x + normals[pt_order[2]].x)/3.;
+//				float y = (normals[pt_order[3]].y + normals[pt_order[0]].y + normals[pt_order[2]].y)/3.;
+//				float z = (normals[pt_order[3]].z + normals[pt_order[0]].x + normals[pt_order[2]].z)/3.;
+//				storage[tri_count+current_count].normal = {x, y, z};
 				++tri_count;
 			}
 		}

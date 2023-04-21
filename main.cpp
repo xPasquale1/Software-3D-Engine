@@ -50,7 +50,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 20, 0);
+	ERR_CODE = read_obj("objects/low_poly_winter1.obj", triangles, &triangle_count, 0, 20, 0);
 		if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte Modell nicht laden!" << std::endl;
 		return -1;

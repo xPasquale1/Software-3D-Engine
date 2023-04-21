@@ -7,6 +7,7 @@
 #include "texture.h"
 
 //#define WIREFRAME
+#define CULL_BACKFACES
 
 static uint _window_width = 1000;
 static uint _window_height = 1000;
@@ -306,7 +307,6 @@ inline constexpr uint color_picker(uint i)noexcept{
 	return RGBA(120, 120, 120, 255);
 }
 
-//TODO Clippe Dreiecke die nicht zur Kamera zeigen (aka endlich normalen adden...)
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.start_timer(0);
@@ -321,6 +321,7 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	triangle buffer[32] = {};
 
 #ifdef STATS
     std::cout << "Dreiecke vor Löschen: " << w.count << std::endl;
@@ -333,8 +334,8 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		d[1] = (tri.point[j].y-cam->pos.y);
     		d[2] = (tri.point[j].z-cam->pos.z);
     		float v[3]{0};
-    	    for (uint a=0; a < 3; a++){
-    	        for (uint b=0; b < 3; b++){
+    	    for (uint a=0; a < 3; ++a){
+    	        for (uint b=0; b < 3; ++b){
     	        	v[a] += (rotm[a][b]*d[b]);
     	        }
     	    }
@@ -342,9 +343,13 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     	    tri.point[j].y = v[1];
     	    tri.point[j].z = v[2];
     	}
-    	triangle buffer[32] = {};
+#ifdef CULL_BACKFACES
+    	fvec3 l01 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
+    	fvec3 l02 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
+    	fvec3 normal = cross(l01, l02);
+    	if(dot(tri.point[0], normal) > 0) continue;
+#endif
     	buffer[0] = tri;
-//    	if(tri.normal.z > 0) continue;
     	byte count = clipping(buffer);
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].point[0]; fvec3 pt2 = buffer[j].point[1]; fvec3 pt3 = buffer[j].point[2];
