@@ -41,6 +41,15 @@ struct triangle{
 enum ErrCode{
 	SUCCESS = 0, BAD_ALLOC
 };
+inline constexpr void ErrCheck(ErrCode code, const char* msg="\0"){
+	switch(code){
+	case BAD_ALLOC:{
+		std::cerr << "[BAD_ALLOC ERROR]" << msg << std::endl;
+		break;
+	}
+	default: break;
+	}
+}
 
 struct Mouse{
 	ivec2 pos;
@@ -59,13 +68,49 @@ inline constexpr bool D(Keyboard& k){return k.button&0b0001'0000;}
 inline constexpr bool SHIFT(Keyboard& k){return k.button&0b0000'1000;}
 inline constexpr bool SPACE(Keyboard& k){return k.button&0b0000'0100;}
 
+ErrCode _defaultEvent(void){return SUCCESS;}
+struct Button{
+	ErrCode (*event)(void)=&_defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
+	std::string text;
+	ivec2 pos;
+	ivec2 size;
+	uchar state;	//Bits: Sichtbarkeit, Rest ungenutzt
+	uint color;
+};
+enum BUTTONSTATE{
+	BUTTON_VISIBLE = 0b1000'0000
+};
+inline constexpr bool checkButtonState(Button& button, BUTTONSTATE state){return (button.state&state);}
+inline void buttonsClicked(Button* buttons, uint button_count, Mouse& mouse){
+	for(uint i=0; i < button_count; ++i){
+		Button& b = buttons[i];
+		if(!checkButtonState(b, BUTTON_VISIBLE)) continue;
+		if(mouse.pos.x >= b.pos.x && mouse.pos.x <= b.pos.x+b.size.x){
+			if(mouse.pos.y >= b.pos.y && mouse.pos.y <= b.pos.y+b.size.y){
+				ErrCheck(b.event());
+			}
+		}
+	}
+}
+void draw_rectangle(uint, uint, uint, uint, uint)noexcept;
+inline void drawButtons(Button* buttons, uint button_count){
+	for(uint i=0; i < button_count; ++i){
+		Button& b = buttons[i];
+		if(!checkButtonState(b, BUTTON_VISIBLE)) continue;
+		draw_rectangle(b.pos.x, b.pos.y, b.size.x, b.size.y, b.color);
+	}
+}
+//Tut so ziemlich alles was man will, ein call zu der funktion jeden loop sollte reichen für basic Kontrolle
+inline void updateButton(Button* buttons, uint button_count, Mouse& mouse){
+	buttonsClicked(buttons, button_count, mouse);
+	drawButtons(buttons, button_count);
+}
+
 inline constexpr void normalize(fvec3& vec){
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
 	vec.x /= length; vec.y /= length; vec.z /= length;
 	return;
 }
-
-inline constexpr float dot(fvec3* a, fvec3* b){return (a->x * b->x + a->y * b->y + a->z * b->z);}
 inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}

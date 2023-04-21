@@ -173,7 +173,7 @@ inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2
 	float d = dot(p.normal, dir);
 	if(d != 0){
 		fvec3 tmp = {p.pos.x-start.x, p.pos.y-start.y, p.pos.z-start.z};
-	    float t = dot(&tmp, &p.normal)/d;
+	    float t = dot(tmp, p.normal)/d;
 	    cp = {start.x+dir.x*t, start.y+dir.y*t, start.z+dir.z*t};
 	    end_uv.x = start_uv.x*(1-t)+end_uv.x*t;
 	    end_uv.y = start_uv.y*(1-t)+end_uv.y*t;
