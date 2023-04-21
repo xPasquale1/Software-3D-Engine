@@ -309,7 +309,6 @@ inline constexpr uint color_picker(uint i)noexcept{
 
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.start_timer(0);
 	perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
 	float rotm[3][3];
@@ -322,10 +321,6 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	triangle buffer[32] = {};
-
-#ifdef STATS
-    std::cout << "Dreiecke vor Löschen: " << w.count << std::endl;
-#endif
     for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
     	for(int j=0; j < 3; ++j){
@@ -363,8 +358,5 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
 #endif
     	}
     }
-#ifdef PERFORMANCE_ANALYZER
-    perfAnalyzer.record_data(0);
-#endif
     return;
 }

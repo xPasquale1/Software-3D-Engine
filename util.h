@@ -107,21 +107,14 @@ struct PerfAnalyzer{
 }; static PerfAnalyzer perfAnalyzer;
 
 //TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
-int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z){
+int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
-	fvec3* points = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
-	fvec3* normals = new(std::nothrow) fvec3[100000];	//TODO dynamischer Kontainer
-	fvec2* uvs = new(std::nothrow) fvec2[100000]; 		//TODO dynamischer Kontainer
-	if(!points || !uvs){
-		std::cerr << "Konnte keinen Speicher in read_obj allokieren!" << std::endl;
-		return BAD_ALLOC;
-	}
+	std::vector<fvec3> points;
+	std::vector<fvec3> normals;
+	std::vector<fvec2> uvs;
 	uint current_count = *count;
-	uint p_count = 0;
-	uint uv_count = 0;
-	uint n_count = 0;
 	uint tri_count = 0;
 	while(file >> word){	//Lese Datei Wort für Wort
 		if(word[0] == 'o' && word.size() == 1){
@@ -130,28 +123,31 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 		}
 		if(word[0] == 'v' && word.size() == 1){
 			file >> word;
-			points[p_count].x = std::atof(word.c_str())+x;
+			fvec3 point;
+			point.x = (std::atof(word.c_str())+x)*scale;
 			file >> word;
-			points[p_count].y = std::atof(word.c_str())+y;
+			point.y = (std::atof(word.c_str())+y)*scale;
 			file >> word;
-			points[p_count].z = std::atof(word.c_str())+z;
-			++p_count;
+			point.z = (std::atof(word.c_str())+z)*scale;
+			points.push_back(point);
 		}
 		if(word[0] == 'v' && word[1] == 'n' && word.size() == 2){
 			file >> word;
-			normals[n_count].x = std::atof(word.c_str());
+			fvec3 normal;
+			normal.x = std::atof(word.c_str());
 			file >> word;
-			normals[n_count].y = std::atof(word.c_str());
+			normal.y = std::atof(word.c_str());
 			file >> word;
-			normals[n_count].z = std::atof(word.c_str());
-			++n_count;
+			normal.z = std::atof(word.c_str());
+			normals.push_back(normal);
 		}
 		if(word[0] == 'v' && word[1] == 't' && word.size() == 2){
 			file >> word;
-			uvs[uv_count].x = std::atof(word.c_str());
+			fvec2 uv;
+			uv.x = std::atof(word.c_str());
 			file >> word;
-			uvs[uv_count].y = std::atof(word.c_str());
-			++uv_count;
+			uv.y = std::atof(word.c_str());
+			uvs.push_back(uv);
 		}
 		if(word[0] == 'f' && word.size() == 1){
 			//Lese nur die Eckpunkte
@@ -273,10 +269,8 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 		}
 	}
 	*count += tri_count;
-	delete[] points;
-	delete[] uvs;
-	std::cout << "Punkte gelesen:         " << p_count << std::endl;
-	std::cout << "UV-Koordinaten gelesen: " << uv_count << std::endl;
+	std::cout << "Punkte gelesen:         " << points.size() << std::endl;
+	std::cout << "UV-Koordinaten gelesen: " << uvs.size() << std::endl;
 	std::cout << "Dreiecke gelesen:       " << tri_count << std::endl;
 	std::cout << "Dreiecke insgesamt:     " << *count << '\n' << std::endl;
 	return SUCCESS;

@@ -50,13 +50,13 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	ERR_CODE = read_obj("objects/low_poly_winter1.obj", triangles, &triangle_count, 0, 20, 0);
+	ERR_CODE = read_obj("objects/low_poly_winter1.obj", triangles, &triangle_count, 0, 20, 0, 2);
 		if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte Modell nicht laden!" << std::endl;
 		return -1;
 	}
 
-	SetCursorPos(500, 500);
+	SetCursorPos(_window_width/2, _window_height/2);
 
 	while(_running){
 		getMessages(window);
@@ -64,6 +64,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		perfAnalyzer.reset();
 		clear_window();
 
+#ifdef PERFORMANCE_ANALYZER
+	perfAnalyzer.start_timer(0);
+#endif
 #ifdef THREADING
 		uint t_count = triangle_count/THREADCOUNT;
 	    std::vector<std::thread> threads;
@@ -77,6 +80,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    }
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
+#endif
+#ifdef PERFORMANCE_ANALYZER
+    perfAnalyzer.record_data(0);
 #endif
 
 		draw_int(5, 5, 8/_pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
