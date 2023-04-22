@@ -48,7 +48,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		return -1;
 	}
 
-	triangle* triangles = new(std::nothrow) triangle[80000];
+	triangle* triangles = new(std::nothrow) triangle[1100000];
 	if(!triangles){
 		std::cerr << "Konnte keinen Speicher für die statischen Dreiecke allokieren!" << std::endl;
 		return -1;
