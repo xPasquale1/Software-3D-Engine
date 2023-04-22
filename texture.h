@@ -4,7 +4,7 @@
 #include "window.h"
 #include "util.h"
 
-static uint* _default_texture = nullptr;
+GLOBALVAR static uint* _default_texture = nullptr;
 
 inline constexpr uint RGBA(uchar, uchar, uchar, uchar);
 int load_texture(const char* name, uint*& texture){

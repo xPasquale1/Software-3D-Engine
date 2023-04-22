@@ -9,12 +9,12 @@
 //#define WIREFRAME
 #define CULL_BACKFACES
 
-static uint _window_width = 1000;
-static uint _window_height = 1000;
-static uint _pixel_size = 2;
-static uint* _pixels = nullptr;
-static uint* _depth_buffer = nullptr;
-static BITMAPINFO _bitmapInfo = {};
+GLOBALVAR static uint _window_width = 1000;
+GLOBALVAR static uint _window_height = 1000;
+GLOBALVAR static uint _pixel_size = 2;
+GLOBALVAR static uint* _pixels = nullptr;
+GLOBALVAR static uint* _depth_buffer = nullptr;
+GLOBALVAR static BITMAPINFO _bitmapInfo = {};
 
 //Sollte nur einmalig aufgerufen und das handle gespeichert werden
 HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
@@ -22,6 +22,7 @@ HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
 	wc.lpfnWndProc = window_callback;
 	wc.hInstance = hInstance;
 	wc.lpszClassName = "Window-Class";
+	wc.style = CS_HREDRAW | CS_VREDRAW;
 	RegisterClass(&wc);
 
 	HWND hwnd = CreateWindow(wc.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0, 0, _window_width, _window_height, NULL, NULL, hInstance, NULL);
@@ -104,6 +105,20 @@ inline uint texture(uint* texture, float u, float v)noexcept{
 	int v1 = v*texture[1];
 	int idx = u1*texture[0]+v1+2;
 	return texture[idx];
+}
+
+inline void draw_triangle_outline(triangle& tri)noexcept{
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
+	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
+	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
+	fvec2 l1 = {pt0.x, pt0.y};
+	fvec2 l2 = {pt1.x, pt1.y};
+	fvec2 l3 = {pt2.x, pt2.y};
+	draw_line(l1, l2, RGBA(255, 255, 255, 255));
+	draw_line(l1, l3, RGBA(255, 255, 255, 255));
+	draw_line(l2, l3, RGBA(255, 255, 255, 255));
 }
 
 inline void draw_triangle(triangle& tri)noexcept{
@@ -307,7 +322,7 @@ inline constexpr uint color_picker(uint i)noexcept{
 	return RGBA(120, 120, 120, 255);
 }
 
-inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
+inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam, uchar render_mode)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
@@ -352,7 +367,8 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		buffer[j].point[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam->focal_length/pt2.z);
     		buffer[j].point[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
-    		draw_triangle(buffer[j]);
+    		if(render_mode&0b1) draw_triangle_outline(buffer[j]);
+    		else draw_triangle(buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		perfAnalyzer.drawn_triangles += 1;
 #endif

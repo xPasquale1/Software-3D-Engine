@@ -5,6 +5,7 @@
 #include <vector>
 #include "window.h"
 #include "font.h"
+#include "gui.h"
 
 /*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
 	der rasterizer ausserhalb des pixel arrays
@@ -17,17 +18,28 @@
 	TODO Erste Beleuchtungsmodelle überlegen und implementieren
 */
 
-static bool _running = true;
-static camera _cam = {1., {0, 0, -20}, {0, 0}};
+GLOBALVAR static bool _running = true;
+GLOBALVAR static camera _cam = {1., {0, 0, -20}, {0, 0}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
+
+GLOBALVAR Menu settingsMenu;
+//Menü Funktionen
+enum RENDERMODE{
+	WIREFRAME_MODE=1
+};
+GLOBALVAR uchar render_mode = 0;
+ErrCode toggleWireframe(void){
+	render_mode ^= WIREFRAME_MODE;
+	return SUCCESS;
+}
 
 //#define THREADING
 #define THREADCOUNT 8
 #define SPEED 0.05
 
-int ERR_CODE = SUCCESS;
+GLOBALVAR int ERR_CODE = SUCCESS;
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -58,9 +70,19 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	SetCursorPos(_window_width/2, _window_height/2);
 
+	//TODO dynamisch buttons hinzufügen und entfernen
+	Button settingButtons[5];
+	settingButtons[0].size = {105, 15};
+	settingButtons[0].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
+	settingButtons[0].hover_color = RGBA(120, 120, 255, 255);
+	settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[0].event = toggleWireframe;
+	settingButtons[0].text = "Wireframe";
+	settingsMenu.buttons = settingButtons;
+	settingsMenu.button_count = 1;
+
 	while(_running){
 		getMessages(window);
-		update(perfAnalyzer.get_avg_data(0)+1);
 		perfAnalyzer.reset();
 		clear_window();
 
@@ -79,12 +101,13 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	        thread.join();
 	    }
 #else
-		rasterize(triangles, 0, triangle_count, &_cam);
+		rasterize(triangles, 0, triangle_count, &_cam, render_mode);
 #endif
 #ifdef PERFORMANCE_ANALYZER
     perfAnalyzer.record_data(0);
 #endif
 
+    	update(perfAnalyzer.get_avg_data(0)+1);
 		draw_int(5, 5, 8/_pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
 		draw_int(5, 55/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
 		draw_int(5, 105/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
@@ -104,16 +127,20 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 void update(float dt){
 	float sin_rotx = sin(_cam.rot.x);
 	float cos_rotx = cos(_cam.rot.x);
-	_cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
-	_cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
-	_cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
-	_cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
-	_cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
-	_cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
-	_cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
-	_cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
-	_cam.pos.y -= SPACE(keyboard)*SPEED*dt;
-	_cam.pos.y += SHIFT(keyboard)*SPEED*dt;
+	if(!checkMenuState(settingsMenu, MENU_OPEN)){
+		_cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.y -= SPACE(keyboard)*SPEED*dt;
+		_cam.pos.y += SHIFT(keyboard)*SPEED*dt;
+	}else{
+		updateMenu(settingsMenu, _mouse);
+	}
 }
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -144,50 +171,64 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     	return 0L;
     }
 	case WM_MOUSEMOVE:{
-		tagPOINT pos;
-		GetCursorPos(&pos);
-		mouse.pos.x = pos.x;
-		mouse.pos.y = pos.y;
-		_cam.rot.x -= ((float)pos.x-500) * 0.001;
-		_cam.rot.y += ((float)pos.y-500) * 0.001;
-		SetCursorPos(500, 500);
+		tagPOINT m_pos;
+		tagRECT w_pos;
+		GetCursorPos(&m_pos);
+		GetWindowRect(hwnd, &w_pos);
+		_mouse.pos.x = (m_pos.x - w_pos.left)/_pixel_size;
+		_mouse.pos.y = ((m_pos.y - w_pos.top)-31)/_pixel_size;	//TODO Größe der Titlebar bestimmen
+		if(!checkMenuState(settingsMenu, MENU_OPEN)){
+			_cam.rot.x -= ((float)m_pos.x-(_window_width/2+w_pos.left)) * 0.001;
+			_cam.rot.y += ((float)m_pos.y-(_window_height/2+w_pos.top)) * 0.001;
+			SetCursorPos(_window_width/2+w_pos.left, _window_height/2+w_pos.top);
+		}
 		return 0L;
 	}
 	case WM_LBUTTONDOWN:{
-		mouse.button |= 0b1000'0000;
+		_mouse.button |= MOUSE_LMB;
 		break;
 	}
 	case WM_LBUTTONUP:{
-		mouse.button &= 0b0111'1111;
+		_mouse.button &= ~MOUSE_LMB;
 		break;
 	}
 	case WM_RBUTTONDOWN:{
-		mouse.button |= 0b0100'0000;
+		_mouse.button |= MOUSE_RMB;
 		break;
 	}
 	case WM_RBUTTONUP:{
-		mouse.button &= 0b1011'1111;
+		_mouse.button &= ~MOUSE_RMB;
 		break;
 	}
 	case WM_KEYDOWN:{
 		switch(wParam){
 		case 0x57:	//W
-			keyboard.button |= 0b1000'0000;
+			keyboard.button |= KEYBOARD_W;
 			break;
 		case 0x53:	//S
-			keyboard.button |= 0b0010'0000;
+			keyboard.button |= KEYBOARD_S;
 			break;
 		case 0x44:	//D
-			keyboard.button |= 0b0001'0000;
+			keyboard.button |= KEYBOARD_D;
 			break;
 		case 0x41:	//A
-			keyboard.button |= 0b0100'0000;
+			keyboard.button |= KEYBOARD_A;
 			break;
 		case VK_SPACE:
-			keyboard.button |= 0b0000'0100;
+			keyboard.button |= KEYBOARD_SPACE;
 			break;
 		case VK_SHIFT:
-			keyboard.button |= 0b0000'1000;
+			keyboard.button |= KEYBOARD_SHIFT;
+			break;
+		case VK_ESCAPE:
+			keyboard.button |= KEYBOARD_ESC;
+			if(!checkMenuState(settingsMenu, MENU_OPEN_TOGGLE)){
+				settingsMenu.state |= MENU_OPEN_TOGGLE;	//Setze toggle bit
+				settingsMenu.state ^= MENU_OPEN;		//änder offen bit
+				tagRECT w_pos;
+				GetWindowRect(hwnd, &w_pos);
+				if(!checkMenuState(settingsMenu, MENU_OPEN)) SetCursorPos(_window_width/2+w_pos.left, _window_height/2+w_pos.top);
+			}
 			break;
 		}
 		return 0L;
@@ -195,22 +236,26 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	case WM_KEYUP:{
 		switch(wParam){
 		case 0x57:	//W
-			keyboard.button &= 0b0111'1111;
+			keyboard.button &= ~KEYBOARD_W;
 			break;
 		case 0x53:	//S
-			keyboard.button &= 0b1101'1111;
+			keyboard.button &= ~KEYBOARD_S;
 			break;
 		case 0x44:	//D
-			keyboard.button &= 0b1110'1111;
+			keyboard.button &= ~KEYBOARD_D;
 			break;
 		case 0x41:	//A
-			keyboard.button &= 0b1011'1111;
+			keyboard.button &= ~KEYBOARD_A;
 			break;
 		case VK_SPACE:
-			keyboard.button &= 0b1111'1011;
+			keyboard.button &= ~KEYBOARD_SPACE;
 			break;
 		case VK_SHIFT:
-			keyboard.button &= 0b1111'0111;
+			keyboard.button &= ~KEYBOARD_SHIFT;
+			break;
+		case VK_ESCAPE:
+			keyboard.button &= ~KEYBOARD_ESC;
+			settingsMenu.state &= ~MENU_OPEN_TOGGLE;	//Setze toggle bit zurück
 			break;
 		}
 		return 0L;
