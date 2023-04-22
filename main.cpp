@@ -93,9 +93,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		uint t_count = triangle_count/THREADCOUNT;
 	    std::vector<std::thread> threads;
 	    for(int i=0; i < THREADCOUNT-1; ++i){
-	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam));
+	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam, render_mode));
 	    }
-	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam));
+	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam, render_mode));
 
 	    for(auto& thread : threads){
 	        thread.join();
