@@ -124,6 +124,7 @@ struct PerfAnalyzer{
 }; GLOBALVAR static PerfAnalyzer perfAnalyzer;
 
 //TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
+//TODO Auf Fehler testen
 int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
