@@ -27,11 +27,15 @@ void update(float dt);
 Menu settingsMenu;
 //Menü Funktionen
 enum RENDERMODE{
-	WIREFRAME_MODE=1
+	SHADED_MODE = 0, WIREFRAME_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
 };
 uchar render_mode = 0;
-ErrCode toggleWireframe(void){
-	render_mode ^= WIREFRAME_MODE;
+ErrCode setWireframeMode(void){
+	render_mode = WIREFRAME_MODE;
+	return SUCCESS;
+}
+ErrCode setShadedMode(void){
+	render_mode = SHADED_MODE;
 	return SUCCESS;
 }
 
@@ -76,10 +80,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingButtons[0].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
 	settingButtons[0].hover_color = RGBA(120, 120, 255, 255);
 	settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
-	settingButtons[0].event = toggleWireframe;
+	settingButtons[0].event = setWireframeMode;
 	settingButtons[0].text = "Wireframe";
+	settingButtons[1].size = {105, 15};
+	settingButtons[1].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*2};
+	settingButtons[1].hover_color = RGBA(120, 120, 255, 255);
+	settingButtons[1].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[1].event = setShadedMode;
+	settingButtons[1].text = "Shaded";
 	settingsMenu.buttons = settingButtons;
-	settingsMenu.button_count = 1;
+	settingsMenu.button_count = 2;
 
 	while(_running){
 		getMessages(window);
