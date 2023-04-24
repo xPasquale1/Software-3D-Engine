@@ -45,6 +45,28 @@ ErrCode setDepthMode(void){
 
 int ERR_CODE = SUCCESS;
 
+#define OFFSET 8
+void SSAO(){
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	for(uint y=OFFSET; y < buffer_height-OFFSET; ++y){
+		for(uint x=OFFSET; x < buffer_width-OFFSET; ++x){
+
+			float cur = R(_depth_buffer[y*buffer_width+x]);
+			float count = 0;
+			for(int dy=-2; dy <= 2; ++dy){
+				for(int dx=-2; dx <= 2; ++dx){
+					float val = R(_depth_buffer[(y+dy)*buffer_width+x+dx]);
+					if(val < cur) count += 1;
+				}
+			}
+			count /= 25.;
+			uint color = _pixels[y*buffer_width+x];
+			_pixels[y*buffer_width+x] = RGBA((1-count)*R(color), (1-count)*G(color), (1-count)*B(color));
+		}
+	}
+}
+
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
 	if(!window){
@@ -118,6 +140,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    }
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
+		SSAO();
 #endif
 #ifdef PERFORMANCE_ANALYZER
     _perfAnalyzer.record_data(0);
