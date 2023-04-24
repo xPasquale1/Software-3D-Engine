@@ -6,7 +6,6 @@
 #include "util.h"
 #include "texture.h"
 
-//#define WIREFRAME
 #define CULL_BACKFACES
 
 GLOBALVAR static uint _window_width = 1000;
@@ -127,7 +126,7 @@ inline void draw_triangle(triangle& tri)noexcept{
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
 	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
 	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
-#ifndef WIREFRAME
+
 	uint ymin = std::min(pt0.y, std::min(pt1.y, pt2.y));
 	uint ymax = std::max(pt0.y, std::max(pt1.y, pt2.y));
 	uint xmin = std::min(pt0.x, std::min(pt1.x, pt2.x));
@@ -168,14 +167,49 @@ inline void draw_triangle(triangle& tri)noexcept{
 		u = tmp_u; v = tmp_v;
 		u -= deltaY_u; v += deltaY_v;
 	}
-#else
-	fvec2 l1 = {pt0.x, pt0.y};
-	fvec2 l2 = {pt1.x, pt1.y};
-	fvec2 l3 = {pt2.x, pt2.y};
-	draw_line(l1, l2, RGBA(255, 255, 255, 255));
-	draw_line(l1, l3, RGBA(255, 255, 255, 255));
-	draw_line(l2, l3, RGBA(255, 255, 255, 255));
-#endif
+}
+
+inline void draw_triangle_depth(triangle& tri)noexcept{
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
+	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
+	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
+
+	uint ymin = std::min(pt0.y, std::min(pt1.y, pt2.y));
+	uint ymax = std::max(pt0.y, std::max(pt1.y, pt2.y));
+	uint xmin = std::min(pt0.x, std::min(pt1.x, pt2.x));
+	uint xmax = std::max(pt0.x, std::max(pt1.x, pt2.x));
+
+	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
+	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
+	float div = cross(vs1, vs2);
+
+	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
+	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
+	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
+	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
+	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
+	for(uint y = ymin; y <= ymax; ++y){
+		float tmp_u = u; float tmp_v = v;
+		for(uint x = xmin; x <= xmax; ++x){
+			//w -> pt0, u -> pt1, v -> pt2
+			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
+				float w = 1-u-v;
+				uint idx = y*buffer_width+x;
+				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
+				float inc_depth = depth*10000;	//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+				if(inc_depth <= _depth_buffer[idx]){
+					_depth_buffer[idx] = (uint)inc_depth;
+					float depth_color = inc_depth/12000.;
+					_pixels[idx] = RGBA((uint)depth_color, (uint)depth_color, (uint)depth_color);
+				}
+			}
+	        u += deltaX_u; v -= deltaX_v;
+		}
+		u = tmp_u; v = tmp_v;
+		u -= deltaY_u; v += deltaY_v;
+	}
 }
 
 struct plane{
@@ -322,7 +356,12 @@ inline constexpr uint color_picker(uint i)noexcept{
 	return RGBA(120, 120, 120, 255);
 }
 
-inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam, uchar render_mode)noexcept{
+enum RENDERMODE{
+	SHADED_MODE = 0, WIREFRAME_MODE, DEPTH_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
+};
+GLOBALVAR static RENDERMODE _render_mode = SHADED_MODE;
+
+inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
@@ -367,8 +406,20 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		buffer[j].point[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].point[1].y = pt2.y*(cam->focal_length/pt2.z);
     		buffer[j].point[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].point[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].point[0].z = pt1.z; buffer[j].point[1].z = pt2.z; buffer[j].point[2].z = pt3.z;
-    		if(render_mode&0b1) draw_triangle_outline(buffer[j]);
-    		else draw_triangle(buffer[j]);
+    		switch(_render_mode){
+    		case WIREFRAME_MODE:
+    			draw_triangle_outline(buffer[j]);
+    			break;
+    		case SHADED_MODE:
+				draw_triangle(buffer[j]);
+				break;
+    		case DEPTH_MODE:
+    			draw_triangle_depth(buffer[j]);
+    			break;
+    		default:
+    			draw_triangle(buffer[j]);
+    			break;
+    		}
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawn_triangles += 1;
 #endif

@@ -26,16 +26,16 @@ void update(float dt);
 
 Menu settingsMenu;
 //Menü Funktionen
-enum RENDERMODE{
-	SHADED_MODE = 0, WIREFRAME_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
-};
-uchar render_mode = 0;
 ErrCode setWireframeMode(void){
-	render_mode = WIREFRAME_MODE;
+	_render_mode = WIREFRAME_MODE;
 	return SUCCESS;
 }
 ErrCode setShadedMode(void){
-	render_mode = SHADED_MODE;
+	_render_mode = SHADED_MODE;
+	return SUCCESS;
+}
+ErrCode setDepthMode(void){
+	_render_mode = DEPTH_MODE;
 	return SUCCESS;
 }
 
@@ -81,15 +81,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingButtons[0].hover_color = RGBA(120, 120, 255, 255);
 	settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[0].event = setWireframeMode;
-	settingButtons[0].text = "Wireframe";
+	settingButtons[0].text = "WIREFRAME";
 	settingButtons[1].size = {105, 15};
 	settingButtons[1].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*2};
 	settingButtons[1].hover_color = RGBA(120, 120, 255, 255);
 	settingButtons[1].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[1].event = setShadedMode;
-	settingButtons[1].text = "Shaded";
+	settingButtons[1].text = "SHADED";
+	settingButtons[2].size = {105, 15};
+	settingButtons[2].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*3};
+	settingButtons[2].hover_color = RGBA(120, 120, 255, 255);
+	settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[2].event = setDepthMode;
+	settingButtons[2].text = "DEPTH";
 	settingsMenu.buttons = settingButtons;
-	settingsMenu.button_count = 2;
+	settingsMenu.button_count = 3;
 
 	while(_running){
 		getMessages(window);
@@ -103,15 +109,15 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		uint t_count = triangle_count/THREADCOUNT;
 	    std::vector<std::thread> threads;
 	    for(int i=0; i < THREADCOUNT-1; ++i){
-	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam, render_mode));
+	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam));
 	    }
-	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam, render_mode));
+	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam));
 
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
 #else
-		rasterize(triangles, 0, triangle_count, &_cam, render_mode);
+		rasterize(triangles, 0, triangle_count, &_cam);
 #endif
 #ifdef PERFORMANCE_ANALYZER
     _perfAnalyzer.record_data(0);
