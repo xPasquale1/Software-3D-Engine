@@ -18,18 +18,18 @@
 	TODO Erste Beleuchtungsmodelle überlegen und implementieren
 */
 
-GLOBALVAR static bool _running = true;
-GLOBALVAR static camera _cam = {1., {0, 0, -20}, {0, 0}};
+static bool _running = true;
+static camera _cam = {1., {0, 0, -20}, {0, 0}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
 
-GLOBALVAR Menu settingsMenu;
+Menu settingsMenu;
 //Menü Funktionen
 enum RENDERMODE{
 	WIREFRAME_MODE=1
 };
-GLOBALVAR uchar render_mode = 0;
+uchar render_mode = 0;
 ErrCode toggleWireframe(void){
 	render_mode ^= WIREFRAME_MODE;
 	return SUCCESS;
@@ -39,7 +39,7 @@ ErrCode toggleWireframe(void){
 #define THREADCOUNT 8
 #define SPEED 0.05
 
-GLOBALVAR int ERR_CODE = SUCCESS;
+int ERR_CODE = SUCCESS;
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -83,11 +83,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	while(_running){
 		getMessages(window);
-		perfAnalyzer.reset();
+		_perfAnalyzer.reset();
 		clear_window();
 
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.start_timer(0);
+	_perfAnalyzer.start_timer(0);
 #endif
 #ifdef THREADING
 		uint t_count = triangle_count/THREADCOUNT;
@@ -104,15 +104,15 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		rasterize(triangles, 0, triangle_count, &_cam, render_mode);
 #endif
 #ifdef PERFORMANCE_ANALYZER
-    perfAnalyzer.record_data(0);
+    _perfAnalyzer.record_data(0);
 #endif
 
-    	update(perfAnalyzer.get_avg_data(0)+1);
-		draw_int(5, 5, 8/_pixel_size, perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
-		draw_int(5, 55/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
-		draw_int(5, 105/_pixel_size, 8/_pixel_size, perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
-		draw_int(5, 155/_pixel_size, 8/_pixel_size, perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
-		draw_int(5, 205/_pixel_size, 8/_pixel_size, perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
+    	update(_perfAnalyzer.get_avg_data(0)+1);
+		draw_int(5, 5, 8/_pixel_size, _perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
+		draw_int(5, 55/_pixel_size, 8/_pixel_size, _perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
+		draw_int(5, 105/_pixel_size, 8/_pixel_size, _perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
+		draw_int(5, 155/_pixel_size, 8/_pixel_size, _perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
+		draw_int(5, 205/_pixel_size, 8/_pixel_size, _perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
 		draw(window);
 	}
 
@@ -128,16 +128,16 @@ void update(float dt){
 	float sin_rotx = sin(_cam.rot.x);
 	float cos_rotx = cos(_cam.rot.x);
 	if(!checkMenuState(settingsMenu, MENU_OPEN)){
-		_cam.pos.x -= W(keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.z += W(keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.x += S(keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.z -= S(keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.x += D(keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.z += D(keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.x -= A(keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.z -= A(keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.y -= SPACE(keyboard)*SPEED*dt;
-		_cam.pos.y += SHIFT(keyboard)*SPEED*dt;
+		_cam.pos.x -= W(_keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.z += W(_keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.x += S(_keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.z -= S(_keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.x += D(_keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.z += D(_keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.x -= A(_keyboard)*cos_rotx*SPEED*dt;
+		_cam.pos.z -= A(_keyboard)*sin_rotx*SPEED*dt;
+		_cam.pos.y -= SPACE(_keyboard)*SPEED*dt;
+		_cam.pos.y += SHIFT(_keyboard)*SPEED*dt;
 	}else{
 		updateMenu(settingsMenu, _mouse);
 	}
@@ -203,25 +203,25 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	case WM_KEYDOWN:{
 		switch(wParam){
 		case 0x57:	//W
-			keyboard.button |= KEYBOARD_W;
+			_keyboard.button |= KEYBOARD_W;
 			break;
 		case 0x53:	//S
-			keyboard.button |= KEYBOARD_S;
+			_keyboard.button |= KEYBOARD_S;
 			break;
 		case 0x44:	//D
-			keyboard.button |= KEYBOARD_D;
+			_keyboard.button |= KEYBOARD_D;
 			break;
 		case 0x41:	//A
-			keyboard.button |= KEYBOARD_A;
+			_keyboard.button |= KEYBOARD_A;
 			break;
 		case VK_SPACE:
-			keyboard.button |= KEYBOARD_SPACE;
+			_keyboard.button |= KEYBOARD_SPACE;
 			break;
 		case VK_SHIFT:
-			keyboard.button |= KEYBOARD_SHIFT;
+			_keyboard.button |= KEYBOARD_SHIFT;
 			break;
 		case VK_ESCAPE:
-			keyboard.button |= KEYBOARD_ESC;
+			_keyboard.button |= KEYBOARD_ESC;
 			if(!checkMenuState(settingsMenu, MENU_OPEN_TOGGLE)){
 				settingsMenu.state |= MENU_OPEN_TOGGLE;	//Setze toggle bit
 				settingsMenu.state ^= MENU_OPEN;		//änder offen bit
@@ -236,25 +236,25 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	case WM_KEYUP:{
 		switch(wParam){
 		case 0x57:	//W
-			keyboard.button &= ~KEYBOARD_W;
+			_keyboard.button &= ~KEYBOARD_W;
 			break;
 		case 0x53:	//S
-			keyboard.button &= ~KEYBOARD_S;
+			_keyboard.button &= ~KEYBOARD_S;
 			break;
 		case 0x44:	//D
-			keyboard.button &= ~KEYBOARD_D;
+			_keyboard.button &= ~KEYBOARD_D;
 			break;
 		case 0x41:	//A
-			keyboard.button &= ~KEYBOARD_A;
+			_keyboard.button &= ~KEYBOARD_A;
 			break;
 		case VK_SPACE:
-			keyboard.button &= ~KEYBOARD_SPACE;
+			_keyboard.button &= ~KEYBOARD_SPACE;
 			break;
 		case VK_SHIFT:
-			keyboard.button &= ~KEYBOARD_SHIFT;
+			_keyboard.button &= ~KEYBOARD_SHIFT;
 			break;
 		case VK_ESCAPE:
-			keyboard.button &= ~KEYBOARD_ESC;
+			_keyboard.button &= ~KEYBOARD_ESC;
 			settingsMenu.state &= ~MENU_OPEN_TOGGLE;	//Setze toggle bit zurück
 			break;
 		}

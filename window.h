@@ -57,7 +57,7 @@ inline void clear_window()noexcept{
 
 inline void draw(HWND window)noexcept{
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.start_timer(1);
+	_perfAnalyzer.start_timer(1);
 #endif
 	int buffer_width = _window_width/_pixel_size;
 	int buffer_height = _window_height/_pixel_size;
@@ -65,7 +65,7 @@ inline void draw(HWND window)noexcept{
 	StretchDIBits(hdc, 0, _window_height, _window_width, -_window_height, 0, 0, buffer_width, buffer_height, _pixels, &_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.record_data(1);
+	_perfAnalyzer.record_data(1);
 #endif
 }
 
@@ -324,7 +324,7 @@ inline constexpr uint color_picker(uint i)noexcept{
 
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam, uchar render_mode)noexcept{
 #ifdef PERFORMANCE_ANALYZER
-	perfAnalyzer.total_triangles += triangle_count - start_idx;
+	_perfAnalyzer.total_triangles += triangle_count - start_idx;
 #endif
 	float rotm[3][3];
 	float aspect_ratio = _window_width/_window_height;
@@ -370,7 +370,7 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		if(render_mode&0b1) draw_triangle_outline(buffer[j]);
     		else draw_triangle(buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
-    		perfAnalyzer.drawn_triangles += 1;
+    		_perfAnalyzer.drawn_triangles += 1;
 #endif
     	}
     }

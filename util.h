@@ -66,7 +66,7 @@ inline constexpr bool RMB(Mouse& m){return m.button&MOUSE_RMB;}
 
 struct Keyboard{
 	char button=0;	//Bits: W, A, S, D, SHIFT, SPACE, ESC, ungenutzt
-}; GLOBALVAR static Keyboard keyboard;
+}; GLOBALVAR static Keyboard _keyboard;
 enum{
 	KEYBOARD_W=1, KEYBOARD_A=2, KEYBOARD_S=4, KEYBOARD_D=8, KEYBOARD_SHIFT=16, KEYBOARD_SPACE=32, KEYBOARD_ESC=64
 };
@@ -121,7 +121,7 @@ struct PerfAnalyzer{
 		}
 		return out/8.;
 	}
-}; GLOBALVAR static PerfAnalyzer perfAnalyzer;
+}; GLOBALVAR static PerfAnalyzer _perfAnalyzer;
 
 //TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
 //TODO Auf Fehler testen
