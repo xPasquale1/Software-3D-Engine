@@ -38,8 +38,12 @@ ErrCode setDepthMode(void){
 	_render_mode = DEPTH_MODE;
 	return SUCCESS;
 }
+ErrCode setNormalMode(void){
+	_render_mode = NORMAL_MODE;
+	return SUCCESS;
+}
 
-//#define THREADING
+#define THREADING
 #define THREADCOUNT 8
 #define SPEED 0.05
 
@@ -52,13 +56,11 @@ void SSAO(){
 	for(uint y=OFFSET; y < buffer_height-OFFSET; ++y){
 		for(uint x=OFFSET; x < buffer_width-OFFSET; ++x){
 
-			float cur = R(_depth_buffer[y*buffer_width+x]);
+			float cur_depth = R(_depth_buffer[y*buffer_width+x]);
+			fvec3 cur_normal = {(float)R(_normal_buffer[y*buffer_width+x]), (float)G(_normal_buffer[y*buffer_width+x]), (float)B(_normal_buffer[y*buffer_width+x])};
 			float count = 0;
-			for(int dy=-2; dy <= 2; ++dy){
-				for(int dx=-2; dx <= 2; ++dx){
-					float val = R(_depth_buffer[(y+dy)*buffer_width+x+dx]);
-					if(val < cur) count += 1;
-				}
+			for(int i=0; i < 25; ++i){
+				//Generiere sample-Punkte basierend auf dem aktuellen normalen vektor
 			}
 			count /= 25.;
 			uint color = _pixels[y*buffer_width+x];
@@ -116,8 +118,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[2].event = setDepthMode;
 	settingButtons[2].text = "DEPTH";
+	settingButtons[3].size = {105, 15};
+	settingButtons[3].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*4};
+	settingButtons[3].hover_color = RGBA(120, 120, 255, 255);
+	settingButtons[3].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[3].event = setNormalMode;
+	settingButtons[3].text = "NORMALS";
 	settingsMenu.buttons = settingButtons;
-	settingsMenu.button_count = 3;
+	settingsMenu.button_count = 4;
 
 	while(_running){
 		getMessages(window);
@@ -138,6 +146,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
+	    SSAO();
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
 		SSAO();
@@ -145,6 +154,25 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 #ifdef PERFORMANCE_ANALYZER
     _perfAnalyzer.record_data(0);
 #endif
+
+		uint buffer_width = _window_width/_pixel_size;
+		uint buffer_height = _window_height/_pixel_size;
+    	switch(_render_mode){
+    	case NORMAL_MODE:{
+    		for(uint i=0; i < buffer_width*buffer_height; ++i){
+    			_pixels[i] = _normal_buffer[i];
+    		}
+    		break;
+    	}
+    	case DEPTH_MODE:{
+    		for(uint i=0; i < buffer_width*buffer_height; ++i){
+    			uint depth_color = _depth_buffer[i]/10000.;
+    			_pixels[i] = RGBA(depth_color, depth_color, depth_color);
+    		}
+    		break;
+    	}
+    	default: break;
+    	}
 
     	update(_perfAnalyzer.get_avg_data(0)+1);
 		draw_int(5, 5, 8/_pixel_size, _perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
@@ -159,6 +187,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	delete[] triangles;
 	delete[] _pixels;
 	delete[] _depth_buffer;
+	delete[] _normal_buffer;
 	delete[] _default_texture;
 	return 0;
 }
@@ -192,8 +221,10 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     	if(buffer_width > 0 && buffer_height > 0){
 			delete[] _pixels;
 			delete[] _depth_buffer;
+			delete[] _normal_buffer;
 			_pixels = new(std::nothrow) uint[buffer_width*buffer_height];
 			_depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
+			_normal_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
 			if(!_pixels || !_depth_buffer){
 				std::cerr << "Konnte keinen Speicher für pixel oder depth buffer allokieren!" << std::endl;
 				buffer_width = 0;

@@ -13,6 +13,7 @@ GLOBALVAR static uint _window_height = 1000;
 GLOBALVAR static uint _pixel_size = 2;
 GLOBALVAR static uint* _pixels = nullptr;
 GLOBALVAR static uint* _depth_buffer = nullptr;
+GLOBALVAR static uint* _normal_buffer = nullptr;
 GLOBALVAR static BITMAPINFO _bitmapInfo = {};
 
 //Sollte nur einmalig aufgerufen und das handle gespeichert werden
@@ -120,7 +121,7 @@ inline void draw_triangle_outline(triangle& tri)noexcept{
 	draw_line(l2, l3, RGBA(255, 255, 255, 255));
 }
 
-inline void draw_triangle(triangle& tri)noexcept{
+inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
@@ -160,49 +161,7 @@ inline void draw_triangle(triangle& tri)noexcept{
 					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
 					_pixels[idx] = texture(_default_texture, s, t);
-				}
-			}
-	        u += deltaX_u; v -= deltaX_v;
-		}
-		u = tmp_u; v = tmp_v;
-		u -= deltaY_u; v += deltaY_v;
-	}
-}
-
-inline void draw_triangle_depth(triangle& tri)noexcept{
-	uint buffer_width = _window_width/_pixel_size;
-	uint buffer_height = _window_height/_pixel_size;
-	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
-	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
-	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
-
-	uint ymin = std::min(pt0.y, std::min(pt1.y, pt2.y));
-	uint ymax = std::max(pt0.y, std::max(pt1.y, pt2.y));
-	uint xmin = std::min(pt0.x, std::min(pt1.x, pt2.x));
-	uint xmax = std::max(pt0.x, std::max(pt1.x, pt2.x));
-
-	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
-	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
-	float div = cross(vs1, vs2);
-
-	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
-	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
-	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
-	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
-	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
-	for(uint y = ymin; y <= ymax; ++y){
-		float tmp_u = u; float tmp_v = v;
-		for(uint x = xmin; x <= xmax; ++x){
-			//w -> pt0, u -> pt1, v -> pt2
-			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
-				float w = 1-u-v;
-				uint idx = y*buffer_width+x;
-				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
-				float inc_depth = depth*10000;	//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				if(inc_depth <= _depth_buffer[idx]){
-					_depth_buffer[idx] = (uint)inc_depth;
-					float depth_color = inc_depth/12000.;
-					_pixels[idx] = RGBA((uint)depth_color, (uint)depth_color, (uint)depth_color);
+					_normal_buffer[idx] = RGB(255*normal.x, 255*normal.y, 255*normal.z);
 				}
 			}
 	        u += deltaX_u; v -= deltaX_v;
@@ -377,6 +336,11 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
 	triangle buffer[32] = {};
     for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
+    	//TODO kann man auch im Dreieck speichern
+    	fvec3 l1 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
+    	fvec3 l2 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
+    	fvec3 world_normal = cross(l1, l2);
+    	normalize(world_normal);
     	for(int j=0; j < 3; ++j){
     		float d[3];
     		d[0] = (tri.point[j].x-cam->pos.x);
@@ -411,13 +375,10 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     			draw_triangle_outline(buffer[j]);
     			break;
     		case SHADED_MODE:
-				draw_triangle(buffer[j]);
+				draw_triangle(buffer[j], world_normal);
 				break;
-    		case DEPTH_MODE:
-    			draw_triangle_depth(buffer[j]);
-    			break;
     		default:
-    			draw_triangle(buffer[j]);
+    			draw_triangle(buffer[j], world_normal);
     			break;
     		}
 #ifdef PERFORMANCE_ANALYZER
