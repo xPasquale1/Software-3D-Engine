@@ -235,13 +235,6 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 				val += word[i];
 			} uv_order[2] = std::atoi(val.c_str())-1;
 
-			auto read_pos = file.tellg();
-			file >> word; c = 0; bool quad = true;
-			if(word[0] < '0' || word[0] > '9' || file.eof()){	//Fläche ist ein Dreieck
-				quad = false;
-				file.seekg(read_pos, std::ios::beg);
-			}
-
 			storage[tri_count+current_count].point[0] = points[pt_order[0]];
 			storage[tri_count+current_count].point[1] = points[pt_order[1]];
 			storage[tri_count+current_count].point[2] = points[pt_order[2]];
@@ -253,37 +246,6 @@ int read_obj(const char* filename, triangle* storage, uint* count, float x, floa
 //			float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
 //			storage[tri_count+current_count].normal = {x, y, z};
 			++tri_count;
-
-			if(quad){
-				//Suche alle Zahlen die den Punkt beschreiben
-				for(size_t i=0; i < word.size(); ++i){
-					if(word[i] >= '0' && word[i] <= '9') ++c;
-					else break;
-				} val.clear();
-				for(uint i=0; i < c; ++i){
-					val += word[i];
-				} pt_order[3] = std::atoi(val.c_str())-1;
-				//Suche alle Zahlen die die Texturkoordinaten bestimmen
-				c1 = c+1; c = 0;
-				for(size_t i=c1; i < word.size(); ++i){
-					if(word[i] >= '0' && word[i] <= '9') ++c;
-					else break;
-				} val.clear();
-				for(uint i=c1; i < c+c1; ++i){
-					val += word[i];
-				} uv_order[3] = std::atoi(val.c_str())-1;
-				storage[tri_count+current_count].point[0] = points[pt_order[3]];
-				storage[tri_count+current_count].point[1] = points[pt_order[0]];
-				storage[tri_count+current_count].point[2] = points[pt_order[2]];
-				storage[tri_count+current_count].uv[0] = uvs[uv_order[3]];
-				storage[tri_count+current_count].uv[1] = uvs[uv_order[0]];
-				storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-//				float x = (normals[pt_order[3]].x + normals[pt_order[0]].x + normals[pt_order[2]].x)/3.;
-//				float y = (normals[pt_order[3]].y + normals[pt_order[0]].y + normals[pt_order[2]].y)/3.;
-//				float z = (normals[pt_order[3]].z + normals[pt_order[0]].x + normals[pt_order[2]].z)/3.;
-//				storage[tri_count+current_count].normal = {x, y, z};
-				++tri_count;
-			}
 		}
 	}
 	*count += tri_count;
