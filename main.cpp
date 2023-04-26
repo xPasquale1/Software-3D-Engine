@@ -38,6 +38,10 @@ ErrCode setDepthMode(void){
 	_render_mode = DEPTH_MODE;
 	return SUCCESS;
 }
+ErrCode setNormalMode(void){
+	_render_mode = NORMAL_MODE;
+	return SUCCESS;
+}
 
 //#define THREADING
 #define THREADCOUNT 8
@@ -94,8 +98,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[2].event = setDepthMode;
 	settingButtons[2].text = "DEPTH";
+	settingButtons[3].size = {105, 15};
+	settingButtons[3].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*4};
+	settingButtons[3].hover_color = RGBA(120, 120, 255, 255);
+	settingButtons[3].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[3].event = setNormalMode;
+	settingButtons[3].text = "NORMALS";
 	settingsMenu.buttons = settingButtons;
-	settingsMenu.button_count = 3;
+	settingsMenu.button_count = 4;
 
 	while(_running){
 		getMessages(window);
@@ -136,6 +146,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	delete[] triangles;
 	delete[] _pixels;
 	delete[] _depth_buffer;
+	delete[] _normal_buffer;
 	delete[] _default_texture;
 	return 0;
 }
@@ -169,10 +180,12 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
     	if(buffer_width > 0 && buffer_height > 0){
 			delete[] _pixels;
 			delete[] _depth_buffer;
+			delete[] _normal_buffer;
 			_pixels = new(std::nothrow) uint[buffer_width*buffer_height];
 			_depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
-			if(!_pixels || !_depth_buffer){
-				std::cerr << "Konnte keinen Speicher für pixel oder depth buffer allokieren!" << std::endl;
+			_normal_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
+			if(!_pixels || !_depth_buffer || !_normal_buffer){
+				std::cerr << "Konnte keinen Speicher für einen render-buffer allokieren!" << std::endl;
 				buffer_width = 0;
 				buffer_height = 0;
 			}
