@@ -91,6 +91,25 @@ inline constexpr fvec3 cross(fvec3& a, fvec3& b){return {a.y*b.z-a.z*b.y, a.z*b.
 inline constexpr float deg2rad(float deg){return deg*PI/180;}
 inline constexpr float rad2deg(float rad){return rad*180/PI;}
 
+inline constexpr fvec3 rotate(const fvec3& v, const fvec3& axis, float angle){
+    float s = sin(angle);
+    float c = cos(angle);
+    float oc = 1.0f - c;
+
+    fvec3 result = {v.x * (oc * axis.x * axis.x + c) +
+               	   v.y * (oc * axis.x * axis.y - axis.z * s) +
+				   v.z * (oc * axis.x * axis.z + axis.y * s),
+				   v.x * (oc * axis.y * axis.x + axis.z * s) +
+				   v.y * (oc * axis.y * axis.y + c) +
+				   v.z * (oc * axis.y * axis.z - axis.x * s),
+				   v.x * (oc * axis.z * axis.x - axis.y * s) +
+				   v.y * (oc * axis.z * axis.y + axis.x * s) +
+				   v.z * (oc * axis.z * axis.z + c)
+    };
+
+    return result;
+}
+
 #define PERFORMANCE_ANALYZER
 struct PerfAnalyzer{
 	//Indexe: 0 rasterizer, 1 drawing, 2 ungenutzt

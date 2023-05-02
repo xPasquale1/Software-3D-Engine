@@ -43,28 +43,44 @@ ErrCode setNormalMode(void){
 	return SUCCESS;
 }
 
-#define THREADING
+//#define THREADING
 #define THREADCOUNT 8
 #define SPEED 0.05
 
 int ERR_CODE = SUCCESS;
 
-#define OFFSET 8
+#define OFFSET 100
+#define SAMPLES 2
+
+inline fvec3 reflect(fvec3 i, fvec3 n){
+	i.x -= 2 * dot(i, n) * n.x;
+	i.y -= 2 * dot(i, n) * n.y;
+	i.z -= 2 * dot(i, n) * n.z;
+	return i;
+}
+
 void SSAO(){
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	for(uint y=OFFSET; y < buffer_height-OFFSET; ++y){
 		for(uint x=OFFSET; x < buffer_width-OFFSET; ++x){
 
-			float cur_depth = R(_depth_buffer[y*buffer_width+x]);
-			fvec3 cur_normal = {(float)R(_normal_buffer[y*buffer_width+x]), (float)G(_normal_buffer[y*buffer_width+x]), (float)B(_normal_buffer[y*buffer_width+x])};
+			float depth = _depth_buffer[y*buffer_width+x];
 			float count = 0;
-			for(int i=0; i < 25; ++i){
-				//Generiere sample-Punkte basierend auf dem aktuellen normalen vektor
+			for(int i=0; i < SAMPLES; ++i){
+                //Generiere Testpunkte basierend auf den aktuellen Normalenvektoren
+                float u = R(_normal_buffer[i]/128.-1);
+                float v = G(_normal_buffer[i]/128.-1);
+                fvec2 sample_point = {u*(rand()%201-100)/100.f, v*(rand()%201-100)/100.f};
+//                sample_point.x /= depth; sample_point.y /= depth;
+                uint idx = (int)(sample_point.y+y)*buffer_width+(int)(sample_point.x+x);
+                if(idx < 0 || idx >= buffer_width*buffer_height) continue;
+                float cur_depth = _depth_buffer[idx];
+                if(depth > cur_depth) ++count;
 			}
-			count /= 25.;
+			count /= SAMPLES;
 			uint color = _pixels[y*buffer_width+x];
-			_pixels[y*buffer_width+x] = RGBA((1-count)*R(color), (1-count)*G(color), (1-count)*B(color));
+			_pixels[y*buffer_width+x] = RGBA((1.f-count)*R(color), (1.f-count)*G(color), (1.f-count)*B(color));
 		}
 	}
 }
@@ -83,14 +99,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 	uint triangle_count = 0;
 
-	ERR_CODE = load_texture("textures/low_poly_winter.tex", _default_texture);
+	ERR_CODE = load_texture("textures/blank.tex", _default_texture);
 	if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte default texture nicht laden!" << std::endl;
 		return -1;
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	ERR_CODE = read_obj("objects/low_poly_winter1.obj", triangles, &triangle_count, 0, 20, 0, 2);
+	ERR_CODE = read_obj("objects/SSAO_test.obj", triangles, &triangle_count, 0, 20, 0, 2);
 		if(ERR_CODE != SUCCESS){
 		std::cerr << "Konnte Modell nicht laden!" << std::endl;
 		return -1;
@@ -102,28 +118,20 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Button settingButtons[5];
 	settingButtons[0].size = {105, 15};
 	settingButtons[0].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
-	settingButtons[0].hover_color = RGBA(120, 120, 255, 255);
-	settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
-	settingButtons[0].event = setWireframeMode;
-	settingButtons[0].text = "WIREFRAME";
+	settingButtons[0].hover_color = RGBA(120, 120, 255, 255); settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[0].event = setWireframeMode; settingButtons[0].text = "WIREFRAME";
 	settingButtons[1].size = {105, 15};
 	settingButtons[1].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*2};
-	settingButtons[1].hover_color = RGBA(120, 120, 255, 255);
-	settingButtons[1].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
-	settingButtons[1].event = setShadedMode;
-	settingButtons[1].text = "SHADED";
+	settingButtons[1].hover_color = RGBA(120, 120, 255, 255); settingButtons[1].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[1].event = setShadedMode; settingButtons[1].text = "SHADED";
 	settingButtons[2].size = {105, 15};
 	settingButtons[2].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*3};
-	settingButtons[2].hover_color = RGBA(120, 120, 255, 255);
-	settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
-	settingButtons[2].event = setDepthMode;
-	settingButtons[2].text = "DEPTH";
+	settingButtons[2].hover_color = RGBA(120, 120, 255, 255); settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[2].event = setDepthMode; settingButtons[2].text = "DEPTH";
 	settingButtons[3].size = {105, 15};
 	settingButtons[3].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*4};
-	settingButtons[3].hover_color = RGBA(120, 120, 255, 255);
-	settingButtons[3].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
-	settingButtons[3].event = setNormalMode;
-	settingButtons[3].text = "NORMALS";
+	settingButtons[3].hover_color = RGBA(120, 120, 255, 255); settingButtons[3].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
+	settingButtons[3].event = setNormalMode; settingButtons[3].text = "NORMALS";
 	settingsMenu.buttons = settingButtons;
 	settingsMenu.button_count = 4;
 

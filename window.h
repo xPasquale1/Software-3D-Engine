@@ -161,7 +161,7 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
 					_pixels[idx] = texture(_default_texture, s, t);
-					_normal_buffer[idx] = RGB(255*normal.x, 255*normal.y, 255*normal.z);
+					_normal_buffer[idx] = RGB(128*(1+normal.x), 128*(1+normal.y), 128*(1+normal.z));
 				}
 			}
 	        u += deltaX_u; v -= deltaX_v;
@@ -337,10 +337,10 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
     	//TODO kann man auch im Dreieck speichern
-    	fvec3 l1 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
-    	fvec3 l2 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
-    	fvec3 world_normal = cross(l1, l2);
-    	normalize(world_normal);
+//    	fvec3 l1 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
+//    	fvec3 l2 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
+//    	fvec3 world_normal = cross(l1, l2);
+//    	normalize(world_normal);
     	for(int j=0; j < 3; ++j){
     		float d[3];
     		d[0] = (tri.point[j].x-cam->pos.x);
@@ -356,10 +356,11 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     	    tri.point[j].y = v[1];
     	    tri.point[j].z = v[2];
     	}
-#ifdef CULL_BACKFACES
     	fvec3 l01 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
     	fvec3 l02 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
     	fvec3 normal = cross(l01, l02);
+    	normalize(normal);
+#ifdef CULL_BACKFACES
     	if(dot(tri.point[0], normal) > 0) continue;
 #endif
     	buffer[0] = tri;
@@ -375,10 +376,10 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     			draw_triangle_outline(buffer[j]);
     			break;
     		case SHADED_MODE:
-				draw_triangle(buffer[j], world_normal);
+				draw_triangle(buffer[j], normal);
 				break;
     		default:
-    			draw_triangle(buffer[j], world_normal);
+    			draw_triangle(buffer[j], normal);
     			break;
     		}
 #ifdef PERFORMANCE_ANALYZER

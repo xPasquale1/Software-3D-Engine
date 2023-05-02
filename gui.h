@@ -11,8 +11,8 @@ struct Button{
 	ivec2 size;
 	uchar state=0;	//Bits: Sichtbarkeit, Maus hover aktiv, Maus hover state, Button gedrückt, Rest ungenutzt
 	uint color = RGBA(120, 120, 120);
-	uint hover_color = RGBA(150, 150, 150);
-	uint textcolor=RGBA(180, 180, 180);
+	uint hover_color = RGBA(120, 120, 255);
+	uint textcolor = RGBA(180, 180, 180);
 	uint textsize=2;
 };
 enum BUTTONSTATE{
