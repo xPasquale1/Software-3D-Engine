@@ -50,14 +50,7 @@ ErrCode setNormalMode(void){
 int ERR_CODE = SUCCESS;
 
 #define OFFSET 100
-#define SAMPLES 2
-
-inline fvec3 reflect(fvec3 i, fvec3 n){
-	i.x -= 2 * dot(i, n) * n.x;
-	i.y -= 2 * dot(i, n) * n.y;
-	i.z -= 2 * dot(i, n) * n.z;
-	return i;
-}
+#define SAMPLES 4
 
 void SSAO(){
 	uint buffer_width = _window_width/_pixel_size;
@@ -67,16 +60,23 @@ void SSAO(){
 
 			float depth = _depth_buffer[y*buffer_width+x];
 			float count = 0;
+//            float nx = (R(_normal_buffer[y*buffer_width+x])-127)/128.f;
+//            float ny = (G(_normal_buffer[y*buffer_width+x])-127)/128.f;
+//            float nz = (B(_normal_buffer[y*buffer_width+x])-127)/128.f;
+			int n1 = _normal_buffer[y*buffer_width+x];
 			for(int i=0; i < SAMPLES; ++i){
-                //Generiere Testpunkte basierend auf den aktuellen Normalenvektoren
-                float u = R(_normal_buffer[i]/128.-1);
-                float v = G(_normal_buffer[i]/128.-1);
-                fvec2 sample_point = {u*(rand()%201-100)/100.f, v*(rand()%201-100)/100.f};
-//                sample_point.x /= depth; sample_point.y /= depth;
-                uint idx = (int)(sample_point.y+y)*buffer_width+(int)(sample_point.x+x);
-                if(idx < 0 || idx >= buffer_width*buffer_height) continue;
+                //Generiere Testpunkte basierend auf den aktuellen Normalenvektor
+                //*(rand()%201-100)/100.f
+                fvec2 sample_point = {(float)x+(rand()%7-3), (float)y+(rand()%7-3)};
+
+                uint idx = (int)(sample_point.y)*buffer_width+(int)(sample_point.x);
+//                float nx2 = (R(_normal_buffer[idx])-127)/128.f;
+//                float ny2 = (G(_normal_buffer[idx])-127)/128.f;
+//                float nz2 = (B(_normal_buffer[idx])-127)/128.f;
+                int n2 = _normal_buffer[idx];
+
                 float cur_depth = _depth_buffer[idx];
-                if(depth > cur_depth) ++count;
+                if(abs(n1-n2) > 0.0001) ++count;
 			}
 			count /= SAMPLES;
 			uint color = _pixels[y*buffer_width+x];

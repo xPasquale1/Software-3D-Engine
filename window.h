@@ -154,7 +154,8 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
 				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
-				float inc_depth = depth*10000;	//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+				float inc_depth = depth*10000;
 				if(inc_depth <= _depth_buffer[idx]){
 					_depth_buffer[idx] = (uint)inc_depth;
 					float s = (w*uv0x + u*uv1x + v*uv2x);
