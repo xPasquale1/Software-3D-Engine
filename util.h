@@ -83,6 +83,11 @@ inline constexpr void normalize(fvec3& vec){
 	vec.x /= length; vec.y /= length; vec.z /= length;
 	return;
 }
+inline constexpr void normalize(fvec2& vec){
+	float length = sqrt(vec.x*vec.x + vec.y*vec.y);
+	vec.x /= length; vec.y /= length;
+	return;
+}
 inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
 inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}

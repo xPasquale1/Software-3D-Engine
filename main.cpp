@@ -60,23 +60,18 @@ void SSAO(){
 
 			float depth = _depth_buffer[y*buffer_width+x];
 			float count = 0;
-//            float nx = (R(_normal_buffer[y*buffer_width+x])-127)/128.f;
-//            float ny = (G(_normal_buffer[y*buffer_width+x])-127)/128.f;
-//            float nz = (B(_normal_buffer[y*buffer_width+x])-127)/128.f;
-			int n1 = _normal_buffer[y*buffer_width+x];
+            float nx = (R(_normal_buffer[y*buffer_width+x])-127)/128.f;
+            float ny = (G(_normal_buffer[y*buffer_width+x])-127)/128.f;
+            float nz = (B(_normal_buffer[y*buffer_width+x])-127)/128.f;
 			for(int i=0; i < SAMPLES; ++i){
-                //Generiere Testpunkte basierend auf den aktuellen Normalenvektor
+                //Generiere Testpunkte basierend auf dem aktuellen Normalenvektor
                 //*(rand()%201-100)/100.f
-                fvec2 sample_point = {(float)x+(rand()%7-3), (float)y+(rand()%7-3)};
+                fvec3 sample_point = {nx, ny, nz};
 
-                uint idx = (int)(sample_point.y)*buffer_width+(int)(sample_point.x);
-//                float nx2 = (R(_normal_buffer[idx])-127)/128.f;
-//                float ny2 = (G(_normal_buffer[idx])-127)/128.f;
-//                float nz2 = (B(_normal_buffer[idx])-127)/128.f;
-                int n2 = _normal_buffer[idx];
+                uint idx = (int)(sample_point.y+y)*buffer_width+(int)(sample_point.x+x);
+                float cur_depth = _depth_buffer[idx] + sample_point.z;
 
-                float cur_depth = _depth_buffer[idx];
-                if(abs(n1-n2) > 0.0001) ++count;
+                if(cur_depth > depth) ++count;
 			}
 			count /= SAMPLES;
 			uint color = _pixels[y*buffer_width+x];
@@ -165,6 +160,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 		uint buffer_width = _window_width/_pixel_size;
 		uint buffer_height = _window_height/_pixel_size;
+		//TODO sollte in die draw funktion damit buffer nicht unnötig kopiert werden müssen
     	switch(_render_mode){
     	case NORMAL_MODE:{
     		for(uint i=0; i < buffer_width*buffer_height; ++i){

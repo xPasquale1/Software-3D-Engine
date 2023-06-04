@@ -161,8 +161,9 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 					float s = (w*uv0x + u*uv1x + v*uv2x);
 					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
+					//TODO dynamisch texturen lesen können/materials hinzufügen
 					_pixels[idx] = texture(_default_texture, s, t);
-					_normal_buffer[idx] = RGB(128*(1+normal.x), 128*(1+normal.y), 128*(1+normal.z));
+					_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
 				}
 			}
 	        u += deltaX_u; v -= deltaX_v;
