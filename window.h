@@ -55,6 +55,16 @@ inline void clear_window()noexcept{
 	}
 }
 
+inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
+inline constexpr uchar R(uint color){return uchar(color>>16);}
+inline constexpr uchar G(uint color){return uchar(color>>8);}
+inline constexpr uchar B(uint color){return uchar(color);}
+
+enum RENDERMODE{
+	SHADED_MODE = 0, WIREFRAME_MODE, DEPTH_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
+};
+GLOBALVAR static RENDERMODE _render_mode = SHADED_MODE;
+
 inline void draw(HWND window)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.start_timer(1);
@@ -63,16 +73,33 @@ inline void draw(HWND window)noexcept{
 	int buffer_height = _window_height/_pixel_size;
 	HDC hdc = GetDC(window);
 	StretchDIBits(hdc, 0, _window_height, _window_width, -_window_height, 0, 0, buffer_width, buffer_height, _pixels, &_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-	ReleaseDC(window, hdc);
+	ReleaseDC(window, hdc);	//TODO Könnte unnötig sein, da Kontext nie geändert wird
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.record_data(1);
 #endif
 }
 
-inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
-inline constexpr uchar R(uint color){return uchar(color>>16);}
-inline constexpr uchar G(uint color){return uchar(color>>8);}
-inline constexpr uchar B(uint color){return uchar(color);}
+//Kopiert den Buffer der über _render_mode ausgewählt wird in den pixel array
+inline void draw_buffer(){
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	switch(_render_mode){
+	case NORMAL_MODE:{
+		for(uint i=0; i < buffer_width*buffer_height; ++i){
+			_pixels[i] = _normal_buffer[i];
+		}
+		break;
+	}
+	case DEPTH_MODE:{
+		for(uint i=0; i < buffer_width*buffer_height; ++i){
+			uint depth_color = _depth_buffer[i]/10000.;
+			_pixels[i] = RGBA(depth_color, depth_color, depth_color);
+		}
+		break;
+	}
+	default: break;
+	}
+}
 
 inline void draw_rectangle(uint x, uint y, uint dx, uint dy, uint color)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
@@ -317,11 +344,6 @@ inline constexpr uint color_picker(uint i)noexcept{
 	return RGBA(120, 120, 120, 255);
 }
 
-enum RENDERMODE{
-	SHADED_MODE = 0, WIREFRAME_MODE, DEPTH_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
-};
-GLOBALVAR static RENDERMODE _render_mode = SHADED_MODE;
-
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.total_triangles += triangle_count - start_idx;
@@ -339,10 +361,10 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
     	//TODO kann man auch im Dreieck speichern
-//    	fvec3 l1 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
-//    	fvec3 l2 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
-//    	fvec3 world_normal = cross(l1, l2);
-//    	normalize(world_normal);
+    	fvec3 l1 = {tri.point[1].x-tri.point[0].x, tri.point[1].y-tri.point[0].y, tri.point[1].z-tri.point[0].z};
+    	fvec3 l2 = {tri.point[2].x-tri.point[0].x, tri.point[2].y-tri.point[0].y, tri.point[2].z-tri.point[0].z};
+    	fvec3 world_normal = cross(l1, l2);
+    	normalize(world_normal);
     	for(int j=0; j < 3; ++j){
     		float d[3];
     		d[0] = (tri.point[j].x-cam->pos.x);
@@ -378,10 +400,10 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     			draw_triangle_outline(buffer[j]);
     			break;
     		case SHADED_MODE:
-				draw_triangle(buffer[j], normal);
+				draw_triangle(buffer[j], world_normal);
 				break;
     		default:
-    			draw_triangle(buffer[j], normal);
+    			draw_triangle(buffer[j], world_normal);
     			break;
     		}
 #ifdef PERFORMANCE_ANALYZER

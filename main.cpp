@@ -49,37 +49,6 @@ ErrCode setNormalMode(void){
 
 int ERR_CODE = SUCCESS;
 
-#define OFFSET 100
-#define SAMPLES 4
-
-void SSAO(){
-	uint buffer_width = _window_width/_pixel_size;
-	uint buffer_height = _window_height/_pixel_size;
-	for(uint y=OFFSET; y < buffer_height-OFFSET; ++y){
-		for(uint x=OFFSET; x < buffer_width-OFFSET; ++x){
-
-			float depth = _depth_buffer[y*buffer_width+x];
-			float count = 0;
-            float nx = (R(_normal_buffer[y*buffer_width+x])-127)/128.f;
-            float ny = (G(_normal_buffer[y*buffer_width+x])-127)/128.f;
-            float nz = (B(_normal_buffer[y*buffer_width+x])-127)/128.f;
-			for(int i=0; i < SAMPLES; ++i){
-                //Generiere Testpunkte basierend auf dem aktuellen Normalenvektor
-                //*(rand()%201-100)/100.f
-                fvec3 sample_point = {nx, ny, nz};
-
-                uint idx = (int)(sample_point.y+y)*buffer_width+(int)(sample_point.x+x);
-                float cur_depth = _depth_buffer[idx] + sample_point.z;
-
-                if(cur_depth > depth) ++count;
-			}
-			count /= SAMPLES;
-			uint color = _pixels[y*buffer_width+x];
-			_pixels[y*buffer_width+x] = RGBA((1.f-count)*R(color), (1.f-count)*G(color), (1.f-count)*B(color));
-		}
-	}
-}
-
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
 	if(!window){
@@ -149,34 +118,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
-	    SSAO();
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
-		SSAO();
 #endif
 #ifdef PERFORMANCE_ANALYZER
     _perfAnalyzer.record_data(0);
 #endif
 
-		uint buffer_width = _window_width/_pixel_size;
-		uint buffer_height = _window_height/_pixel_size;
-		//TODO sollte in die draw funktion damit buffer nicht unnötig kopiert werden müssen
-    	switch(_render_mode){
-    	case NORMAL_MODE:{
-    		for(uint i=0; i < buffer_width*buffer_height; ++i){
-    			_pixels[i] = _normal_buffer[i];
-    		}
-    		break;
-    	}
-    	case DEPTH_MODE:{
-    		for(uint i=0; i < buffer_width*buffer_height; ++i){
-    			uint depth_color = _depth_buffer[i]/10000.;
-    			_pixels[i] = RGBA(depth_color, depth_color, depth_color);
-    		}
-    		break;
-    	}
-    	default: break;
-    	}
+    	draw_buffer();
 
     	update(_perfAnalyzer.get_avg_data(0)+1);
 		draw_int(5, 5, 8/_pixel_size, _perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
