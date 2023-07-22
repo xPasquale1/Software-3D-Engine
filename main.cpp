@@ -47,7 +47,29 @@ ErrCode setNormalMode(void){
 #define THREADCOUNT 8
 #define SPEED 0.05
 
-int ERR_CODE = SUCCESS;
+GLOBALVAR ErrCode ERR_CODE = SUCCESS;
+
+//TODO Nutze mehrere threads falls THREADING
+void glight(){
+	fvec3 light_dir = {2, -2, 1};
+	normalize(light_dir);
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	for(uint y=0; y < buffer_height; ++y){
+		for(uint x=0; x < buffer_width; ++x){
+
+			uint color = _pixels[y*buffer_width+x];
+			uint normal = _normal_buffer[y*buffer_width+x];
+			fvec3 n;
+			n.x = (R(normal)/127.5)-1;
+			n.y = (G(normal)/127.5)-1;
+			n.z = (B(normal)/127.5)-1;
+			float occlusion = (dot(light_dir, n)+1)/2.f;
+			_pixels[y*buffer_width+x] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
+
+		}
+	}
+}
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	HWND window = getWindow(hInstance, "Window", WindowProc);
@@ -58,21 +80,19 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	triangle* triangles = new(std::nothrow) triangle[1100000];
 	if(!triangles){
-		std::cerr << "Konnte keinen Speicher für die statischen Dreiecke allokieren!" << std::endl;
+		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
 		return -1;
 	}
 	uint triangle_count = 0;
 
-	ERR_CODE = load_texture("textures/blank.tex", _default_texture);
-	if(ERR_CODE != SUCCESS){
-		std::cerr << "Konnte default texture nicht laden!" << std::endl;
+	ERR_CODE = load_texture("textures/low_poly_winter.tex", _default_texture);
+	if(ErrCheck(ERR_CODE, "Fehler beim laden der default Texture!")){
 		return -1;
 	}
 
 //	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	ERR_CODE = read_obj("objects/SSAO_test.obj", triangles, &triangle_count, 0, 20, 0, 2);
-		if(ERR_CODE != SUCCESS){
-		std::cerr << "Konnte Modell nicht laden!" << std::endl;
+	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 20, 0, 2);
+	if(ErrCheck(ERR_CODE, "Fehler beim Laden des default Modells!")){
 		return -1;
 	}
 
@@ -82,30 +102,26 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Button settingButtons[5];
 	settingButtons[0].size = {105, 15};
 	settingButtons[0].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
-	settingButtons[0].hover_color = RGBA(120, 120, 255, 255); settingButtons[0].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[0].event = setWireframeMode; settingButtons[0].text = "WIREFRAME";
 	settingButtons[1].size = {105, 15};
 	settingButtons[1].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*2};
-	settingButtons[1].hover_color = RGBA(120, 120, 255, 255); settingButtons[1].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[1].event = setShadedMode; settingButtons[1].text = "SHADED";
 	settingButtons[2].size = {105, 15};
 	settingButtons[2].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*3};
-	settingButtons[2].hover_color = RGBA(120, 120, 255, 255); settingButtons[2].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[2].event = setDepthMode; settingButtons[2].text = "DEPTH";
 	settingButtons[3].size = {105, 15};
 	settingButtons[3].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*4};
-	settingButtons[3].hover_color = RGBA(120, 120, 255, 255); settingButtons[3].state = BUTTON_VISIBLE | BUTTON_CAN_HOVER;
 	settingButtons[3].event = setNormalMode; settingButtons[3].text = "NORMALS";
 	settingsMenu.buttons = settingButtons;
 	settingsMenu.button_count = 4;
 
 	while(_running){
 		getMessages(window);
-		_perfAnalyzer.reset();
+		reset(_perfAnalyzer);
 		clear_window();
 
 #ifdef PERFORMANCE_ANALYZER
-	_perfAnalyzer.start_timer(0);
+	start_timer(_perfAnalyzer, 0);
 #endif
 #ifdef THREADING
 		uint t_count = triangle_count/THREADCOUNT;
@@ -120,19 +136,22 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    }
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
+		glight();
 #endif
 #ifdef PERFORMANCE_ANALYZER
-    _perfAnalyzer.record_data(0);
+    record_data(_perfAnalyzer, 0);
 #endif
 
     	draw_buffer();
 
-    	update(_perfAnalyzer.get_avg_data(0)+1);
-		draw_int(5, 5, 8/_pixel_size, _perfAnalyzer.get_avg_data(0), RGBA(130, 130, 130, 255));
-		draw_int(5, 55/_pixel_size, 8/_pixel_size, _perfAnalyzer.get_avg_data(1), RGBA(130, 130, 130, 255));
-		draw_int(5, 105/_pixel_size, 8/_pixel_size, _perfAnalyzer.get_avg_data(2), RGBA(130, 130, 130, 255));
+    	update(get_avg_data(_perfAnalyzer, 0)+1);
+		draw_int(5, 5, 8/_pixel_size, get_avg_data(_perfAnalyzer, 0), RGBA(130, 130, 130, 255));
+		draw_int(5, 55/_pixel_size, 8/_pixel_size, get_avg_data(_perfAnalyzer, 1), RGBA(130, 130, 130, 255));
+		draw_int(5, 105/_pixel_size, 8/_pixel_size, get_avg_data(_perfAnalyzer, 2), RGBA(130, 130, 130, 255));
 		draw_int(5, 155/_pixel_size, 8/_pixel_size, _perfAnalyzer.total_triangles, RGBA(130, 130, 130, 255));
 		draw_int(5, 205/_pixel_size, 8/_pixel_size, _perfAnalyzer.drawn_triangles, RGBA(130, 130, 130, 255));
+		draw_int(5, 255/_pixel_size, 8/_pixel_size, _pixels_drawn, RGBA(130, 130, 130, 255));
+		draw_int(5, 305/_pixel_size, 8/_pixel_size, _pixels_not_drawn, RGBA(130, 130, 130, 255));
 		draw(window);
 	}
 
@@ -142,6 +161,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	delete[] _depth_buffer;
 	delete[] _normal_buffer;
 	delete[] _default_texture;
+
 	return 0;
 }
 
@@ -149,16 +169,16 @@ void update(float dt){
 	float sin_rotx = sin(_cam.rot.x);
 	float cos_rotx = cos(_cam.rot.x);
 	if(!checkMenuState(settingsMenu, MENU_OPEN)){
-		_cam.pos.x -= W(_keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.z += W(_keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.x += S(_keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.z -= S(_keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.x += D(_keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.z += D(_keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.x -= A(_keyboard)*cos_rotx*SPEED*dt;
-		_cam.pos.z -= A(_keyboard)*sin_rotx*SPEED*dt;
-		_cam.pos.y -= SPACE(_keyboard)*SPEED*dt;
-		_cam.pos.y += SHIFT(_keyboard)*SPEED*dt;
+		_cam.pos.x -= getgKey(KEY_W)*sin_rotx*SPEED*dt;
+		_cam.pos.z += getgKey(KEY_W)*cos_rotx*SPEED*dt;
+		_cam.pos.x += getgKey(KEY_S)*sin_rotx*SPEED*dt;
+		_cam.pos.z -= getgKey(KEY_S)*cos_rotx*SPEED*dt;
+		_cam.pos.x += getgKey(KEY_D)*cos_rotx*SPEED*dt;
+		_cam.pos.z += getgKey(KEY_D)*sin_rotx*SPEED*dt;
+		_cam.pos.x -= getgKey(KEY_A)*cos_rotx*SPEED*dt;
+		_cam.pos.z -= getgKey(KEY_A)*sin_rotx*SPEED*dt;
+		_cam.pos.y -= getgKey(KEY_SPACE)*SPEED*dt;
+		_cam.pos.y += getgKey(KEY_SHIFT)*SPEED*dt;
 	}else{
 		updateMenu(settingsMenu, _mouse);
 	}
@@ -198,8 +218,12 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 		tagRECT w_pos;
 		GetCursorPos(&m_pos);
 		GetWindowRect(hwnd, &w_pos);
+		POINT point = {0, 0};
+		ClientToScreen(hwnd, &point);
+//		_mouse.pos.x = GET_X_LPARAM(lParam);	//TODO das sollte alles neu geschrieben werden
+//		_mouse.pos.y = GET_Y_LPARAM(lParam);
 		_mouse.pos.x = (m_pos.x - w_pos.left)/_pixel_size;
-		_mouse.pos.y = ((m_pos.y - w_pos.top)-31)/_pixel_size;	//TODO Größe der Titlebar bestimmen
+		_mouse.pos.y = ((m_pos.y - w_pos.top)-(point.y-w_pos.top))/_pixel_size;
 		if(!checkMenuState(settingsMenu, MENU_OPEN)){
 			_cam.rot.x -= ((float)m_pos.x-(_window_width/2+w_pos.left)) * 0.001;
 			_cam.rot.y += ((float)m_pos.y-(_window_height/2+w_pos.top)) * 0.001;
@@ -208,43 +232,43 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 		return 0L;
 	}
 	case WM_LBUTTONDOWN:{
-		_mouse.button |= MOUSE_LMB;
+		setgMouse(MOUSE_LMB);
 		break;
 	}
 	case WM_LBUTTONUP:{
-		_mouse.button &= ~MOUSE_LMB;
+		resetgMouse(MOUSE_LMB);
 		break;
 	}
 	case WM_RBUTTONDOWN:{
-		_mouse.button |= MOUSE_RMB;
+		setgMouse(MOUSE_RMB);
 		break;
 	}
 	case WM_RBUTTONUP:{
-		_mouse.button &= ~MOUSE_RMB;
+		resetgMouse(MOUSE_RMB);
 		break;
 	}
 	case WM_KEYDOWN:{
 		switch(wParam){
 		case 0x57:	//W
-			_keyboard.button |= KEYBOARD_W;
+			setgKey(KEY_W);
 			break;
 		case 0x53:	//S
-			_keyboard.button |= KEYBOARD_S;
+			setgKey(KEY_S);
 			break;
 		case 0x44:	//D
-			_keyboard.button |= KEYBOARD_D;
+			setgKey(KEY_D);
 			break;
 		case 0x41:	//A
-			_keyboard.button |= KEYBOARD_A;
+			setgKey(KEY_A);
 			break;
 		case VK_SPACE:
-			_keyboard.button |= KEYBOARD_SPACE;
+			setgKey(KEY_SPACE);
 			break;
 		case VK_SHIFT:
-			_keyboard.button |= KEYBOARD_SHIFT;
+			setgKey(KEY_SHIFT);
 			break;
 		case VK_ESCAPE:
-			_keyboard.button |= KEYBOARD_ESC;
+			setgKey(KEY_ESC);
 			if(!checkMenuState(settingsMenu, MENU_OPEN_TOGGLE)){
 				settingsMenu.state |= MENU_OPEN_TOGGLE;	//Setze toggle bit
 				settingsMenu.state ^= MENU_OPEN;		//änder offen bit
@@ -259,25 +283,25 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	case WM_KEYUP:{
 		switch(wParam){
 		case 0x57:	//W
-			_keyboard.button &= ~KEYBOARD_W;
+			resetgKey(KEY_W);
 			break;
 		case 0x53:	//S
-			_keyboard.button &= ~KEYBOARD_S;
+			resetgKey(KEY_S);
 			break;
 		case 0x44:	//D
-			_keyboard.button &= ~KEYBOARD_D;
+			resetgKey(KEY_D);
 			break;
 		case 0x41:	//A
-			_keyboard.button &= ~KEYBOARD_A;
+			resetgKey(KEY_A);
 			break;
 		case VK_SPACE:
-			_keyboard.button &= ~KEYBOARD_SPACE;
+			resetgKey(KEY_SPACE);
 			break;
 		case VK_SHIFT:
-			_keyboard.button &= ~KEYBOARD_SHIFT;
+			resetgKey(KEY_SHIFT);
 			break;
 		case VK_ESCAPE:
-			_keyboard.button &= ~KEYBOARD_ESC;
+			resetgKey(KEY_ESC);
 			settingsMenu.state &= ~MENU_OPEN_TOGGLE;	//Setze toggle bit zurück
 			break;
 		}

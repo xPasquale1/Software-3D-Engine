@@ -5,7 +5,7 @@
 #include <chrono>
 #include <iostream>
 
-typedef unsigned int uint;
+typedef unsigned long uint;
 typedef unsigned char uchar;
 
 #define PI 3.14159265359
@@ -42,77 +42,104 @@ struct triangle{
 
 //Error-Codes
 enum ErrCode{
-	SUCCESS = 0, BAD_ALLOC
+	SUCCESS = 0,
+	BAD_ALLOC,
+	TEXTURE_NOT_FOUND,
+	MODEL_NOT_FOUND,
+	FILE_NOT_FOUND
 };
-inline constexpr void ErrCheck(ErrCode code, const char* msg="\0"){
+enum ErrCodeFlags{
+	NO_ERR_FLAG = 0,
+	NO_ERR_OUTPUT,
+	ERR_ON_FATAL
+};
+inline constexpr int ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=NO_ERR_FLAG){
 	switch(code){
-	case BAD_ALLOC:{
-		std::cerr << "[BAD_ALLOC ERROR]" << msg << std::endl;
-		break;
+	case BAD_ALLOC:
+		if(!(flags&NO_ERR_OUTPUT)) std::cerr << "[BAD_ALLOC ERROR]" << msg << std::endl;
+		return ERR_ON_FATAL;
+	case TEXTURE_NOT_FOUND:
+		if(!(flags&NO_ERR_OUTPUT)) std::cerr << "[TEXTURE_NOT_FOUND ERROR]" << msg << std::endl;
+		return 0;
+	case MODEL_NOT_FOUND:
+		if(!(flags&NO_ERR_OUTPUT)) std::cerr << "[MODEL_NOT_FOUND ERROR]" << msg << std::endl;
+		return 0;
+	case FILE_NOT_FOUND:
+		if(!(flags&NO_ERR_OUTPUT)) std::cerr << "[FILE_NOT_FOUND ERROR]" << msg << std::endl;
+		return 0;
+	default: return 0;
 	}
-	default: break;
-	}
+	return 0;
 }
 
 struct Mouse{
 	ivec2 pos;
-	char button=0;	//Bits: LMB, RMB, Rest ungenutzt
+	uint button=0;	//Bits: LMB, RMB, Rest ungenutzt
 }; GLOBALVAR static Mouse _mouse;
-enum{
-	MOUSE_LMB=1, MOUSE_RMB=2
+enum MOUSEBUTTON{
+	MOUSE_LMB=1,
+	MOUSE_RMB=2
 };
 inline constexpr bool LMB(Mouse& m){return m.button&MOUSE_LMB;}
 inline constexpr bool RMB(Mouse& m){return m.button&MOUSE_RMB;}
 
-struct Keyboard{
-	char button=0;	//Bits: W, A, S, D, SHIFT, SPACE, ESC, ungenutzt
-}; GLOBALVAR static Keyboard _keyboard;
-enum{
-	KEYBOARD_W=1, KEYBOARD_A=2, KEYBOARD_S=4, KEYBOARD_D=8, KEYBOARD_SHIFT=16, KEYBOARD_SPACE=32, KEYBOARD_ESC=64
-};
-inline constexpr bool W(Keyboard& k){return k.button&KEYBOARD_W;}
-inline constexpr bool A(Keyboard& k){return k.button&KEYBOARD_A;}
-inline constexpr bool S(Keyboard& k){return k.button&KEYBOARD_S;}
-inline constexpr bool D(Keyboard& k){return k.button&KEYBOARD_D;}
-inline constexpr bool SHIFT(Keyboard& k){return k.button&KEYBOARD_SHIFT;}
-inline constexpr bool SPACE(Keyboard& k){return k.button&KEYBOARD_SPACE;}
-inline constexpr bool ESC(Keyboard& k){return k.button&KEYBOARD_ESC;}
+//setGlobalMousebutton, resetGlobalMousebutton, getGlobalMousebutton
+inline void setgMouse(MOUSEBUTTON button){_mouse.button |= button;}
+inline void resetgMouse(MOUSEBUTTON button){_mouse.button &= ~button;}
+inline bool getgMouse(MOUSEBUTTON button){return _mouse.button & button;}
+//setMousebutton, resetMousebutton, getMousebutton
+inline constexpr void setMouse(Mouse& mouse, MOUSEBUTTON button){mouse.button |= button;}
+inline constexpr void resetMouse(Mouse& mouse, MOUSEBUTTON button){mouse.button &= ~button;}
+inline constexpr bool getMouse(Mouse& mouse, MOUSEBUTTON button){return mouse.button & button;}
 
-inline constexpr void normalize(fvec3& vec){
+struct Keyboard{
+	uint button=0;	//Bits: W, A, S, D, SHIFT, SPACE, ESC, rest ungenutzt
+}; GLOBALVAR static Keyboard _keyboard;
+enum KEYBOARDBUTTON{
+	KEY_W=1,
+	KEY_A=2,
+	KEY_S=4,
+	KEY_D=8,
+	KEY_SHIFT=16,
+	KEY_SPACE=32,
+	KEY_ESC=64
+};
+
+//setGlobalKey, resetGlobalKey, getGlobalKey
+inline void setgKey(KEYBOARDBUTTON button){_keyboard.button |= button;}
+inline void resetgKey(KEYBOARDBUTTON button){_keyboard.button &= ~button;}
+inline bool getgKey(KEYBOARDBUTTON button){return _keyboard.button & button;}
+//setKey, resetKey, getKey
+inline constexpr void setKey(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.button |= button;}
+inline constexpr void resetKey(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.button &= ~button;}
+inline constexpr bool getKey(Keyboard& keyboard, KEYBOARDBUTTON button){return keyboard.button & button;}
+
+inline constexpr void normalize(fvec3& vec)noexcept{
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
 	vec.x /= length; vec.y /= length; vec.z /= length;
 	return;
 }
-inline constexpr void normalize(fvec2& vec){
+inline constexpr void normalize(fvec2& vec)noexcept{
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y);
 	vec.x /= length; vec.y /= length;
 	return;
 }
-inline constexpr float dot(fvec3& a, fvec3& b){return (a.x * b.x + a.y * b.y + a.z * b.z);}
-inline constexpr float dot(fvec2& a, fvec2& b){return (a.x * b.x + a.y * b.y);}
-inline constexpr float cross(fvec2& a, fvec2& b){return (a.x * b.y - a.y * b.x);}
-inline constexpr fvec3 cross(fvec3& a, fvec3& b){return {a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x};}
+inline constexpr float dot(fvec3& a, fvec3& b)noexcept{return (a.x * b.x + a.y * b.y + a.z * b.z);}
+inline constexpr float dot(fvec2& a, fvec2& b)noexcept{return (a.x * b.x + a.y * b.y);}
+inline constexpr float cross(fvec2& a, fvec2& b)noexcept{return (a.x * b.y - a.y * b.x);}
+inline constexpr fvec3 cross(fvec3& a, fvec3& b)noexcept{return {a.y*b.z-a.z*b.y, a.z*b.x-a.x*b.z, a.x*b.y-a.y*b.x};}
 
-inline constexpr float deg2rad(float deg){return deg*PI/180;}
-inline constexpr float rad2deg(float rad){return rad*180/PI;}
+inline constexpr float deg2rad(float deg)noexcept{return deg*PI/180;}
+inline constexpr float rad2deg(float rad)noexcept{return rad*180/PI;}
 
-inline constexpr fvec3 rotate(const fvec3& v, const fvec3& axis, float angle){
-    float s = sin(angle);
-    float c = cos(angle);
-    float oc = 1.0f - c;
-
-    fvec3 result = {v.x * (oc * axis.x * axis.x + c) +
-               	   v.y * (oc * axis.x * axis.y - axis.z * s) +
-				   v.z * (oc * axis.x * axis.z + axis.y * s),
-				   v.x * (oc * axis.y * axis.x + axis.z * s) +
-				   v.y * (oc * axis.y * axis.y + c) +
-				   v.z * (oc * axis.y * axis.z - axis.x * s),
-				   v.x * (oc * axis.z * axis.x - axis.y * s) +
-				   v.y * (oc * axis.z * axis.y + axis.x * s) +
-				   v.z * (oc * axis.z * axis.z + c)
-    };
-
-    return result;
+//TODO branchless ist tatsächlich doch schneller
+inline constexpr float min(float a, float b)noexcept{
+//	return a*(a<b)+b*(b<=a);
+	return a < b ? a : b;
+}
+inline constexpr float max(float a, float b)noexcept{
+//	return a*(a>b)+b*(b>=a);
+	return a > b ? a : b;
 }
 
 #define PERFORMANCE_ANALYZER
@@ -123,33 +150,34 @@ struct PerfAnalyzer{
 	uint total_triangles = 0;
 	uint drawn_triangles = 0;
 	std::chrono::high_resolution_clock::time_point tp[2];
-	void start_timer(uchar idx){tp[idx] = std::chrono::high_resolution_clock::now();}
-	float stop_timer(uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();}
-	void reset(){
-		total_triangles = 0;
-		drawn_triangles = 0;
-	}
-	void record_data(uchar idx){
-		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();
-		data[counter[idx]/32+idx*8] = ms;
-		counter[idx] += 32;
-	}
-	void record_data_no_inc(uchar idx){
-		float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-tp[idx]).count();
-		data[counter[idx]/32+idx*8] += ms;
-	}
-	float get_avg_data(uchar idx){
-		float out = 0;
-		for(uchar i=0; i < 8; ++i){
-			out += data[i+8*idx];
-		}
-		return out/8.;
-	}
 }; GLOBALVAR static PerfAnalyzer _perfAnalyzer;
+
+void start_timer(PerfAnalyzer& pa, uchar idx){pa.tp[idx] = std::chrono::high_resolution_clock::now();}
+float stop_timer(PerfAnalyzer& pa, uchar idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();}
+void reset(PerfAnalyzer& pa){
+	pa.total_triangles = 0;
+	pa.drawn_triangles = 0;
+}
+void record_data(PerfAnalyzer& pa, uchar idx){
+	float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();
+	pa.data[pa.counter[idx]/32+idx*8] = ms;
+	pa.counter[idx] += 32;
+}
+void record_data_no_inc(PerfAnalyzer& pa, uchar idx){
+	float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();
+	pa.data[pa.counter[idx]/32+idx*8] += ms;
+}
+float get_avg_data(PerfAnalyzer& pa, uchar idx){
+	float out = 0;
+	for(uchar i=0; i < 8; ++i){
+		out += pa.data[i+8*idx];
+	}
+	return out/8.;
+}
 
 //TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
 //TODO Auf Fehler testen
-int read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
+ErrCode read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;

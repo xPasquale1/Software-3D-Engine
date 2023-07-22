@@ -4,19 +4,22 @@
 #include "font.h"
 
 ErrCode _defaultEvent(void){return SUCCESS;}
+enum BUTTONSTATE{
+	BUTTON_VISIBLE=1,
+	BUTTON_CAN_HOVER=2,
+	BUTTON_HOVER=4,
+	BUTTON_PRESSED=8
+};
 struct Button{
 	ErrCode (*event)(void)=&_defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
 	std::string text;
 	ivec2 pos;
 	ivec2 size;
-	uchar state=0;	//Bits: Sichtbarkeit, Maus hover aktiv, Maus hover state, Button gedrückt, Rest ungenutzt
+	uchar state=BUTTON_VISIBLE|BUTTON_CAN_HOVER;	//Bits: Sichtbarkeit, Maus hover aktiv, Maus hover state, Button gedrückt, Rest ungenutzt
 	uint color = RGBA(120, 120, 120);
 	uint hover_color = RGBA(120, 120, 255);
 	uint textcolor = RGBA(180, 180, 180);
 	uint textsize=2;
-};
-enum BUTTONSTATE{
-	BUTTON_VISIBLE=1, BUTTON_CAN_HOVER=2, BUTTON_HOVER=4, BUTTON_PRESSED=8
 };
 inline constexpr bool checkButtonState(Button& button, BUTTONSTATE state){return (button.state&state);}
 //TODO kann bestimmt besser geschrieben werden...
@@ -60,7 +63,8 @@ struct Menu{
 	uchar state=0;	//Bits: offen, toggle bit für offen, Rest ungenutzt
 };
 enum MENUSTATE{
-	MENU_OPEN=1, MENU_OPEN_TOGGLE=2
+	MENU_OPEN=1,
+	MENU_OPEN_TOGGLE=2
 };
 inline constexpr bool checkMenuState(Menu& menu, MENUSTATE state){return (menu.state&state);}
 inline void updateMenu(Menu& menu, Mouse& mouse){

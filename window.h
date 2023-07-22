@@ -8,6 +8,9 @@
 
 #define CULL_BACKFACES
 
+//TODO entfernen
+#define DEPTH_DIVISOR 10000.f
+
 GLOBALVAR static uint _window_width = 1000;
 GLOBALVAR static uint _window_height = 1000;
 GLOBALVAR static uint _pixel_size = 2;
@@ -25,7 +28,16 @@ HWND getWindow(HINSTANCE hInstance, const char* name, WNDPROC window_callback){
 	wc.style = CS_HREDRAW | CS_VREDRAW;
 	RegisterClass(&wc);
 
-	HWND hwnd = CreateWindow(wc.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0, 0, _window_width, _window_height, NULL, NULL, hInstance, NULL);
+	RECT rect;
+    rect.top = 0;
+    rect.bottom = _window_height;
+    rect.left = 0;
+    rect.right = _window_width;
+	AdjustWindowRect(&rect, WS_OVERLAPPEDWINDOW, false);
+	uint w = rect.right - rect.left;
+	uint h = rect.bottom - rect.top;
+
+	HWND hwnd = CreateWindow(wc.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, 0, 0, w, h, NULL, NULL, hInstance, NULL);
 
 	_bitmapInfo.bmiHeader.biSize = sizeof(_bitmapInfo.bmiHeader);
 	_bitmapInfo.bmiHeader.biPlanes = 1;
@@ -61,13 +73,18 @@ inline constexpr uchar G(uint color){return uchar(color>>8);}
 inline constexpr uchar B(uint color){return uchar(color);}
 
 enum RENDERMODE{
-	SHADED_MODE = 0, WIREFRAME_MODE, DEPTH_MODE, DIFFUSE_MODE, NORMAL_MODE, SPECULAR_MODE
+	SHADED_MODE = 0,
+	WIREFRAME_MODE,
+	DEPTH_MODE,
+	DIFFUSE_MODE,
+	NORMAL_MODE,
+	SPECULAR_MODE
 };
 GLOBALVAR static RENDERMODE _render_mode = SHADED_MODE;
 
 inline void draw(HWND window)noexcept{
 #ifdef PERFORMANCE_ANALYZER
-	_perfAnalyzer.start_timer(1);
+	start_timer(_perfAnalyzer, 1);
 #endif
 	int buffer_width = _window_width/_pixel_size;
 	int buffer_height = _window_height/_pixel_size;
@@ -75,7 +92,7 @@ inline void draw(HWND window)noexcept{
 	StretchDIBits(hdc, 0, _window_height, _window_width, -_window_height, 0, 0, buffer_width, buffer_height, _pixels, &_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
 	ReleaseDC(window, hdc);	//TODO Könnte unnötig sein, da Kontext nie geändert wird
 #ifdef PERFORMANCE_ANALYZER
-	_perfAnalyzer.record_data(1);
+	record_data(_perfAnalyzer, 1);
 #endif
 }
 
@@ -92,7 +109,7 @@ inline void draw_buffer(){
 	}
 	case DEPTH_MODE:{
 		for(uint i=0; i < buffer_width*buffer_height; ++i){
-			uint depth_color = _depth_buffer[i]/10000.;
+			uint depth_color = _depth_buffer[i]/DEPTH_DIVISOR;
 			_pixels[i] = RGBA(depth_color, depth_color, depth_color);
 		}
 		break;
@@ -148,17 +165,20 @@ inline void draw_triangle_outline(triangle& tri)noexcept{
 	draw_line(l2, l3, RGBA(255, 255, 255, 255));
 }
 
+GLOBALVAR static uint _pixels_drawn = 0;
+GLOBALVAR static uint _pixels_not_drawn = 0;
+
 inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
-	pt0.x = ((pt0.x/2)+0.5)*buffer_width; pt1.x = ((pt1.x/2)+0.5)*buffer_width; pt2.x = ((pt2.x/2)+0.5)*buffer_width;
-	pt0.y = ((pt0.y/2)+0.5)*buffer_height; pt1.y = ((pt1.y/2)+0.5)*buffer_height; pt2.y = ((pt2.y/2)+0.5)*buffer_height;
+	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
+	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
 
-	uint ymin = std::min(pt0.y, std::min(pt1.y, pt2.y));
-	uint ymax = std::max(pt0.y, std::max(pt1.y, pt2.y));
-	uint xmin = std::min(pt0.x, std::min(pt1.x, pt2.x));
-	uint xmax = std::max(pt0.x, std::max(pt1.x, pt2.x));
+	uint ymin = min(pt0.y, min(pt1.y, pt2.y));
+	uint ymax = max(pt0.y, max(pt1.y, pt2.y));
+	uint xmin = min(pt0.x, min(pt1.x, pt2.x));
+	uint xmax = max(pt0.x, max(pt1.x, pt2.x));
 
 	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
@@ -173,17 +193,22 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
 	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
 	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
+	//Berechne 1/pt<n>.z vor
+	float pt0_z_inv = 1./pt0.z; float pt1_z_inv = 1./pt1.z; float pt2_z_inv = 1./pt2.z;
 	for(uint y = ymin; y <= ymax; ++y){
 		float tmp_u = u; float tmp_v = v;
 		for(uint x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
-			if((u >= 0)&&(v >= 0)&&(u + v <= 1)){
+			if((v >= 0)&&(u >= 0)&&(u + v <= 1)){
 				float w = 1-u-v;
 				uint idx = y*buffer_width+x;
-				float depth = 1./(w/pt0.z + u/pt1.z + v/pt2.z);
+				float depth = 1./(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				float inc_depth = depth*10000;
+				float inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= _depth_buffer[idx]){
+					#ifdef PERFORMANCE_ANALYZER
+					++_pixels_drawn;
+					#endif
 					_depth_buffer[idx] = (uint)inc_depth;
 					float s = (w*uv0x + u*uv1x + v*uv2x);
 					float t = (w*uv0y + u*uv1y + v*uv2y);
@@ -192,6 +217,11 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 					_pixels[idx] = texture(_default_texture, s, t);
 					_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
 				}
+				#ifdef PERFORMANCE_ANALYZER
+				else{
+					++_pixels_not_drawn;
+				}
+				#endif
 			}
 	        u += deltaX_u; v -= deltaX_v;
 		}
@@ -221,9 +251,7 @@ inline bool ray_plane_intersection_new(plane& p, fvec3& start, fvec3& end, fvec2
 
 inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count, byte& temp_count, byte& i)noexcept{
 	buffer[i] = buffer[temp_count-1];
-	--i;
-	--temp_count;
-	--count;
+	--i; --temp_count; --count;
 	return;
 }
 
@@ -332,21 +360,11 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline constexpr uint color_picker(uint i)noexcept{
-	switch(i){
-	case 0: return RGBA(255, 0, 0, 255);
-	case 1: return RGBA(0, 255, 0, 255);
-	case 2: return RGBA(0, 0, 255, 255);
-	case 3: return RGBA(255, 0, 255, 255);
-	case 4: return RGBA(0, 255, 255, 255);
-	case 5: return RGBA(255, 255, 0, 255);
-	}
-	return RGBA(120, 120, 120, 255);
-}
-
 inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.total_triangles += triangle_count - start_idx;
+	_pixels_drawn = 0;
+	_pixels_not_drawn = 0;
 #endif
 	float rotm[3][3];
 	float aspect_ratio = _window_width/_window_height;
@@ -355,9 +373,9 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
 	float sin_roty = sin(cam->rot.y);
 	float cos_roty = cos(cam->rot.y);
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
-    rotm[1][0] = sin_rotx*sin_roty; 	rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
-    rotm[2][0] = -sin_rotx*cos_roty; 	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
-	triangle buffer[32] = {};
+    rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
+    rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	triangle buffer[32];
     for(uint i=start_idx; i < triangle_count; ++i){
     	triangle tri = tris[i];
     	//TODO kann man auch im Dreieck speichern
@@ -399,9 +417,6 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     		case WIREFRAME_MODE:
     			draw_triangle_outline(buffer[j]);
     			break;
-    		case SHADED_MODE:
-				draw_triangle(buffer[j], world_normal);
-				break;
     		default:
     			draw_triangle(buffer[j], world_normal);
     			break;
