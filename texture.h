@@ -10,14 +10,14 @@ inline constexpr uint RGBA(uchar, uchar, uchar, uchar);
 ErrCode load_texture(const char* name, uint*& texture){
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) return FILE_NOT_FOUND;
-	//Lese Breite und Höhe
+	//Lese Breite und HÃ¶he
 	std::string word;
 	file >> word;
 	uint width = std::atoi(word.c_str());
 	file >> word;
 	uint height = std::atoi(word.c_str());
 	delete[] texture;
-	texture = new(std::nothrow) uint[width*height+2];	//+2 für Breite und Höhe
+	texture = new(std::nothrow) uint[width*height+2];	//+2 fÃ¼r Breite und HÃ¶he
 	if(!texture) return BAD_ALLOC;
 	texture[0] = width; texture[1] = height;
 	for(uint i=2; i < width*height+2; ++i){

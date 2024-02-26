@@ -90,13 +90,13 @@ inline void draw(HWND window)noexcept{
 	int buffer_height = _window_height/_pixel_size;
 	HDC hdc = GetDC(window);
 	StretchDIBits(hdc, 0, _window_height, _window_width, -_window_height, 0, 0, buffer_width, buffer_height, _pixels, &_bitmapInfo, DIB_RGB_COLORS, SRCCOPY);
-	ReleaseDC(window, hdc);	//TODO Könnte unnötig sein, da Kontext nie geändert wird
+	ReleaseDC(window, hdc);	//TODO Kï¿½nnte unnï¿½tig sein, da Kontext nie geÃ¤ndert wird
 #ifdef PERFORMANCE_ANALYZER
 	record_data(_perfAnalyzer, 1);
 #endif
 }
 
-//Kopiert den Buffer der über _render_mode ausgewählt wird in den pixel array
+//Kopiert den Buffer der Ã¼ber _render_mode ausgewÃ¤hlt wird in den pixel array
 inline void draw_buffer(){
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
@@ -144,11 +144,12 @@ inline void draw_line(fvec2& start, fvec2& end, uint color)noexcept{
     }
 }
 
+//TODO aktuell noch "safe"
 inline uint texture(uint* texture, float u, float v)noexcept{
 	int u1 = u*texture[0];
 	int v1 = v*texture[1];
 	int idx = u1*texture[0]+v1+2;
-	return texture[idx];
+	return texture[idx%(texture[0]*texture[1])];
 }
 
 inline void draw_triangle_outline(triangle& tri)noexcept{
@@ -168,7 +169,224 @@ inline void draw_triangle_outline(triangle& tri)noexcept{
 GLOBALVAR static uint _pixels_drawn = 0;
 GLOBALVAR static uint _pixels_not_drawn = 0;
 
+inline void swapPoints(fvec3& p1, fvec3& p2)noexcept{
+    fvec3 temp = {p1.x, p1.y, p1.z};
+    p1 = p2;
+    p2 = temp;
+}
+
+inline void fillBottomFlatTriangle(fvec3& v1, fvec3& v2, fvec3& v3, fvec3& normal, fvec2& uv1, fvec2& uv2, fvec2& uv3, uint color)noexcept{
+	int v1x = v1.x; int v2x = v2.x; int v3x = v3.x;
+	int v1y = v1.y; int v2y = v2.y; int v3y = v3.y;
+	uint buffer_width = _window_width/_pixel_size;
+	float invslope1 = (v2x-v1x)/(v2y-v1y);
+	float invslope2 = (v3x-v1x)/(v3y-v1y);
+	float curx1 = v1x;
+	float curx2 = v1x;
+	if(invslope2 < invslope1){
+		float tmp = invslope1;
+		invslope1 = invslope2;
+		invslope2 = tmp;
+	}
+	float invZ1 = 1.f/v1.z; float invZ2 = 1.f/v2.z; float invZ3 = 1.f/v3.z;
+	float div = (v2x-v1x)*(v3y-v2y)-(v2y-v1y)*(v3x-v2x);
+
+	float uv1x = uv1.x/v1.z; float uv2x = uv2.x/v2.z; float uv3x = uv3.x/v3.z;
+	float uv1y = uv1.y/v1.z; float uv2y = uv2.y/v2.z; float uv3y = uv3.y/v3.z;
+	for(int y = v1y; y <= v2y; ++y){
+		for(int x=curx1; x <= (int)curx2; ++x){
+			//Baryzentrische Gewichtungen
+			float m1 = ((float)(v2x - x)*(v3y - y)-(v3x - x)*(v2y - y))/div;
+			float m2 = ((float)(v3x - x)*(v1y - y)-(v1x - x)*(v3y - y))/div;
+			float m3 = 1.f-m2-m1;
+			float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
+			float scaledDepth = depth*DEPTH_DIVISOR;
+
+			uint idx = y*buffer_width+x;
+			if(scaledDepth <= _depth_buffer[idx]){
+				_depth_buffer[idx] = (uint)scaledDepth;
+				_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
+				fvec2 uv = {m1*uv1x+m2*uv2x+m3*uv3x, m1*uv1y+m2*uv2y+m3*uv3y};
+				uv.x *= depth; uv.y *= depth;
+				// _pixels[idx] = texture(_default_texture, uv.x, uv.y);
+				_pixels[idx] = color;
+			}
+		}
+		curx1 += invslope1;
+		curx2 += invslope2;
+	}
+}
+
+inline void fillTopFlatTriangle(fvec3& v1, fvec3& v2, fvec3& v3, fvec3& normal, fvec2& uv1, fvec2& uv2, fvec2& uv3, uint color)noexcept{
+	uint buffer_width = _window_width/_pixel_size;
+	int v1x = v1.x; int v2x = v2.x; int v3x = v3.x;
+	int v1y = v1.y; int v2y = v2.y; int v3y = v3.y;
+	float invslope1 = (float)(v3x-v1x)/(v3y-v1y);
+	float invslope2 = (float)(v3x-v2x)/(v3y-v2y);
+	float curx1 = v3x;
+	float curx2 = v3x;
+	if(invslope2 > invslope1){
+		float tmp = invslope1;
+		invslope1 = invslope2;
+		invslope2 = tmp;
+	}
+	float invZ1 = 1.f/v1.z; float invZ2 = 1.f/v2.z; float invZ3 = 1.f/v3.z;
+	float div = (v2x-v1x)*(v3y-v2y)-(v2y-v1y)*(v3x-v2x);
+
+	float uv1x = uv1.x/v1.z; float uv2x = uv2.x/v2.z; float uv3x = uv3.x/v3.z;
+	float uv1y = uv1.y/v1.z; float uv2y = uv2.y/v2.z; float uv3y = uv3.y/v3.z;
+	for(int y=v3y; y > v1y; --y){
+		for(int x=curx1; x <= (int)curx2; ++x){
+			//Baryzentrische Gewichtungen
+			float m1 = ((float)(v2x - x)*(v3y - y)-(v3x - x)*(v2y - y))/div;
+			float m2 = ((float)(v3x - x)*(v1y - y)-(v1x - x)*(v3y - y))/div;
+			float m3 = 1.f-m2-m1;
+			float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
+			float scaledDepth = depth*DEPTH_DIVISOR;
+
+			uint idx = y*buffer_width+x;
+			if(scaledDepth <= _depth_buffer[idx]){
+				_depth_buffer[idx] = (uint)scaledDepth;
+				_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
+				fvec2 uv = {m1*uv1x+m2*uv2x+m3*uv3x, m1*uv1y+m2*uv2y+m3*uv3y};
+				uv.x *= depth; uv.y *= depth;
+				// _pixels[idx] = texture(_default_texture, uv.x, uv.y);
+				_pixels[idx] = color;
+			}
+		}
+		curx1 -= invslope1;
+		curx2 -= invslope2;
+	}
+}
+
+byte _debugColorIdx = 0;
+uint _debugColors[] = {
+	RGBA(255, 0, 0),
+	RGBA(0, 255, 0),
+	RGBA(0, 0, 255),
+	RGBA(128, 0, 128),
+	RGBA(0, 128, 128),
+	RGBA(128, 128, 0),
+	RGBA(255, 255, 0),
+	RGBA(255, 0, 255),
+	RGBA(0, 255, 255)
+};
+
+inline uint _getDebugColor(uint idx)noexcept{
+	return _debugColors[_debugColorIdx%(sizeof(_debugColors)/sizeof(uint))];
+}
+
 inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
+	int pt0x = ((pt0.x*0.5f)+0.5f)*buffer_width; int pt1x = ((pt1.x*0.5f)+0.5f)*buffer_width; int pt2x = ((pt2.x*0.5)+0.5)*buffer_width;
+	int pt0y = ((pt0.y*0.5f)+0.5f)*buffer_height; int pt1y = ((pt1.y*0.5f)+0.5f)*buffer_height; int pt2y = ((pt2.y*0.5)+0.5)*buffer_height;
+	//pt0 -> pt1 -> pt2 y-absteigend
+	// uint pt0col = tri.colors[0];
+	// uint pt1col = tri.colors[1];
+	// uint pt2col = tri.colors[2];
+	float uv0x = tri.uv[0].x; float uv1x = tri.uv[1].x; float uv2x = tri.uv[2].x;
+	float uv0y = tri.uv[0].y; float uv1y = tri.uv[1].y; float uv2y = tri.uv[2].y;
+	if(pt0y > pt1y) std::swap(pt0x, pt1x), std::swap(pt0y, pt1y), std::swap(pt0.z, pt1.z), std::swap(uv0x, uv1x), std::swap(uv0y, uv1y);
+	if(pt0y > pt2y) std::swap(pt0x, pt2x), std::swap(pt0y, pt2y), std::swap(pt0.z, pt2.z), std::swap(uv0x, uv2x), std::swap(uv0y, uv2y);
+	if(pt1y > pt2y) std::swap(pt1x, pt2x), std::swap(pt1y, pt2y), std::swap(pt1.z, pt2.z), std::swap(uv1x, uv2x), std::swap(uv1y, uv2y);
+	//x-Inkrement fÃ¼r pt0 - pt2
+	// if(pt0y == pt2y) return;	//TODO
+	float xIncP0P21 = (float)(pt2x-pt0x)/(pt2y-pt0y);
+	float xIncP0P22 = xIncP0P21;
+	//x-Inkrement fÃ¼r pt0 - pt1
+	float xIncP0P1 = (float)(pt1x-pt0x)/(pt1y-pt0y);
+	//Laufe von pt1 - pt2
+	float xIncP1P2 = (float)(pt2x-pt1x)/(pt2y-pt1y);
+	//Initialisiere die Startkoordinaten
+	float startX = pt0x;
+	float endX = pt0x;
+	//Vorberechnungen
+	float invZ1 = 1.f/pt0.z; float invZ2 = 1.f/pt1.z; float invZ3 = 1.f/pt2.z;
+	float div = 1.f/((pt1x-pt0x)*(pt2y-pt1y)-(pt1y-pt0y)*(pt2x-pt1x));
+	uv0x *= invZ1; uv1x *= invZ2; uv2x *= invZ3;
+	uv0y *= invZ1; uv1y *= invZ2; uv2y *= invZ3;
+	if(xIncP0P1 < xIncP0P21) std::swap(xIncP0P21, xIncP0P1), std::swap(xIncP0P22, xIncP1P2);
+	if(pt0y != pt1y){
+		for(int y=pt0y; y < pt1y; ++y){
+			for(int x=startX; x <= (int)endX; ++x){
+				float m1 = ((float)(pt1x - x)*(pt2y - y)-(pt2x - x)*(pt1y - y))*div;
+				float m2 = ((float)(pt2x - x)*(pt0y - y)-(pt0x - x)*(pt2y - y))*div;
+				float m3 = 1.f-m2-m1;
+				float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
+				uint scaledDepth = depth*DEPTH_DIVISOR;
+
+				uint idx = y*buffer_width+x;
+				if(scaledDepth < _depth_buffer[idx]){
+					_depth_buffer[idx] = scaledDepth;
+					float uvx = (m1*uv0x + m2*uv1x + m3*uv2x)*depth;
+					float uvy = (m1*uv0y + m2*uv1y + m3*uv2y)*depth;
+					_pixels[idx] = texture(_default_texture, uvx, uvy);
+					// _pixels[idx] = RGBA(R(pt0col)*m1+R(pt1col)*m2+R(pt2col)*m3, G(pt0col)*m1+G(pt1col)*m2+G(pt2col)*m3, B(pt0col)*m1+B(pt1col)*m2+B(pt2col)*m3);
+				}
+			}
+			startX += xIncP0P21;
+			endX += xIncP0P1;
+		}
+	}else{
+		startX = pt1x;
+		if(startX > endX) std::swap(startX, endX);
+	}
+	for(int y=pt1y; y < pt2y; ++y){
+		for(int x=startX; x <= (int)endX; ++x){
+			float m1 = ((float)(pt1x - x)*(pt2y - y)-(pt2x - x)*(pt1y - y))*div;
+			float m2 = ((float)(pt2x - x)*(pt0y - y)-(pt0x - x)*(pt2y - y))*div;
+			float m3 = 1.f-m2-m1;
+			float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
+			uint scaledDepth = depth*DEPTH_DIVISOR;
+
+			uint idx = y*buffer_width+x;
+			if(scaledDepth < _depth_buffer[idx]){
+				_depth_buffer[idx] = scaledDepth;
+				float uvx = (m1*uv0x + m2*uv1x + m3*uv2x)*depth;
+				float uvy = (m1*uv0y + m2*uv1y + m3*uv2y)*depth;
+				_pixels[idx] = texture(_default_texture, uvx, uvy);
+				// _pixels[idx] = RGBA(R(pt0col)*m1+R(pt1col)*m2+R(pt2col)*m3, G(pt0col)*m1+G(pt1col)*m2+G(pt2col)*m3, B(pt0col)*m1+B(pt1col)*m2+B(pt2col)*m3);
+			}
+		}
+		startX += xIncP0P22;
+		endX += xIncP1P2;
+	}
+}
+
+inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
+	uint buffer_width = _window_width/_pixel_size;
+	uint buffer_height = _window_height/_pixel_size;
+	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
+	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
+	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
+	if(pt0.y > pt1.y){
+		swapPoints(pt0, pt1);
+	}
+	if(pt0.y > pt2.y){
+		swapPoints(pt0, pt2);
+	}
+	if(pt1.y > pt2.y){
+		swapPoints(pt1, pt2);
+	}
+
+	//TODO if else kÃ¶nnte unnÃ¶tig fÃ¼r die Performance sein, fill top oder bottom macht dann halt nix
+	if((int)pt1.y == (int)pt2.y){
+		fillBottomFlatTriangle(pt0, pt1, pt2, normal, tri.uv[0], tri.uv[1], tri.uv[2], tri.colors[0]);
+	}
+	else if((int)pt0.y == (int)pt1.y){
+		fillTopFlatTriangle(pt0, pt1, pt2, normal, tri.uv[0], tri.uv[1], tri.uv[2], tri.colors[0]);
+	}
+	else{
+		fvec3 pt3 = {(pt0.x + ((pt1.y - pt0.y) / (pt2.y - pt0.y)) * (pt2.x - pt0.x)), pt1.y, 0};
+		pt3.z = interpolateLinear(pt0.z, pt2.z, {pt0.x, pt0.y}, {pt2.x, pt2.y}, {pt3.x, pt3.y});
+		fillBottomFlatTriangle(pt0, pt1, pt3, normal, tri.uv[0], tri.uv[1], tri.uv[2], tri.colors[0]);
+		fillTopFlatTriangle(pt1, pt3, pt2, normal, tri.uv[0], tri.uv[1], tri.uv[2], tri.colors[0]);
+	}
+}
+
+inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
@@ -213,14 +431,12 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 					float s = (w*uv0x + u*uv1x + v*uv2x);
 					float t = (w*uv0y + u*uv1y + v*uv2y);
 					s *= depth; t *= depth;
-					//TODO dynamisch texturen lesen können/materials hinzufügen
+					//TODO dynamisch texturen lesen kÃ¶nnen/materials hinzufÃ¼gen
 					_pixels[idx] = texture(_default_texture, s, t);
 					_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
 				}
 				#ifdef PERFORMANCE_ANALYZER
-				else{
-					++_pixels_not_drawn;
-				}
+				else ++_pixels_not_drawn;
 				#endif
 			}
 	        u += deltaX_u; v -= deltaX_v;
@@ -256,7 +472,7 @@ inline __attribute__((always_inline)) void remove(triangle* buffer, byte& count,
 }
 
 inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
-	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
+	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefï¿½gt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
 	byte temp_count = count;	//Index des letzten originalen Dreiecks
 	for(byte i=0; i < temp_count; ++i){
@@ -281,7 +497,7 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
 				remove(buffer, count, temp_count, i);
 				break;
 			}
-			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
+			case 1:{	//Das aktuelle Dreieck kann einfach geï¿½ndert werden
 				ray_plane_intersection_new(p, in_v[0], out_v[0], in_uv[0], out_uv[0], buffer[i].point[1]);
 				buffer[i].uv[1] = out_uv[0];
 				ray_plane_intersection_new(p, in_v[0], out_v[1], in_uv[0], out_uv[1], buffer[i].point[2]);
@@ -290,7 +506,7 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
 				buffer[i].uv[0] = in_uv[0];
 				break;
 			}
-			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
+			case 2:{	//2 neue Dreiecke mï¿½ssen hinzugefï¿½gt werden und das aktuelle entfernt
 				remove(buffer, count, temp_count, i);
 				fvec3 dir = in_v[0];
 				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
@@ -322,10 +538,10 @@ inline void clip_plane(plane& p, triangle* buffer, byte& count)noexcept{
 	return;
 }
 
-#define XMIN -1.001f
-#define XMAX 1.001f
-#define YMIN -1.001f
-#define YMAX 1.001f
+#define XMIN -1.01f
+#define XMAX 1.01f
+#define YMIN -1.01f
+#define YMAX 1.01f
 
 inline byte clipping(triangle* buffer)noexcept{
 	byte count = 1;

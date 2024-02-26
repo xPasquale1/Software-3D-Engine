@@ -1,6 +1,9 @@
-/Debug/
-/Release/
 objects/forest0.obj
 textures/forest0.tex
 objects/kingdoms.obj
 textures/kingdoms.tex
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/settings.json
+.settings/language.settings.xml
+main.exe

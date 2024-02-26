@@ -7,15 +7,15 @@
 #include "font.h"
 #include "gui.h"
 
-/*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
+/*	TODO programm crashed falls die clipping region gleich/grÃ¶ÃŸer wie der Bildschirm ist, wahrscheinlich schreibt
 	der rasterizer ausserhalb des pixel arrays
-	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer auflösung genutzt
-	vllt kann man kein clipping machen, aber eine max. weite und daher auch auflösung festlegen
-	TODO Bilder müssen um 90° nach rechts gedreht werden damit die uv Koordinaten stimmen...
+	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer AuflÃ¶sung genutzt
+	vllt kann man kein clipping machen, aber eine max. weite und daher auch AuflÃ¶sung festlegen
+	TODO Bilder mÃ¼ssen um 90Â° nach rechts gedreht werden damit die uv Koordinaten stimmen...
 	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
-	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
+	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu lÃ¶schen (Datenpackete ObjektweiÃŸe speichern,
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
-	TODO Erste Beleuchtungsmodelle überlegen und implementieren
+	TODO Erste per pixel Beleuchtungsmodelle Ã¼berlegen und implementieren
 */
 
 static bool _running = true;
@@ -25,7 +25,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
 
 Menu settingsMenu;
-//Menü Funktionen
+//MenÃ¼ Funktionen
 ErrCode setWireframeMode(void){
 	_render_mode = WIREFRAME_MODE;
 	return SUCCESS;
@@ -80,7 +80,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	triangle* triangles = new(std::nothrow) triangle[1100000];
 	if(!triangles){
-		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
+		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher fÃ¼r die statischen Dreiecke allokieren!");
 		return -1;
 	}
 	uint triangle_count = 0;
@@ -89,16 +89,50 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(ERR_CODE, "Fehler beim laden der default Texture!")){
 		return -1;
 	}
+	// _default_texture = new uint[17*17+2];
+	// _default_texture[0] = 17; _default_texture[1] = 17;
+	// for(int i=2; i < 17*17+2; ++i){
+	// 	_default_texture[i] = (i%2)*0xFFFFFFFF;
+	// }
 
-//	create_cube(triangles, triangle_count, -5, -5, 10, 10, 10, 10);
-	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 20, 0, 2);
+	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 0, 0, 2);
 	if(ErrCheck(ERR_CODE, "Fehler beim Laden des default Modells!")){
 		return -1;
 	}
+	for(uint i=0; i < triangle_count; ++i){
+		uint color = _getDebugColor(_debugColorIdx++);
+		triangles[i].colors[0] = color;
+		triangles[i].colors[1] = color;
+		triangles[i].colors[2] = color;
+	}
+
+	// triangles[0].point[2] = {-10, 10, 0};
+	// triangles[0].point[1] = {0, -10, 0};
+	// triangles[0].point[0] = {10, 10, 0};
+	// triangles[0].point[0] = {-10, -10, 0};
+	// triangles[0].point[1] = {-10, 10, 0};
+	// triangles[0].point[2] = {10, -10, 0};
+	// triangles[0].colors[0] = RGBA(255, 0, 0);
+	// triangles[0].colors[1] = RGBA(0, 255, 0);
+	// triangles[0].colors[2] = RGBA(0, 0, 255);
+	// triangles[0].uv[0] = {0, 0};
+	// triangles[0].uv[1] = {0, 1};
+	// triangles[0].uv[2] = {1, 0};
+	// triangles[1].point[0] = {10, -10, 0};
+	// triangles[1].point[1] = {-10, 10, 0};
+	// triangles[1].point[2] = {10, 10, 0};
+	// triangles[1].colors[2] = RGBA(255, 0, 0);
+	// triangles[1].colors[1] = RGBA(0, 255, 0);
+	// triangles[1].colors[0] = RGBA(0, 0, 255);
+	// triangles[1].uv[0] = {1, 0};
+	// triangles[1].uv[1] = {0, 1};
+	// triangles[1].uv[2] = {1, 1};
+	// triangle_count = 2;
+	// create_cube(triangles, triangle_count, 0, 0, 0, 10, 10, 10);
 
 	SetCursorPos(_window_width/2, _window_height/2);
 
-	//TODO dynamisch buttons hinzufügen und entfernen
+	//TODO dynamisch buttons hinzufÃ¼gen und entfernen
 	Button settingButtons[5];
 	settingButtons[0].size = {105, 15};
 	settingButtons[0].pos = {(int)_window_width/(int)_pixel_size-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
@@ -136,7 +170,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    }
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
-		glight();
+		// glight();
 #endif
 #ifdef PERFORMANCE_ANALYZER
     record_data(_perfAnalyzer, 0);
@@ -199,7 +233,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 			_depth_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
 			_normal_buffer = new(std::nothrow) uint[buffer_width*buffer_height];
 			if(!_pixels || !_depth_buffer){
-				std::cerr << "Konnte keinen Speicher für pixel oder depth buffer allokieren!" << std::endl;
+				std::cerr << "Konnte keinen Speicher fï¿½r pixel oder depth buffer allokieren!" << std::endl;
 				buffer_width = 0;
 				buffer_height = 0;
 			}
@@ -271,7 +305,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 			setgKey(KEY_ESC);
 			if(!checkMenuState(settingsMenu, MENU_OPEN_TOGGLE)){
 				settingsMenu.state |= MENU_OPEN_TOGGLE;	//Setze toggle bit
-				settingsMenu.state ^= MENU_OPEN;		//änder offen bit
+				settingsMenu.state ^= MENU_OPEN;		//ï¿½nder offen bit
 				tagRECT w_pos;
 				GetWindowRect(hwnd, &w_pos);
 				if(!checkMenuState(settingsMenu, MENU_OPEN)) SetCursorPos(_window_width/2+w_pos.left, _window_height/2+w_pos.top);
@@ -302,7 +336,7 @@ LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 			break;
 		case VK_ESCAPE:
 			resetgKey(KEY_ESC);
-			settingsMenu.state &= ~MENU_OPEN_TOGGLE;	//Setze toggle bit zurück
+			settingsMenu.state &= ~MENU_OPEN_TOGGLE;	//Setze toggle bit zurï¿½ck
 			break;
 		}
 		return 0L;

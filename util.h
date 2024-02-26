@@ -38,6 +38,7 @@ struct triangle{
 	fvec3 point[3];
 	fvec2 uv[3];
 //	fvec3 normal;
+	uint colors[3];	//TODO entfernen?
 };
 
 //Error-Codes
@@ -117,12 +118,10 @@ inline constexpr bool getKey(Keyboard& keyboard, KEYBOARDBUTTON button){return k
 inline constexpr void normalize(fvec3& vec)noexcept{
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
 	vec.x /= length; vec.y /= length; vec.z /= length;
-	return;
 }
 inline constexpr void normalize(fvec2& vec)noexcept{
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y);
 	vec.x /= length; vec.y /= length;
-	return;
 }
 inline constexpr float dot(fvec3& a, fvec3& b)noexcept{return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b)noexcept{return (a.x * b.x + a.y * b.y);}
@@ -132,7 +131,6 @@ inline constexpr fvec3 cross(fvec3& a, fvec3& b)noexcept{return {a.y*b.z-a.z*b.y
 inline constexpr float deg2rad(float deg)noexcept{return deg*PI/180;}
 inline constexpr float rad2deg(float rad)noexcept{return rad*180/PI;}
 
-//TODO branchless ist tatsächlich doch schneller
 inline constexpr float min(float a, float b)noexcept{
 //	return a*(a<b)+b*(b<=a);
 	return a < b ? a : b;
@@ -142,11 +140,22 @@ inline constexpr float max(float a, float b)noexcept{
 	return a > b ? a : b;
 }
 
+inline constexpr float clamp(float val, float minVal, float maxVal){
+	return max(min(val, maxVal), minVal);
+}
+
+//Interpoliere die Werte A und B linear fÃ¼r einen Punkt C
+inline constexpr float interpolateLinear(float valA, float valB, fvec2 posA, fvec2 posB, fvec2 posC){
+	float valDiff = valB-valA;
+	return valA + (valDiff*(posC.x-posA.x)+valDiff*(posC.y-posA.y))/((posB.x-posA.x)+(posB.y-posA.y));
+}
+
 #define PERFORMANCE_ANALYZER
+#define PERFORMANCE_ANALYZER_DATA_POINTS 3
 struct PerfAnalyzer{
 	//Indexe: 0 rasterizer, 1 drawing, 2 ungenutzt
-	float data[24] = {};
-	uchar counter[2] = {};
+	float data[PERFORMANCE_ANALYZER_DATA_POINTS*8] = {};
+	uchar counter[PERFORMANCE_ANALYZER_DATA_POINTS-1] = {};
 	uint total_triangles = 0;
 	uint drawn_triangles = 0;
 	std::chrono::high_resolution_clock::time_point tp[2];
@@ -175,18 +184,18 @@ float get_avg_data(PerfAnalyzer& pa, uchar idx){
 	return out/8.;
 }
 
-//TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flächen aus n punkten lesen können
+//TODO man kann aktuell nur objs die nur aus dreiecken bestehen lesen, sollte aber flï¿½chen aus n punkten lesen kï¿½nnen
 //TODO Auf Fehler testen
 ErrCode read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
-	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
+	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht ï¿½ffnen!");
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
 	std::vector<fvec2> uvs;
 	uint current_count = *count;
 	uint tri_count = 0;
-	while(file >> word){	//Lese Datei Wort für Wort
+	while(file >> word){	//Lese Datei Wort fï¿½r Wort
 		if(word[0] == 'o' && word.size() == 1){
 			file >> word;
 			std::cout << "Filename:               " << word << std::endl;
