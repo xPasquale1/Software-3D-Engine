@@ -55,22 +55,22 @@ inline void getMessages(HWND window)noexcept{
 	}
 }
 
+inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
+inline constexpr uchar R(uint color){return uchar(color>>16);}
+inline constexpr uchar G(uint color){return uchar(color>>8);}
+inline constexpr uchar B(uint color){return uchar(color);}
+
 inline void clear_window()noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	for(uint y=0; y < buffer_height; ++y){
 		for(uint x=0; x < buffer_width; ++x){
 			uint idx = y*buffer_width+x;
-			_pixels[idx] = 0;
+			_pixels[idx] = RGBA(0, 0, 0);
 			_depth_buffer[idx] = 0xFFFFFFFF;
 		}
 	}
 }
-
-inline constexpr uint RGBA(uchar r, uchar g, uchar b, uchar a=255){return uint(b|g<<8|r<<16|a<<24);}
-inline constexpr uchar R(uint color){return uchar(color>>16);}
-inline constexpr uchar G(uint color){return uchar(color>>8);}
-inline constexpr uchar B(uint color){return uchar(color);}
 
 enum RENDERMODE{
 	SHADED_MODE = 0,
@@ -283,16 +283,14 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 	int pt0x = ((pt0.x*0.5f)+0.5f)*buffer_width; int pt1x = ((pt1.x*0.5f)+0.5f)*buffer_width; int pt2x = ((pt2.x*0.5)+0.5)*buffer_width;
 	int pt0y = ((pt0.y*0.5f)+0.5f)*buffer_height; int pt1y = ((pt1.y*0.5f)+0.5f)*buffer_height; int pt2y = ((pt2.y*0.5)+0.5)*buffer_height;
 	//pt0 -> pt1 -> pt2 y-absteigend
-	// uint pt0col = tri.colors[0];
-	// uint pt1col = tri.colors[1];
-	// uint pt2col = tri.colors[2];
 	float uv0x = tri.uv[0].x; float uv1x = tri.uv[1].x; float uv2x = tri.uv[2].x;
 	float uv0y = tri.uv[0].y; float uv1y = tri.uv[1].y; float uv2y = tri.uv[2].y;
 	if(pt0y > pt1y) std::swap(pt0x, pt1x), std::swap(pt0y, pt1y), std::swap(pt0.z, pt1.z), std::swap(uv0x, uv1x), std::swap(uv0y, uv1y);
 	if(pt0y > pt2y) std::swap(pt0x, pt2x), std::swap(pt0y, pt2y), std::swap(pt0.z, pt2.z), std::swap(uv0x, uv2x), std::swap(uv0y, uv2y);
 	if(pt1y > pt2y) std::swap(pt1x, pt2x), std::swap(pt1y, pt2y), std::swap(pt1.z, pt2.z), std::swap(uv1x, uv2x), std::swap(uv1y, uv2y);
 	//x-Inkrement für pt0 - pt2
-	// if(pt0y == pt2y) return;	//TODO
+	if(pt0y == pt2y) return;	//TODO vllt unnötig?
+	if(pt0x == pt1x && pt0x == pt2x) return;
 	float xIncP0P21 = (float)(pt2x-pt0x)/(pt2y-pt0y);
 	float xIncP0P22 = xIncP0P21;
 	//x-Inkrement für pt0 - pt1
@@ -300,8 +298,8 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 	//Laufe von pt1 - pt2
 	float xIncP1P2 = (float)(pt2x-pt1x)/(pt2y-pt1y);
 	//Initialisiere die Startkoordinaten
-	float startX = pt0x;
-	float endX = pt0x;
+	float startX = pt0x+0.5f;
+	float endX = pt0x+0.5f;
 	//Vorberechnungen
 	float invZ1 = 1.f/pt0.z; float invZ2 = 1.f/pt1.z; float invZ3 = 1.f/pt2.z;
 	float div = 1.f/((pt1x-pt0x)*(pt2y-pt1y)-(pt1y-pt0y)*(pt2x-pt1x));
@@ -314,23 +312,35 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 				float m1 = ((float)(pt1x - x)*(pt2y - y)-(pt2x - x)*(pt1y - y))*div;
 				float m2 = ((float)(pt2x - x)*(pt0y - y)-(pt0x - x)*(pt2y - y))*div;
 				float m3 = 1.f-m2-m1;
+				if(m1 < 0.f || m2 < 0.f || m3 < 0.f){
+					// uint idx = y*buffer_width+x;
+					// _pixels[idx] = RGBA(255, 0, 0);
+					continue;
+				}
 				float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
 				uint scaledDepth = depth*DEPTH_DIVISOR;
 
 				uint idx = y*buffer_width+x;
 				if(scaledDepth < _depth_buffer[idx]){
+					#ifdef PERFORMANCE_ANALYZER
+					++_pixels_drawn;
+					#endif
 					_depth_buffer[idx] = scaledDepth;
 					float uvx = (m1*uv0x + m2*uv1x + m3*uv2x)*depth;
 					float uvy = (m1*uv0y + m2*uv1y + m3*uv2y)*depth;
 					_pixels[idx] = texture(_default_texture, uvx, uvy);
+					_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
 					// _pixels[idx] = RGBA(R(pt0col)*m1+R(pt1col)*m2+R(pt2col)*m3, G(pt0col)*m1+G(pt1col)*m2+G(pt2col)*m3, B(pt0col)*m1+B(pt1col)*m2+B(pt2col)*m3);
 				}
+				#ifdef PERFORMANCE_ANALYZER
+				else ++_pixels_not_drawn;
+				#endif
 			}
 			startX += xIncP0P21;
 			endX += xIncP0P1;
 		}
 	}else{
-		startX = pt1x;
+		startX = pt1x+0.5f;
 		if(startX > endX) std::swap(startX, endX);
 	}
 	for(int y=pt1y; y < pt2y; ++y){
@@ -338,24 +348,36 @@ inline void draw_triangle(triangle& tri, fvec3& normal)noexcept{
 			float m1 = ((float)(pt1x - x)*(pt2y - y)-(pt2x - x)*(pt1y - y))*div;
 			float m2 = ((float)(pt2x - x)*(pt0y - y)-(pt0x - x)*(pt2y - y))*div;
 			float m3 = 1.f-m2-m1;
+			if(m1 < 0.f || m2 < 0.f || m3 < 0.f){
+				// uint idx = y*buffer_width+x;
+				// _pixels[idx] = RGBA(255, 0, 0);
+				continue;
+			}
 			float depth = 1.f/(m1*invZ1+m2*invZ2+m3*invZ3);
 			uint scaledDepth = depth*DEPTH_DIVISOR;
 
 			uint idx = y*buffer_width+x;
 			if(scaledDepth < _depth_buffer[idx]){
+				#ifdef PERFORMANCE_ANALYZER
+				++_pixels_drawn;
+				#endif
 				_depth_buffer[idx] = scaledDepth;
 				float uvx = (m1*uv0x + m2*uv1x + m3*uv2x)*depth;
 				float uvy = (m1*uv0y + m2*uv1y + m3*uv2y)*depth;
 				_pixels[idx] = texture(_default_texture, uvx, uvy);
+				_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
 				// _pixels[idx] = RGBA(R(pt0col)*m1+R(pt1col)*m2+R(pt2col)*m3, G(pt0col)*m1+G(pt1col)*m2+G(pt2col)*m3, B(pt0col)*m1+B(pt1col)*m2+B(pt2col)*m3);
 			}
+			#ifdef PERFORMANCE_ANALYZER
+			else ++_pixels_not_drawn;
+			#endif
 		}
 		startX += xIncP0P22;
 		endX += xIncP1P2;
 	}
 }
 
-inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
+inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
@@ -386,7 +408,7 @@ inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
 	}
 }
 
-inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
+inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
 	fvec3 pt0 = tri.point[0]; fvec3 pt1 = tri.point[1]; fvec3 pt2 = tri.point[2];
@@ -406,6 +428,9 @@ inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 	float uv0x = tri.uv[0].x/tri.point[0].z; float uv1x = tri.uv[1].x/tri.point[1].z; float uv2x = tri.uv[2].x/tri.point[2].z;
 	float uv0y = tri.uv[0].y/tri.point[0].z; float uv1y = tri.uv[1].y/tri.point[1].z; float uv2y = tri.uv[2].y/tri.point[2].z;
 
+	//Normalenvektor
+	uint normalColor = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
+
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
 	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
 	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
@@ -415,12 +440,14 @@ inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 	float pt0_z_inv = 1./pt0.z; float pt1_z_inv = 1./pt1.z; float pt2_z_inv = 1./pt2.z;
 	for(uint y = ymin; y <= ymax; ++y){
 		float tmp_u = u; float tmp_v = v;
+		bool wasIn = false;
 		for(uint x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
 			if((v >= 0)&&(u >= 0)&&(u + v <= 1)){
-				float w = 1-u-v;
+				wasIn = true;
+				float w = 1.f-u-v;
 				uint idx = y*buffer_width+x;
-				float depth = 1./(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);
+				float depth = 1./(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				float inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= _depth_buffer[idx]){
@@ -428,17 +455,18 @@ inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 					++_pixels_drawn;
 					#endif
 					_depth_buffer[idx] = (uint)inc_depth;
-					float s = (w*uv0x + u*uv1x + v*uv2x);
-					float t = (w*uv0y + u*uv1y + v*uv2y);
+					float s = (w*uv0x + u*uv1x + v*uv2x);	//TODO Iterativ lösbar?
+					float t = (w*uv0y + u*uv1y + v*uv2y);	//TODO Iterativ lösbar?
 					s *= depth; t *= depth;
 					//TODO dynamisch texturen lesen können/materials hinzufügen
 					_pixels[idx] = texture(_default_texture, s, t);
-					_normal_buffer[idx] = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
+					_normal_buffer[idx] = normalColor;
 				}
 				#ifdef PERFORMANCE_ANALYZER
 				else ++_pixels_not_drawn;
 				#endif
 			}
+			else if(wasIn) break;
 	        u += deltaX_u; v -= deltaX_v;
 		}
 		u = tmp_u; v = tmp_v;
@@ -634,7 +662,7 @@ inline void rasterize(triangle* tris, uint start_idx, uint triangle_count, camer
     			draw_triangle_outline(buffer[j]);
     			break;
     		default:
-    			draw_triangle(buffer[j], world_normal);
+    			draw_triangle_old2(buffer[j], world_normal);
     			break;
     		}
 #ifdef PERFORMANCE_ANALYZER

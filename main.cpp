@@ -10,16 +10,17 @@
 /*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
 	der rasterizer ausserhalb des pixel arrays
 	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer Auflösung genutzt
-	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen
+	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle fragmente die zu groß sind? aufwand größer?)
 	TODO Bilder müssen um 90° nach rechts gedreht werden damit die uv Koordinaten stimmen...
 	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
 	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
 	TODO Erste per pixel Beleuchtungsmodelle überlegen und implementieren
+	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,...
 */
 
 static bool _running = true;
-static camera _cam = {1., {0, 0, -20}, {0, 0}};
+static camera _cam = {1., {110, -25, -80}, {0, 0.25}};
 
 LRESULT WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
@@ -43,7 +44,7 @@ ErrCode setNormalMode(void){
 	return SUCCESS;
 }
 
-//#define THREADING
+// #define THREADING
 #define THREADCOUNT 8
 #define SPEED 0.05
 
@@ -95,7 +96,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// 	_default_texture[i] = (i%2)*0xFFFFFFFF;
 	// }
 
-	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 0, 0, 0, 2);
+	ERR_CODE = read_obj("objects/low_poly_winter.obj", triangles, &triangle_count, 50, 0, 0, 2);
 	if(ErrCheck(ERR_CODE, "Fehler beim Laden des default Modells!")){
 		return -1;
 	}
@@ -128,7 +129,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// triangles[1].uv[1] = {0, 1};
 	// triangles[1].uv[2] = {1, 1};
 	// triangle_count = 2;
-	// create_cube(triangles, triangle_count, 0, 0, 0, 10, 10, 10);
+	create_cube(triangles, triangle_count, 0, 0, 0, 10, 10, 10);
 
 	SetCursorPos(_window_width/2, _window_height/2);
 
@@ -170,7 +171,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	    }
 #else
 		rasterize(triangles, 0, triangle_count, &_cam);
-		// glight();
+		glight();
 #endif
 #ifdef PERFORMANCE_ANALYZER
     record_data(_perfAnalyzer, 0);
