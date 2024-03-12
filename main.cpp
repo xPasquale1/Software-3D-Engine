@@ -3,7 +3,7 @@
 #include <math.h>
 #include <thread>
 #include <vector>
-#include "../graphics/window.h"
+#include "graphics/window.h"
 
 /*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
 	der rasterizer ausserhalb des pixel arrays
@@ -15,6 +15,8 @@
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
 	TODO Erste per pixel Beleuchtungsmodelle überlegen und implementieren
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,...
+	TODO Weitere Buffer an das Fenster anfügen um zusätzliche Vertex Attribute per pixel interpoliert zu speichern, sollte also irgendwie mit Triangle.attributes
+	zusammenhängen... Erst mal überlegen wie das am besten gehen würde tho
 */
 
 static bool _running = true;
@@ -47,7 +49,6 @@ Menu settingsMenu;
 #define THREADCOUNT 8
 #define SPEED 0.1
 
-ErrCode ERR_CODE = SUCCESS;
 Window* window = nullptr;
 Font* font = nullptr;
 
@@ -80,7 +81,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(loadFont("fonts/ascii.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
 	font->font_size = 21;
 
-	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 100, 2, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
+	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 2, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
 
 	triangle* triangles = new(std::nothrow) triangle[1100000];
 	if(!triangles){
@@ -216,10 +217,10 @@ void update(float dt){
 
 LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
 	Window* window = (Window*)GetWindowLongPtr(hwnd, GWLP_USERDATA);
-	if(window == nullptr) return DefWindowProc(hwnd, uMsg, wParam, lParam);	//TODO das ist ein Fehler, wie melden aber?
+	if(window == nullptr) return DefWindowProc(hwnd, uMsg, wParam, lParam);
 	switch(uMsg){
 		case WM_DESTROY:{
-			_running = false;	//TODO meh...
+			_running = false;
 			ErrCheck(setWindowFlag(window, WINDOW_CLOSE), "setze close Fensterstatus");
 			break;
 		}
