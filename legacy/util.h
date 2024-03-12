@@ -188,7 +188,7 @@ float get_avg_data(PerfAnalyzer& pa, uchar idx){
 //TODO Auf Fehler testen
 ErrCode read_obj(const char* filename, triangle* storage, uint* count, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
-	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht �ffnen!");
+	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;

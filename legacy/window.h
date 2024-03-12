@@ -408,6 +408,9 @@ inline void draw_triangle_old(triangle& tri, fvec3& normal)noexcept{
 	}
 }
 
+//TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
+//TODO scheinbar tut opengl alle vertex attribute interpolieren, auch per vertex normalen... überlegen wie man das implementieren kann
+//Vielleicht kann man die Gewichtungen in einem Buffer nach aussen geben, und dann das alles selbst berechnen
 inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
 	uint buffer_width = _window_width/_pixel_size;
 	uint buffer_height = _window_height/_pixel_size;
@@ -429,7 +432,7 @@ inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
 	float uv0y = tri.uv[0].y/tri.point[0].z; float uv1y = tri.uv[1].y/tri.point[1].z; float uv2y = tri.uv[2].y/tri.point[2].z;
 
 	//Normalenvektor
-	uint normalColor = RGBA(127.5*(1+normal.x), 127.5*(1+normal.y), 127.5*(1+normal.z));
+	uint normalColor = RGBA(127.5f*(1+normal.x), 127.5f*(1+normal.y), 127.5f*(1+normal.z));
 
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
 	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
@@ -447,7 +450,7 @@ inline void draw_triangle_old2(triangle& tri, fvec3& normal)noexcept{
 				wasIn = true;
 				float w = 1.f-u-v;
 				uint idx = y*buffer_width+x;
-				float depth = 1./(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);	//TODO Iterativ lösbar?
+				float depth = 1.f/(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				float inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= _depth_buffer[idx]){

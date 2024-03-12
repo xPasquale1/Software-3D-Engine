@@ -11,11 +11,11 @@ enum BUTTONSTATE{
 	BUTTON_PRESSED=8
 };
 struct Button{
-	ErrCode (*event)(void)=&_defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
+	ErrCode (*event)(void)=&_defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrï¿½ckt wird
 	std::string text;
 	ivec2 pos;
 	ivec2 size;
-	uchar state=BUTTON_VISIBLE|BUTTON_CAN_HOVER;	//Bits: Sichtbarkeit, Maus hover aktiv, Maus hover state, Button gedrückt, Rest ungenutzt
+	uchar state=BUTTON_VISIBLE|BUTTON_CAN_HOVER;	//Bits: Sichtbarkeit, Maus hover aktiv, Maus hover state, Button gedrï¿½ckt, Rest ungenutzt
 	uint color = RGBA(120, 120, 120);
 	uint hover_color = RGBA(120, 120, 255);
 	uint textcolor = RGBA(180, 180, 180);
@@ -60,7 +60,7 @@ inline void updateButtons(Button* buttons, uint button_count, Mouse& mouse){
 struct Menu{
 	Button* buttons;
 	uint button_count=0;
-	uchar state=0;	//Bits: offen, toggle bit für offen, Rest ungenutzt
+	uchar state=0;	//Bits: offen, toggle bit fï¿½r offen, Rest ungenutzt
 };
 enum MENUSTATE{
 	MENU_OPEN=1,
