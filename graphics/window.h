@@ -9,9 +9,6 @@
 #include "math.h"
 
 //TODO namespace?
-//TODO naming conventions
-//TODO Gescheite window klasse (von anderem projekt)
-//TODO definiere ein Makro dass die ganzen Checks wie if(!window),... definiert, da die sonst evtl unnötig performance verbrauchen, wenn man vorraus setzt dass der Nutzer solche checks selbst macht
 
 #define INVALIDHANDLEERRORS
 
@@ -31,7 +28,10 @@ struct Window{
 	WORD pixelSize = 1;								//Größe der Pixel in Bildschirmpixeln
 	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
-	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... TODO
+	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
+	BYTE attributeBuffersCount = 0;					//Anzahl der Vertex-Attribute Buffer
+	//TODO float dafür zu verwenden ist ja eigentlich doof, da die Zahlen eh nur zwischen 0-1 sind...
+	float* attributeBuffers[32];					//Buffer für die interpolierten Vertex-Attribute
 };
 
 #define APPLICATIONFLAGSTYPE BYTE
@@ -55,6 +55,12 @@ inline ErrCode initApp(){
 		std::cerr << hr << std::endl;
 		return APP_INIT;
 	}
+	return SUCCESS;
+}
+
+//TODO wirft das errors?
+inline ErrCode destroyApp(){
+	app.factory->Release();
 	return SUCCESS;
 }
 
@@ -98,7 +104,9 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 		return CREATE_WINDOW;
 	}
 
-	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);	//TODO idk ob das so ok ist, win32 doku sagt nicht viel darüber aus...
+	//TODO idk ob das so ok ist, win32 doku sagt nicht viel darüber aus... aber angeblich ist USERDATA
+	//genau für sowas gedacht und es sollte auch nie überschrieben werden...
+	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
 
 	D2D1_RENDER_TARGET_PROPERTIES properties = {};
 	properties.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
@@ -128,9 +136,12 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	return SUCCESS;
 }
 
-//TODO INVALIDHANDLEERRORS?
+//Zerstört das Fenster und alle allokierten Ressourcen mit diesem
 ErrCode destroyWindow(Window*& window){
+	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
+	#endif
+	for(BYTE i=0; i < window->attributeBuffersCount; ++i) delete[] window->attributeBuffers[i];
 	if(!UnregisterClassA(window->windowClassName.c_str(), NULL)){
 		std::cerr << GetLastError() << std::endl;
 		return GENERIC_ERROR;
@@ -140,12 +151,6 @@ ErrCode destroyWindow(Window*& window){
 	delete[] window->depth;
 	delete window;
 	window = nullptr;
-	return SUCCESS;
-}
-
-//TODO wirft das errors?
-inline ErrCode destroyApp(){
-	app.factory->Release();
 	return SUCCESS;
 }
 
@@ -192,9 +197,34 @@ inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_
 	delete[] window->depth;
 	WORD bufferWidth = width/pixel_size;
 	WORD bufferHeight = height/pixel_size;
-	window->pixels = new DWORD[bufferWidth*bufferHeight];
-	window->depth = new DWORD[bufferWidth*bufferHeight];
+	window->pixels = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
+	if(!window->pixels) return BAD_ALLOC;
+	window->depth = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
+	if(!window->depth) return BAD_ALLOC;
 	window->renderTarget->Resize({width, height});
+	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+		delete[] window->attributeBuffers[i];
+		window->attributeBuffers[i] = new(std::nothrow) float[bufferWidth*bufferHeight];
+		if(!window->attributeBuffers[i]) return BAD_ALLOC;
+	}
+	return SUCCESS;
+}
+
+//Weißt dem Fenster bufferCount viele Vertex-Attribute-Buffer zu und löscht bestehende
+//TODO 255 sind zu viele, sollte Fehler werfen, falls man mehr wie so 32 erstellen will
+ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount){
+	#ifdef INVALIDHANDLEERRORS
+	if(window == nullptr) return WINDOW_NOT_FOUND;
+	#endif
+	if(bufferCount > 32) return BAD_ALLOC;	//TODO neuer Fehlercode
+	for(BYTE i=0; i < window->attributeBuffersCount; ++i) delete[] window->attributeBuffers[i];
+	DWORD bufferWidth = window->windowWidth/window->pixelSize;
+	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+	for(BYTE i=0; i < bufferCount; ++i){
+		window->attributeBuffers[i] = new(std::nothrow) float[bufferWidth*bufferHeight];
+		if(!window->attributeBuffers[i]) return BAD_ALLOC;
+	}
+	window->attributeBuffersCount = bufferCount;
 	return SUCCESS;
 }
 
@@ -387,6 +417,7 @@ inline DWORD getImage(Image& image, float x, float y){
 
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
+//TODO up-/downscaling methoden wie nearest, bilinear,...
 ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y){
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
@@ -424,13 +455,19 @@ ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD s
 	return SUCCESS;
 }
 
-//TODO es gibt delete font aber nicht create???
 struct Font{
 	Image image;
 	ivec2 char_size;		//Größe eines Symbols im Image
 	WORD font_size = 12;	//Größe der Symbole in Pixel
 	BYTE char_sizes[96];	//Größe der Symbole in x-Richtung
 };
+
+//Allokiert eine Font auf dem Heap
+ErrCode createFont(Font*& font){
+	font = new(std::nothrow) Font;
+	if(!font) return BAD_ALLOC;
+	return SUCCESS;
+}
 
 //Zerstört eine im Heap allokierte Font und alle weiteren allokierten Elemente
 void destroyFont(Font*& font){
@@ -694,7 +731,7 @@ inline void drawTriangleOutline(Window* window, triangle& tri)noexcept{
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO es sollten vertex attribute übergeben werden, die dann alle interpoliert werden, so machen es auch moderne grafikkarten
-inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal)noexcept{
+inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, WORD attributeCount)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -786,7 +823,7 @@ inline __attribute__((always_inline)) void removeTriangleFromBuffer(triangle* bu
 	return;
 }
 
-inline void clipPlane(plane& p, triangle* buffer, byte& count)noexcept{
+inline void clipPlane(plane& p, triangle* buffer, byte& count, WORD attributeCount)noexcept{
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
 	byte temp_count = count;	//Index des letzten originalen Dreiecks
@@ -858,29 +895,29 @@ inline void clipPlane(plane& p, triangle* buffer, byte& count)noexcept{
 #define YMAX 1.01f
 
 //TODO kann bestimmt um einiges optimiert werden
-inline BYTE clipping(Window* window, triangle* buffer)noexcept{
+inline BYTE clipping(Window* window, triangle* buffer, WORD attributeCount)noexcept{
 	BYTE count = 1;
-	float aspect_ratio = window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
 	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(pz, buffer, count);
+	clipPlane(pz, buffer, count, attributeCount);
 
 	plane px = {}; px.normal = {XMIN*aspect_ratio, 0, 1};
 	normalize(px.normal);
-	clipPlane(px, buffer, count);
+	clipPlane(px, buffer, count, attributeCount);
 
 	plane pnx = {}; pnx.normal = {XMAX*aspect_ratio, 0, 1};
 	normalize(pnx.normal);
-	clipPlane(pnx, buffer, count);
+	clipPlane(pnx, buffer, count, attributeCount);
 
 	plane py = {}; py.normal = {0, YMIN, 1};
 	normalize(py.normal);
-	clipPlane(py, buffer, count);
+	clipPlane(py, buffer, count, attributeCount);
 
 	plane pny = {}; pny.normal = {0, YMAX, 1};
 	normalize(pny.normal);
-	clipPlane(pny, buffer, count);
+	clipPlane(pny, buffer, count, attributeCount);
 
 	return count;
 }
@@ -891,12 +928,12 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD triangleCount, camera* cam)noexcept{
+inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, WORD attributeCount, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
-	_perfAnalyzer.totalTriangles += triangleCount - startIdx;
+	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = window->windowWidth/window->windowHeight;
+	float aspect_ratio = (float)window->windowWidth/window->windowHeight;
 	float sin_rotx = sin(cam->rot.x);
 	float cos_rotx = cos(cam->rot.x);
 	float sin_roty = sin(cam->rot.y);
@@ -905,7 +942,7 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD tria
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen
-    for(DWORD i=startIdx; i < triangleCount; ++i){
+    for(DWORD i=startIdx; i < endIdx; ++i){
     	triangle tri = tris[i];
     	//TODO kann man auch im Dreieck speichern
     	fvec3 l1 = {tri.points[1].x-tri.points[0].x, tri.points[1].y-tri.points[0].y, tri.points[1].z-tri.points[0].z};
@@ -935,14 +972,15 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD tria
     	if(dot(tri.points[0], normal) > 0) continue;
 #endif
     	buffer[0] = tri;
-    	BYTE count = clipping(window, buffer);
+    	BYTE count = clipping(window, buffer, attributeCount);
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0]; fvec3 pt2 = buffer[j].points[1]; fvec3 pt3 = buffer[j].points[2];
     		buffer[j].points[0].x = pt1.x*(cam->focal_length/pt1.z)/aspect_ratio; buffer[j].points[0].y = pt1.y*(cam->focal_length/pt1.z);
     		buffer[j].points[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].points[1].y = pt2.y*(cam->focal_length/pt2.z);
     		buffer[j].points[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].points[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].points[0].z = pt1.z; buffer[j].points[1].z = pt2.z; buffer[j].points[2].z = pt3.z;
-    		drawTriangleFilledOld(window, buffer[j], world_normal);
+    		drawTriangleFilledOld(window, buffer[j], world_normal, attributeCount);
+			// drawTriangleOutline(window, buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
 #endif

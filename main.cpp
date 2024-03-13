@@ -77,11 +77,12 @@ void glight(){
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	if(ErrCheck(initApp(), "App initialisieren") != SUCCESS) return -1;
 
-	font = new Font;
-	if(ErrCheck(loadFont("fonts/ascii.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
-	font->font_size = 21;
-
 	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 2, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
+	if(ErrCheck(assignAttributeBuffers(window, 2), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
+
+	if(ErrCheck(createFont(font), "Font erstellen") != SUCCESS) return -1;
+	if(ErrCheck(loadFont("fonts/ascii.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	font->font_size = 42/window->pixelSize;
 
 	triangle* triangles = new(std::nothrow) triangle[1100000];
 	if(!triangles){
@@ -123,9 +124,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// triangles[1].uv[2] = {1, 1};
 	// triangle_count = 2;
 
-	triangle_count = 0;
-	createCube(triangles, triangle_count, 0, 0, 0, 20, 20, 20);
-	SetCursorPos(window->windowWidth/2, window->windowHeight/2);
+	// triangle_count = 0;
+	// createCube(triangles, triangle_count, 0, 0, 0, 20, 20, 20);
+	RECT rect;
+	GetWindowRect(window->handle, &rect);
+	SetCursorPos(window->windowWidth/2+rect.left, window->windowHeight/2+rect.top);
 
 	//TODO dynamisch buttons hinzufügen und entfernen
 	Button settingButtons[5];
@@ -164,7 +167,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	        thread.join();
 	    }
 #else
-		rasterize(window, triangles, 0, triangle_count, &_cam);
+		rasterize(window, triangles, 0, triangle_count, 0, &_cam);
 		// glight();
 #endif
 #ifdef PERFORMANCE_ANALYZER
@@ -173,19 +176,19 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
     	update(getAvgData(_perfAnalyzer, 0)+1);
 		std::string val = floatToString(getAvgData(_perfAnalyzer, 0), 4);
-		drawFontString(window, *font, val.c_str(), 5, 5);
+		drawFontString(window, *font, val.c_str(), 5, 2);
 		val = floatToString(getAvgData(_perfAnalyzer, 1), 4);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size+10);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size+4);
 		val = floatToString(getAvgData(_perfAnalyzer, 2), 4);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*2+15);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*2+6);
 		val = longToString(_perfAnalyzer.totalTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*3+20);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*3+8);
 		val = longToString(_perfAnalyzer.drawnTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*4+25);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*4+10);
 		val = longToString(_perfAnalyzer.pixelsDrawn);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+30);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+12);
 		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*6+35);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*6+14);
 		drawWindow(window);
 	}
 
@@ -229,7 +232,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
 			// ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
-			ErrCheck(resizeWindow(window, width, height, 1), "Fenster skalieren");
+			ErrCheck(resizeWindow(window, width, height, 2), "Fenster skalieren");
 			break;
 		}
 		case WM_LBUTTONDOWN:{
