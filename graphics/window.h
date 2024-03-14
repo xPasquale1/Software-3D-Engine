@@ -9,8 +9,11 @@
 #include "math.h"
 
 //TODO namespace?
+//TODO triangle struct sollte weg... lieber alles per pointer übergeben, dann kann man auch sauber punkte, attribute,... trennen und viel wichtiger die Dreiecke
+//haben nicht immer einen pointer der vllt nicht gebraucht wird, da es keine attribute gibt
 
 #define INVALIDHANDLEERRORS
+#define MAXVERTEXATTRIBUTES 32
 
 #define WINDOWFLAGSTYPE BYTE
 enum WINDOWFLAG : WINDOWFLAGSTYPE{
@@ -31,7 +34,7 @@ struct Window{
 	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
 	BYTE attributeBuffersCount = 0;					//Anzahl der Vertex-Attribute Buffer
 	//TODO float dafür zu verwenden ist ja eigentlich doof, da die Zahlen eh nur zwischen 0-1 sind...
-	float* attributeBuffers[32];					//Buffer für die interpolierten Vertex-Attribute
+	float* attributeBuffers[MAXVERTEXATTRIBUTES];	//Buffer für die interpolierten Vertex-Attribute
 };
 
 #define APPLICATIONFLAGSTYPE BYTE
@@ -374,6 +377,8 @@ struct Image{
 	WORD height = 0;	//y-Dimension
 };
 
+Image _default_texture;
+
 ErrCode loadImage(const char* name, Image& image){
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) return FILE_NOT_FOUND;
@@ -705,15 +710,25 @@ inline void updateMenu(Window* window, Menu& menu, Font& font){
 
 struct triangle{
 	fvec3 points[3];
-	float* attributes = nullptr;
+};
+
+struct TriangleAttribute{
+	fvec4 attributes[3];		//1 fec4 Attribut pro Punkt
+};
+
+//Anzahl der Attribute sind dann die Anzahl der Dreiecke
+struct VertexAttributesInfo{
+	DWORD index;											//Wird vom rasterizer verwendet, nicht verändern
+	BYTE attributesCount = 0;								//Anzahl der Attribute
+	TriangleAttribute* attributes[MAXVERTEXATTRIBUTES];		//Die Attribute als fvec4 arrays in 3er Vektoren aufgeteilt, da es ja 3 Punkte gibt
 };
 
 //Einfacher Texture lookup; u, v von 0 - 1
-//TODO aktuell noch "safe"
-inline DWORD texture(Image& image, float u, float v)noexcept{
-	int u1 = u*image.width;
-	int v1 = v*image.height;
-	int idx = u1*image.width+v1+2;
+//TODO aktuell extra Funktion das nicht das modulo wrapping macht
+inline DWORD texture2D(Image& image, float u, float v)noexcept{
+	int u1 = u*(image.width-1);
+	int v1 = v*(image.height-1);
+	int idx = u1*image.width+v1;
 	return image.data[idx%(image.width*image.height)];
 }
 
@@ -731,7 +746,7 @@ inline void drawTriangleOutline(Window* window, triangle& tri)noexcept{
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO es sollten vertex attribute übergeben werden, die dann alle interpoliert werden, so machen es auch moderne grafikkarten
-inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, WORD attributeCount)noexcept{
+inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, VertexAttributesInfo& attributesInfo)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -750,9 +765,15 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, 
 	//Berechne uv/z vor
 	// float uv0x = tri.uv[0].x/tri.points[0].z; float uv1x = tri.uv[1].x/tri.points[1].z; float uv2x = tri.uv[2].x/tri.points[2].z;
 	// float uv0y = tri.uv[0].y/tri.points[0].z; float uv1y = tri.uv[1].y/tri.points[1].z; float uv2y = tri.uv[2].y/tri.points[2].z;
+	float uv0x = attributesInfo.attributes[0][attributesInfo.index].attributes[0].x/tri.points[0].z;
+	float uv0y = attributesInfo.attributes[0][attributesInfo.index].attributes[0].y/tri.points[0].z;
+	float uv1x = attributesInfo.attributes[0][attributesInfo.index].attributes[1].x/tri.points[1].z;
+	float uv1y = attributesInfo.attributes[0][attributesInfo.index].attributes[1].y/tri.points[1].z;
+	float uv2x = attributesInfo.attributes[0][attributesInfo.index].attributes[2].x/tri.points[2].z;
+	float uv2y = attributesInfo.attributes[0][attributesInfo.index].attributes[2].y/tri.points[2].z;
 
 	//Normalenvektor
-	DWORD normalColor = RGBA(127.5f*(1+normal.x), 127.5f*(1+normal.y), 127.5f*(1+normal.z));
+	// DWORD normalColor = RGBA(127.5f*(1+normal.x), 127.5f*(1+normal.y), 127.5f*(1+normal.z));
 
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
 	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
@@ -778,13 +799,13 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, 
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
 					window->depth[idx] = (DWORD)inc_depth;
-					// float s = (w*uv0x + u*uv1x + v*uv2x);	//TODO Iterativ lösbar?
-					// float t = (w*uv0y + u*uv1y + v*uv2y);	//TODO Iterativ lösbar?
-					// s *= depth; t *= depth;
+					float s = (w*uv0x + u*uv1x + v*uv2x);
+					float t = (w*uv0y + u*uv1y + v*uv2y);
+					s *= depth; t *= depth;
 					//TODO dynamisch texturen lesen können/materials hinzufügen
-					// window->pixels[idx] = texture(_default_texture, s, t);
+					window->pixels[idx] = texture2D(_default_texture, s, t);
 					// _normal_buffer[idx] = normalColor;
-					window->pixels[idx] = RGBA(192, 192, 192); //TODO remove
+					// window->pixels[idx] = RGBA(192, 192, 192); //TODO remove
 				}
 				#ifdef PERFORMANCE_ANALYZER
 				else _perfAnalyzer.pixelsCulled++;
@@ -823,7 +844,7 @@ inline __attribute__((always_inline)) void removeTriangleFromBuffer(triangle* bu
 	return;
 }
 
-inline void clipPlane(plane& p, triangle* buffer, byte& count, WORD attributeCount)noexcept{
+inline void clipPlane(plane& p, triangle* buffer, byte& count, VertexAttributesInfo& attributesInfo)noexcept{
 	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	byte offset = count;		//Originaler Offset der neuen Dreiecke
 	byte temp_count = count;	//Index des letzten originalen Dreiecks
@@ -895,29 +916,29 @@ inline void clipPlane(plane& p, triangle* buffer, byte& count, WORD attributeCou
 #define YMAX 1.01f
 
 //TODO kann bestimmt um einiges optimiert werden
-inline BYTE clipping(Window* window, triangle* buffer, WORD attributeCount)noexcept{
+inline BYTE clipping(Window* window, triangle* buffer, VertexAttributesInfo& attributesInfo)noexcept{
 	BYTE count = 1;
 	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
 	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(pz, buffer, count, attributeCount);
+	clipPlane(pz, buffer, count, attributesInfo);
 
 	plane px = {}; px.normal = {XMIN*aspect_ratio, 0, 1};
 	normalize(px.normal);
-	clipPlane(px, buffer, count, attributeCount);
+	clipPlane(px, buffer, count, attributesInfo);
 
 	plane pnx = {}; pnx.normal = {XMAX*aspect_ratio, 0, 1};
 	normalize(pnx.normal);
-	clipPlane(pnx, buffer, count, attributeCount);
+	clipPlane(pnx, buffer, count, attributesInfo);
 
 	plane py = {}; py.normal = {0, YMIN, 1};
 	normalize(py.normal);
-	clipPlane(py, buffer, count, attributeCount);
+	clipPlane(py, buffer, count, attributesInfo);
 
 	plane pny = {}; pny.normal = {0, YMAX, 1};
 	normalize(pny.normal);
-	clipPlane(pny, buffer, count, attributeCount);
+	clipPlane(pny, buffer, count, attributesInfo);
 
 	return count;
 }
@@ -928,7 +949,7 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, WORD attributeCount, camera* cam)noexcept{
+inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, VertexAttributesInfo& attributesInfo, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -972,14 +993,15 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     	if(dot(tri.points[0], normal) > 0) continue;
 #endif
     	buffer[0] = tri;
-    	BYTE count = clipping(window, buffer, attributeCount);
+    	BYTE count = clipping(window, buffer, attributesInfo);
+		attributesInfo.index = i;		//TODO falsch und tatsächlich muss man ja auch den buffer mit den vertex attributen anpassen... ugh
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0]; fvec3 pt2 = buffer[j].points[1]; fvec3 pt3 = buffer[j].points[2];
     		buffer[j].points[0].x = pt1.x*(cam->focal_length/pt1.z)/aspect_ratio; buffer[j].points[0].y = pt1.y*(cam->focal_length/pt1.z);
     		buffer[j].points[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].points[1].y = pt2.y*(cam->focal_length/pt2.z);
     		buffer[j].points[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].points[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].points[0].z = pt1.z; buffer[j].points[1].z = pt2.z; buffer[j].points[2].z = pt3.z;
-    		drawTriangleFilledOld(window, buffer[j], world_normal, attributeCount);
+    		drawTriangleFilledOld(window, buffer[j], world_normal, attributesInfo);
 			// drawTriangleOutline(window, buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
@@ -989,7 +1011,9 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     return;
 }
 
-ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, float y, float z, float scale=1){
+//TODO sollte Kontainer übergeben bekommen, die das Objekt speichern und nicht ein ganzes Dreiecks array
+//TODO man sollte übergeben können, ob uvs und normalen genutzt werden und auch in welche location die gespeichert werden
+ErrCode readObj(const char* filename, triangle* storage, DWORD* count, VertexAttributesInfo& attributesInfo, float x, float y, float z, float scale=1){
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
 	std::string word;
@@ -1102,13 +1126,16 @@ ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, 
 			storage[tri_count+current_count].points[0] = points[pt_order[0]];
 			storage[tri_count+current_count].points[1] = points[pt_order[1]];
 			storage[tri_count+current_count].points[2] = points[pt_order[2]];
-			// storage[tri_count+current_count].uv[0] = uvs[uv_order[0]];	//TODO
-			// storage[tri_count+current_count].uv[1] = uvs[uv_order[1]];
-			// storage[tri_count+current_count].uv[2] = uvs[uv_order[2]];
-//			float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;
-//			float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
-//			float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
-//			storage[tri_count+current_count].normal = {x, y, z};
+			attributesInfo.attributes[0][tri_count+current_count].attributes[0].x = uvs[uv_order[0]].x;
+			attributesInfo.attributes[0][tri_count+current_count].attributes[0].y = uvs[uv_order[0]].y;
+			attributesInfo.attributes[0][tri_count+current_count].attributes[1].x = uvs[uv_order[1]].x;
+			attributesInfo.attributes[0][tri_count+current_count].attributes[1].y = uvs[uv_order[1]].y;
+			attributesInfo.attributes[0][tri_count+current_count].attributes[2].x = uvs[uv_order[2]].x;
+			attributesInfo.attributes[0][tri_count+current_count].attributes[2].y = uvs[uv_order[2]].y;
+			// float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;	//TODO
+			// float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
+			// float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
+			// storage[tri_count+current_count].normal = {x, y, z};
 			++tri_count;
 		}
 	}

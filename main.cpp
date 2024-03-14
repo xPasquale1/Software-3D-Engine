@@ -84,22 +84,22 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(loadFont("fonts/ascii.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
 	font->font_size = 42/window->pixelSize;
 
+	//TODO beides sollte in ein Struct gepackt werden und nur zusammen allokiert/deallokiert werden
 	triangle* triangles = new(std::nothrow) triangle[1100000];
+	VertexAttributesInfo attributesInfo;
+	attributesInfo.attributesCount = 1;
+	attributesInfo.attributes[0] = new TriangleAttribute[1100000];
 	if(!triangles){
 		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
 		return -1;
 	}
 	DWORD triangle_count = 0;
 
-	Image image;
-	if(ErrCheck(loadImage("textures/low_poly_winter.tex", image), "Image laden") != SUCCESS) return -1;
-	// _default_texture = new uint[17*17+2];
-	// _default_texture[0] = 17; _default_texture[1] = 17;
-	// for(int i=2; i < 17*17+2; ++i){
-	// 	_default_texture[i] = (i%2)*0xFFFFFFFF;
-	// }
+	// if(ErrCheck(loadImage("textures/low_poly_winter.tex", image), "Image laden") != SUCCESS) return -1;
+	if(ErrCheck(loadImage("textures/checkerboard.tex", _default_texture), "Image laden") != SUCCESS) return -1;
 
-	if(ErrCheck(readObj("objects/low_poly_winter.obj", triangles, &triangle_count, 50, 0, 0, 2), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(readObj("objects/low_poly_winter.obj", triangles, &triangle_count, attributesInfo, 50, 0, 0, 2), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(readObj("objects/box0.obj", triangles, &triangle_count, attributesInfo, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
 
 	// triangles[0].points[2] = {-10, 10, 0};
 	// triangles[0].points[1] = {0, -10, 0};
@@ -167,7 +167,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	        thread.join();
 	    }
 #else
-		rasterize(window, triangles, 0, triangle_count, 0, &_cam);
+		rasterize(window, triangles, 0, triangle_count, attributesInfo, &_cam);
 		// glight();
 #endif
 #ifdef PERFORMANCE_ANALYZER
@@ -192,6 +192,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		drawWindow(window);
 	}
 
+	delete[] triangles;
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();
