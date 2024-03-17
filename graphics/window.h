@@ -13,7 +13,7 @@
 //haben nicht immer einen pointer der vllt nicht gebraucht wird, da es keine attribute gibt
 
 #define INVALIDHANDLEERRORS
-#define MAXVERTEXATTRIBUTES 32
+#define MAXVERTEXATTRIBUTES 4
 
 #define WINDOWFLAGSTYPE BYTE
 enum WINDOWFLAG : WINDOWFLAGSTYPE{
@@ -28,13 +28,14 @@ struct Window{
 	WORD windowHeight = 800;						//Fensterhöhe
 	DWORD* pixels;									//Pixelarray
 	DWORD* depth;									//Depthbuffer
+	BYTE* fragmentFlag;								//Buffer, welche Fragmente gezeichnet werden sollen TODO sollte 64bit sein
 	WORD pixelSize = 1;								//Größe der Pixel in Bildschirmpixeln
 	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
 	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
 	BYTE attributeBuffersCount = 0;					//Anzahl der Vertex-Attribute Buffer
 	//TODO float dafür zu verwenden ist ja eigentlich doof, da die Zahlen eh nur zwischen 0-1 sind...
-	float* attributeBuffers[MAXVERTEXATTRIBUTES];	//Buffer für die interpolierten Vertex-Attribute
+	fvec4* attributeBuffers[MAXVERTEXATTRIBUTES];	//Buffer für die interpolierten Vertex-Attribute
 };
 
 #define APPLICATIONFLAGSTYPE BYTE
@@ -48,11 +49,11 @@ struct Application{
 	ID2D1Factory* factory = nullptr;			//Direct2D Factory
 }; static Application app;
 
-inline bool getAppFlag(APPLICATIONFLAG flag){return(app.flags & flag);}
-inline void setAppFlag(APPLICATIONFLAG flag){app.flags = (APPLICATIONFLAG)(app.flags | flag);}
-inline void resetAppFlag(APPLICATIONFLAG flag){app.flags = (APPLICATIONFLAG)(app.flags & ~flag);}
+inline bool getAppFlag(APPLICATIONFLAG flag)noexcept{return(app.flags & flag);}
+inline void setAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags | flag);}
+inline void resetAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags & ~flag);}
 
-inline ErrCode initApp(){
+inline ErrCode initApp()noexcept{
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &app.factory);
 	if(hr){
 		std::cerr << hr << std::endl;
@@ -62,7 +63,7 @@ inline ErrCode initApp(){
 }
 
 //TODO wirft das errors?
-inline ErrCode destroyApp(){
+inline ErrCode destroyApp()noexcept{
 	app.factory->Release();
 	return SUCCESS;
 }
@@ -71,7 +72,7 @@ typedef LRESULT (*window_callback_function)(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 //Setzt bei Erfolg den Parameter window zu einem gültigen window, auf welches man dann zugreifen kann
 //window muss ein nullptr sein/kein vorhandenes window!
-ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, LONG x, LONG y, WORD pixelSize, Window*& window, const char* name = "Window", window_callback_function callback = default_window_callback, HWND parentWindow = NULL){
+ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, LONG x, LONG y, WORD pixelSize, Window*& window, const char* name = "Window", window_callback_function callback = default_window_callback, HWND parentWindow = NULL)noexcept{
 	//Erstelle Fenster Klasse
 	if(window != nullptr) return CREATE_WINDOW;
 
@@ -134,13 +135,14 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	window->pixelSize = pixelSize;
 	window->pixels = new DWORD[buffer_width*buffer_height];
 	window->depth = new DWORD[buffer_width*buffer_height];
+	window->fragmentFlag = new BYTE[buffer_width*buffer_height];
 	window->windowWidth = windowWidth;
 	window->windowHeight = windowHeight;
 	return SUCCESS;
 }
 
 //Zerstört das Fenster und alle allokierten Ressourcen mit diesem
-ErrCode destroyWindow(Window*& window){
+ErrCode destroyWindow(Window*& window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -152,26 +154,27 @@ ErrCode destroyWindow(Window*& window){
 	DestroyWindow(window->handle);
 	delete[] window->pixels;
 	delete[] window->depth;
+	delete[] window->fragmentFlag;
 	delete window;
 	window = nullptr;
 	return SUCCESS;
 }
 
-inline ErrCode setWindowFlag(Window* window, WINDOWFLAG state){
+inline ErrCode setWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
 	window->flags = (WINDOWFLAG)(window->flags | state);
 	return SUCCESS;
 }
-inline ErrCode resetWindowFlag(Window* window, WINDOWFLAG state){
+inline ErrCode resetWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
 	window->flags = (WINDOWFLAG)(window->flags & ~state);
 	return SUCCESS;
 }
-inline bool getWindowFlag(Window* window, WINDOWFLAG state){
+inline bool getWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return false;
 	#endif
@@ -180,7 +183,7 @@ inline bool getWindowFlag(Window* window, WINDOWFLAG state){
 
 //TODO Sollte ERRCODE zurückgeben und WINDOWFLAG als Referenzparameter übergeben bekommen
 //Gibt den nächsten Zustand des Fensters zurück und löscht diesen anschließend, Anwendung z.B. while(state = getNextWindowState() != WINDOW_NONE)...
-inline WINDOWFLAG getNextWindowState(Window* window){
+inline WINDOWFLAG getNextWindowState(Window* window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NONE;
 	#endif
@@ -189,7 +192,7 @@ inline WINDOWFLAG getNextWindowState(Window* window){
 	return flag;
 }
 
-inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_size){
+inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_size)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -198,24 +201,27 @@ inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_
 	window->pixelSize = pixel_size;
 	delete[] window->pixels;
 	delete[] window->depth;
+	delete[] window->fragmentFlag;
 	WORD bufferWidth = width/pixel_size;
 	WORD bufferHeight = height/pixel_size;
 	window->pixels = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
 	if(!window->pixels) return BAD_ALLOC;
 	window->depth = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
 	if(!window->depth) return BAD_ALLOC;
+	window->fragmentFlag = new(std::nothrow) BYTE[bufferWidth*bufferHeight];
+	if(!window->fragmentFlag) return BAD_ALLOC;
 	window->renderTarget->Resize({width, height});
 	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
 		delete[] window->attributeBuffers[i];
-		window->attributeBuffers[i] = new(std::nothrow) float[bufferWidth*bufferHeight];
+		window->attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
 		if(!window->attributeBuffers[i]) return BAD_ALLOC;
 	}
 	return SUCCESS;
 }
 
 //Weißt dem Fenster bufferCount viele Vertex-Attribute-Buffer zu und löscht bestehende
-//TODO 255 sind zu viele, sollte Fehler werfen, falls man mehr wie so 32 erstellen will
-ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount){
+//TODO 255 sind zu viele, sollte Fehler werfen, falls man mehr wie MAXVERTEXATTRIBUTES erstellen will
+ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -224,7 +230,7 @@ ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount){
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
 	for(BYTE i=0; i < bufferCount; ++i){
-		window->attributeBuffers[i] = new(std::nothrow) float[bufferWidth*bufferHeight];
+		window->attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
 		if(!window->attributeBuffers[i]) return BAD_ALLOC;
 	}
 	window->attributeBuffersCount = bufferCount;
@@ -288,11 +294,11 @@ inline void getMessages(Window* window)noexcept{
 	}
 }
 
-inline constexpr DWORD RGBA(BYTE r, BYTE g, BYTE b, BYTE a=255){return DWORD(b|g<<8|r<<16|a<<24);}
-inline constexpr BYTE A(DWORD color){return BYTE(color>>24);}
-inline constexpr BYTE R(DWORD color){return BYTE(color>>16);}
-inline constexpr BYTE G(DWORD color){return BYTE(color>>8);}
-inline constexpr BYTE B(DWORD color){return BYTE(color);}
+inline constexpr DWORD RGBA(BYTE r, BYTE g, BYTE b, BYTE a=255)noexcept{return DWORD(b|g<<8|r<<16|a<<24);}
+inline constexpr BYTE A(DWORD color)noexcept{return BYTE(color>>24);}
+inline constexpr BYTE R(DWORD color)noexcept{return BYTE(color>>16);}
+inline constexpr BYTE G(DWORD color)noexcept{return BYTE(color>>8);}
+inline constexpr BYTE B(DWORD color)noexcept{return BYTE(color);}
 
 inline ErrCode clearWindow(Window* window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
@@ -304,6 +310,7 @@ inline ErrCode clearWindow(Window* window)noexcept{
 		for(WORD x=0; x < buffer_width; ++x){
 			window->pixels[y*buffer_width+x] = RGBA(0, 0, 0);
 			window->depth[y*buffer_width+x] = 0xFFFFFFFF;
+			window->fragmentFlag[y*buffer_width+x] = 0;
 		}
 	}
 	return SUCCESS;
@@ -379,7 +386,7 @@ struct Image{
 
 Image _default_texture;
 
-ErrCode loadImage(const char* name, Image& image){
+ErrCode loadImage(const char* name, Image& image)noexcept{
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) return FILE_NOT_FOUND;
 	//Lese Breite und Höhe
@@ -408,13 +415,13 @@ ErrCode loadImage(const char* name, Image& image){
 	return SUCCESS;
 }
 
-void destroyImage(Image& image){
+void destroyImage(Image& image)noexcept{
 	delete[] image.data;
 	image.data = nullptr;
 }
 
 //x und y von 0 - 1, keine Tests auf Überlauf!
-inline DWORD getImage(Image& image, float x, float y){
+inline DWORD getImage(Image& image, float x, float y)noexcept{
 	DWORD ry = y*image.height;
 	DWORD rx = x*(image.width-1);
 	return image.data[ry*image.width+rx];
@@ -423,7 +430,7 @@ inline DWORD getImage(Image& image, float x, float y){
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
 //TODO up-/downscaling methoden wie nearest, bilinear,...
-ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y){
+ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -441,7 +448,7 @@ ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start
 
 //Funktion testet ob jeder pixel im gültigen Fensterbereich liegt! idx ist der window index
 //TODO ist das wirklich nötig eine ganze extra Funktion dafür zu machen?
-ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y){
+ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -468,20 +475,20 @@ struct Font{
 };
 
 //Allokiert eine Font auf dem Heap
-ErrCode createFont(Font*& font){
+ErrCode createFont(Font*& font)noexcept{
 	font = new(std::nothrow) Font;
 	if(!font) return BAD_ALLOC;
 	return SUCCESS;
 }
 
 //Zerstört eine im Heap allokierte Font und alle weiteren allokierten Elemente
-void destroyFont(Font*& font){
+void destroyFont(Font*& font)noexcept{
 	destroyImage(font->image);
 	delete font;
 	font = nullptr;
 }
 
-ErrCode loadFont(const char* path, Font& font, ivec2 char_size){
+ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
 	ErrCode code;
 	font.char_size = char_size;
 	if((code = ErrCheck(loadImage(path, font.image), "font image laden")) != SUCCESS){
@@ -505,7 +512,7 @@ ErrCode loadFont(const char* path, Font& font, ivec2 char_size){
 
 //Gibts zurück wie viele Pixel der Text unter der gegebenen Font benötigt
 //TODO font könnte nullptr sein -> INVALIDHANDLEERRORS?
-WORD getStringFontSize(Font& font, std::string& text){
+WORD getStringFontSize(Font& font, std::string& text)noexcept{
 	float div = (float)font.char_size.y/font.font_size;
 	WORD offset = 0;
 	for(size_t i=0; i < text.size(); ++i){
@@ -517,7 +524,7 @@ WORD getStringFontSize(Font& font, std::string& text){
 
 //Gibt zurück wie breit das Symbol war das gezeichnet wurde
 //TODO Errors? übergebe symbol größe als Referenz Parameter
-DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD start_y){
+DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return 0;
 	#endif
@@ -542,7 +549,7 @@ DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD
 
 //Gibt zurück, wie breit der String zu zeichnen war, String muss \0 terminiert sein!
 //TODO Errors? meh, if window wird evtl bei jedem Aufruf von drawFontChar gemacht
-DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y){
+DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
 	DWORD offset = 0;
 	DWORD idx = 0;
 	while(string[idx] != '\0'){
@@ -578,16 +585,16 @@ struct Button{
 	BYTE* data = nullptr;
 };
 
-void destroyButton(Button& button){
+void destroyButton(Button& button)noexcept{
 	destroyImage(*button.image);
 	delete[] button.data;
 }
 
-inline constexpr void setButtonFlag(Button& button, BUTTONFLAGS flag){button.flags |= flag;}
-inline constexpr void resetButtonFlag(Button& button, BUTTONFLAGS flag){button.flags &= ~flag;}
-inline constexpr bool getButtonFlag(Button& button, BUTTONFLAGS flag){return (button.flags & flag);}
+inline constexpr void setButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags |= flag;}
+inline constexpr void resetButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags &= ~flag;}
+inline constexpr bool getButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{return (button.flags & flag);}
 //TODO kann bestimmt besser geschrieben werden... und ErrCheck aufs Event sollte mit einem BUTTONSTATE entschieden werden
-inline void buttonsClicked(Button* buttons, WORD button_count){
+inline void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE) || getButtonFlag(b, BUTTON_DISABLED)) continue;
@@ -606,7 +613,7 @@ inline void buttonsClicked(Button* buttons, WORD button_count){
 }
 
 //TODO meh, if window wird in jedem draw gemacht
-inline void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count){
+inline void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE)) continue;
@@ -647,7 +654,7 @@ inline void drawButtons(Window* window, Font& font, Button* buttons, WORD button
 	}
 }
 
-inline void updateButtons(Window* window, Font& font, Button* buttons, WORD button_count){
+inline void updateButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
 	buttonsClicked(buttons, button_count);
 	drawButtons(window, font, buttons, button_count);
 }
@@ -677,17 +684,17 @@ struct Menu{
 	BYTE label_count = 0;
 };
 
-void destroyMenu(Menu& menu){
+void destroyMenu(Menu& menu)noexcept{
 	for(WORD i=0; i < menu.image_count; ++i){
 		destroyImage(*menu.images[i]);
 	}
 }
 
-inline constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag){menu.flags |= flag;}
-inline constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag){menu.flags &= ~flag;}
-inline constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag){return (menu.flags&flag);}
+inline constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags |= flag;}
+inline constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~flag;}
+inline constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
 
-inline void updateMenu(Window* window, Menu& menu, Font& font){
+inline void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 	if(getMenuFlag(menu, MENU_OPEN)){
 		updateButtons(window, font, menu.buttons, menu.button_count);
 		for(WORD i=0; i < menu.label_count; ++i){
@@ -710,22 +717,21 @@ inline void updateMenu(Window* window, Menu& menu, Font& font){
 
 struct triangle{
 	fvec3 points[3];
+	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO omg das ist einfach nur schrecklich, bitte das unten implementieren... bitte
 };
 
-struct TriangleAttribute{
-	fvec4 attributes[3];		//1 fec4 Attribut pro Punkt
-};
+//TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
+struct VertexAttributePointers{
+	DWORD attributesCount = 0;								//Wie viele Attribute es gibt
+	float* attributes[MAXVERTEXATTRIBUTES]{nullptr};		//TODO wäre nicht void* möglich? dann zugriff per fvec2, fvec3,...
+	BYTE componentsCount[MAXVERTEXATTRIBUTES]{0};			//Gibt an, wie viele Komponenten das Attribute hat (nur 1-4)
+}; //static VertexAttributePointers attributePointers;
 
-//Anzahl der Attribute sind dann die Anzahl der Dreiecke
-struct VertexAttributesInfo{
-	DWORD index;											//Wird vom rasterizer verwendet, nicht verändern
-	BYTE attributesCount = 0;								//Anzahl der Attribute
-	TriangleAttribute* attributes[MAXVERTEXATTRIBUTES];		//Die Attribute als fvec4 arrays in 3er Vektoren aufgeteilt, da es ja 3 Punkte gibt
-};
+inline void addVertexAttributePointer(BYTE location, BYTE attributesCount, float* data){}
 
 //Einfacher Texture lookup; u, v von 0 - 1
 //TODO aktuell extra Funktion das nicht das modulo wrapping macht
-inline DWORD texture2D(Image& image, float u, float v)noexcept{
+inline constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
 	int u1 = u*(image.width-1);
 	int v1 = v*(image.height-1);
 	int idx = u1*image.width+v1;
@@ -744,9 +750,11 @@ inline void drawTriangleOutline(Window* window, triangle& tri)noexcept{
 	drawLine(window, pt1.x, pt1.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
 }
 
+typedef void (*fragShader)(Window*, DWORD, DWORD);
+
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO es sollten vertex attribute übergeben werden, die dann alle interpoliert werden, so machen es auch moderne grafikkarten
-inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, VertexAttributesInfo& attributesInfo)noexcept{
+inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -762,17 +770,17 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, 
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
 	float div = cross(vs1, vs2);
 
-	//Berechne uv/z vor
-	// float uv0x = tri.uv[0].x/tri.points[0].z; float uv1x = tri.uv[1].x/tri.points[1].z; float uv2x = tri.uv[2].x/tri.points[2].z;
-	// float uv0y = tri.uv[0].y/tri.points[0].z; float uv1y = tri.uv[1].y/tri.points[1].z; float uv2y = tri.uv[2].y/tri.points[2].z;
-	float uv0x = attributesInfo.attributes[0][attributesInfo.index].attributes[0].x/tri.points[0].z;
-	float uv0y = attributesInfo.attributes[0][attributesInfo.index].attributes[0].y/tri.points[0].z;
-	float uv1x = attributesInfo.attributes[0][attributesInfo.index].attributes[1].x/tri.points[1].z;
-	float uv1y = attributesInfo.attributes[0][attributesInfo.index].attributes[1].y/tri.points[1].z;
-	float uv2x = attributesInfo.attributes[0][attributesInfo.index].attributes[2].x/tri.points[2].z;
-	float uv2y = attributesInfo.attributes[0][attributesInfo.index].attributes[2].y/tri.points[2].z;
+	float invZ[3] = {1.f/pt0.z, 1.f/pt1.z, 1.f/pt2.z};
+	fvec4 attr[window->attributeBuffersCount][3];
+	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+		for(BYTE j=0; j < 3; ++j){
+			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
+			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
+			attr[i][j].z = tri.attribute[i][j].z*invZ[j];
+			attr[i][j].w = tri.attribute[i][j].w*invZ[j];
+		}
+	}
 
-	//Normalenvektor
 	// DWORD normalColor = RGBA(127.5f*(1+normal.x), 127.5f*(1+normal.y), 127.5f*(1+normal.z));
 
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
@@ -780,8 +788,6 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, 
 	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
 	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
 	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
-	//Berechne 1/pt<n>.z vor
-	float pt0_z_inv = 1.f/pt0.z; float pt1_z_inv = 1.f/pt1.z; float pt2_z_inv = 1.f/pt2.z;
 	for(DWORD y = ymin; y <= ymax; ++y){
 		float tmp_u = u; float tmp_v = v;
 		bool wasIn = false;
@@ -791,21 +797,21 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal, 
 				wasIn = true;
 				float w = 1.f-u-v;
 				DWORD idx = y*buffer_width+x;
-				float depth = 1.f/(w*pt0_z_inv + u*pt1_z_inv + v*pt2_z_inv);	//TODO Iterativ lösbar?
+				float depth = 1.f/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				float inc_depth = depth*DEPTH_DIVISOR;
+				DWORD inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= window->depth[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window->depth[idx] = (DWORD)inc_depth;
-					float s = (w*uv0x + u*uv1x + v*uv2x);
-					float t = (w*uv0y + u*uv1y + v*uv2y);
-					s *= depth; t *= depth;
-					//TODO dynamisch texturen lesen können/materials hinzufügen
-					window->pixels[idx] = texture2D(_default_texture, s, t);
-					// _normal_buffer[idx] = normalColor;
-					// window->pixels[idx] = RGBA(192, 192, 192); //TODO remove
+					window->depth[idx] = inc_depth;
+					window->fragmentFlag[idx] = 1;
+					for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+						window->attributeBuffers[i][idx].x = (w*attr[i][0].x + u*attr[i][1].x + v*attr[i][2].x)*depth;
+						window->attributeBuffers[i][idx].y = (w*attr[i][0].y + u*attr[i][1].y + v*attr[i][2].y)*depth;
+						window->attributeBuffers[i][idx].z = (w*attr[i][0].z + u*attr[i][1].z + v*attr[i][2].z)*depth;
+						window->attributeBuffers[i][idx].w = (w*attr[i][0].w + u*attr[i][1].w + v*attr[i][2].w)*depth;
+					}
 				}
 				#ifdef PERFORMANCE_ANALYZER
 				else _perfAnalyzer.pixelsCulled++;
@@ -838,27 +844,30 @@ inline bool rayPlaneIntersection(plane& p, fvec3& start, fvec3& end, float& t, f
 	return false;
 }
 
-inline __attribute__((always_inline)) void removeTriangleFromBuffer(triangle* buffer, byte& count, byte& temp_count, byte& i)noexcept{
+inline __attribute__((always_inline)) void removeTriangleFromBuffer(triangle* buffer, BYTE& count, BYTE& temp_count, BYTE& i)noexcept{
 	buffer[i] = buffer[temp_count-1];
 	--i; --temp_count; --count;
 	return;
 }
 
-inline void clipPlane(plane& p, triangle* buffer, byte& count, VertexAttributesInfo& attributesInfo)noexcept{
-	byte tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
-	byte offset = count;		//Originaler Offset der neuen Dreiecke
-	byte temp_count = count;	//Index des letzten originalen Dreiecks
-	for(byte i=0; i < temp_count; ++i){
-		fvec3 in_v[3]; fvec3 out_v[3];	//TODO Speicher die Indexe die Innerhalb/Ausserhalb liegen
-		byte in = 0; byte out = 0;
+inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
+	BYTE tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
+	BYTE offset = count;		//Originaler Offset der neuen Dreiecke
+	BYTE temp_count = count;	//Index des letzten originalen Dreiecks
+	for(BYTE i=0; i < temp_count; ++i){
+		fvec3 in_v[3]; fvec3 out_v[3];	//TODO Speicher die Indexe die innerhalb/ausserhalb liegen
+		fvec4 in_attr[attributeCount][3]; fvec4 out_attr[attributeCount][3];
+		BYTE in = 0; BYTE out = 0;
 		for(int j=0; j < 3; ++j){
 			fvec3 vec = buffer[i].points[j]; vec.x -= p.pos.x; vec.y -= p.pos.y; vec.z -= p.pos.z;
 			float dist = dot(vec, p.normal);
 			if(dist < 0.){
 				out_v[out] = buffer[i].points[j];
+				for(BYTE k=0; k < attributeCount; ++k) out_attr[k][out] = buffer[i].attribute[k][j];
 				++out;
 			}else{
 				in_v[in] = buffer[i].points[j];
+				for(BYTE k=0; k < attributeCount; ++k) in_attr[k][in] = buffer[i].attribute[k][j];
 				++in;
 			}
 		}
@@ -870,34 +879,48 @@ inline void clipPlane(plane& p, triangle* buffer, byte& count, VertexAttributesI
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				float t;
 				rayPlaneIntersection(p, in_v[0], out_v[0], t, buffer[i].points[1]);
-				// buffer[i].uv[1] = out_uv[0];
+				for(BYTE k=0; k < attributeCount; ++k){
+					buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
+					buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
+					buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
+					buffer[i].attribute[k][1].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+				}
 				rayPlaneIntersection(p, in_v[0], out_v[1], t, buffer[i].points[2]);
-				// buffer[i].uv[2] = out_uv[1];
+				for(BYTE k=0; k < attributeCount; ++k){
+					buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
+					buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
+					buffer[i].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][1].z*t;
+					buffer[i].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][1].w*t;
+					buffer[i].attribute[k][0] = in_attr[k][0];
+				}
 				buffer[i].points[0] = in_v[0];
-				// buffer[i].uv[0] = in_uv[0];
 				break;
 			}
 			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
 				removeTriangleFromBuffer(buffer, count, temp_count, i);
-				fvec3 dir = in_v[0];
-				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
-				// fvec2 end_uv_tmp = out_uv[0];
 				float t;
 				rayPlaneIntersection(p, in_v[0], out_v[0], t, buffer[tmp_off].points[2]);
-				// buffer[tmp_off].uv[2] = out_uv[0];
+				for(BYTE k=0; k < attributeCount; ++k){
+					buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
+					buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
+					buffer[tmp_off].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
+					buffer[tmp_off].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+					buffer[tmp_off].attribute[k][0] = in_attr[k][0];
+					buffer[tmp_off].attribute[k][1] = in_attr[k][1];
+				}
 				buffer[tmp_off].points[0] = in_v[0];
-				// buffer[tmp_off].uv[0] = in_uv[0];
 				buffer[tmp_off].points[1] = in_v[1];
-				// buffer[tmp_off].uv[1] = in_uv[1];
-				dir = in_v[1];
-				dir.x -= out_v[0].x; dir.y -= out_v[0].y; dir.z -= out_v[0].z;
-				// out_uv[0] = end_uv_tmp;
 				rayPlaneIntersection(p, in_v[1], out_v[0], t, buffer[tmp_off+1].points[2]);
-				// buffer[tmp_off+1].uv[2] = out_uv[0];
+				for(BYTE k=0; k < attributeCount; ++k){
+					buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
+					buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
+					buffer[tmp_off+1].attribute[k][2].z = in_attr[k][1].z*(1-t)+out_attr[k][0].z*t;
+					buffer[tmp_off+1].attribute[k][2].w = in_attr[k][1].w*(1-t)+out_attr[k][0].w*t;
+					buffer[tmp_off+1].attribute[k][0] = buffer[tmp_off].attribute[k][2];
+					buffer[tmp_off+1].attribute[k][1] = in_attr[k][1];
+				}
 				buffer[tmp_off+1].points[0] = buffer[tmp_off].points[2];
-				// buffer[tmp_off+1].uv[0] = buffer[tmp_off].uv[2];
 				buffer[tmp_off+1].points[1] = in_v[1];
-				// buffer[tmp_off+1].uv[1] = in_uv[1];
 				tmp_off += 2;
 				count += 2;
 				break;
@@ -916,29 +939,29 @@ inline void clipPlane(plane& p, triangle* buffer, byte& count, VertexAttributesI
 #define YMAX 1.01f
 
 //TODO kann bestimmt um einiges optimiert werden
-inline BYTE clipping(Window* window, triangle* buffer, VertexAttributesInfo& attributesInfo)noexcept{
+inline BYTE clipping(Window* window, triangle* buffer)noexcept{
 	BYTE count = 1;
 	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
 	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(pz, buffer, count, attributesInfo);
+	clipPlane(pz, buffer, count, window->attributeBuffersCount);
 
 	plane px = {}; px.normal = {XMIN*aspect_ratio, 0, 1};
 	normalize(px.normal);
-	clipPlane(px, buffer, count, attributesInfo);
+	clipPlane(px, buffer, count, window->attributeBuffersCount);
 
 	plane pnx = {}; pnx.normal = {XMAX*aspect_ratio, 0, 1};
 	normalize(pnx.normal);
-	clipPlane(pnx, buffer, count, attributesInfo);
+	clipPlane(pnx, buffer, count, window->attributeBuffersCount);
 
 	plane py = {}; py.normal = {0, YMIN, 1};
 	normalize(py.normal);
-	clipPlane(py, buffer, count, attributesInfo);
+	clipPlane(py, buffer, count, window->attributeBuffersCount);
 
 	plane pny = {}; pny.normal = {0, YMAX, 1};
 	normalize(pny.normal);
-	clipPlane(pny, buffer, count, attributesInfo);
+	clipPlane(pny, buffer, count, window->attributeBuffersCount);
 
 	return count;
 }
@@ -949,7 +972,7 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, VertexAttributesInfo& attributesInfo, camera* cam)noexcept{
+inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, camera* cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -993,15 +1016,14 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     	if(dot(tri.points[0], normal) > 0) continue;
 #endif
     	buffer[0] = tri;
-    	BYTE count = clipping(window, buffer, attributesInfo);
-		attributesInfo.index = i;		//TODO falsch und tatsächlich muss man ja auch den buffer mit den vertex attributen anpassen... ugh
+    	BYTE count = clipping(window, buffer);
     	for(byte j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0]; fvec3 pt2 = buffer[j].points[1]; fvec3 pt3 = buffer[j].points[2];
     		buffer[j].points[0].x = pt1.x*(cam->focal_length/pt1.z)/aspect_ratio; buffer[j].points[0].y = pt1.y*(cam->focal_length/pt1.z);
     		buffer[j].points[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].points[1].y = pt2.y*(cam->focal_length/pt2.z);
     		buffer[j].points[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].points[2].y = pt3.y*(cam->focal_length/pt3.z);
     		buffer[j].points[0].z = pt1.z; buffer[j].points[1].z = pt2.z; buffer[j].points[2].z = pt3.z;
-    		drawTriangleFilledOld(window, buffer[j], world_normal, attributesInfo);
+    		drawTriangleFilledOld(window, buffer[j], world_normal);
 			// drawTriangleOutline(window, buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
@@ -1011,11 +1033,32 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     return;
 }
 
+inline ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWORD& value2)noexcept{
+	std::string buffer[3];
+	BYTE idx = 0;
+	for(size_t i=0; i < string.size(); ++i){
+		if(string[i] == '/'){
+			idx += 1;
+			if(idx == 3) return MODEL_BAD_FORMAT;
+			continue;
+		};
+		buffer[idx] += string[i];
+	}
+	if(idx < 2) return MODEL_BAD_FORMAT;
+	if(buffer[0].size() < 1) return MODEL_BAD_FORMAT;
+	if(buffer[1].size() < 1) return MODEL_BAD_FORMAT;
+	if(buffer[2].size() < 1) return MODEL_BAD_FORMAT;
+	value0 = std::stoul(buffer[0].c_str())-1;
+	value1 = std::stoul(buffer[1].c_str())-1;
+	value2 = std::stoul(buffer[2].c_str())-1;
+	return SUCCESS;
+}
+
 //TODO sollte Kontainer übergeben bekommen, die das Objekt speichern und nicht ein ganzes Dreiecks array
 //TODO man sollte übergeben können, ob uvs und normalen genutzt werden und auch in welche location die gespeichert werden
-ErrCode readObj(const char* filename, triangle* storage, DWORD* count, VertexAttributesInfo& attributesInfo, float x, float y, float z, float scale=1){
+ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, float y, float z, float scale=1)noexcept{
 	std::fstream file; file.open(filename, std::ios::in);
-	if(!file.is_open()) throw std::runtime_error("Konnte Datei nicht öffnen!");
+	if(!file.is_open()) return MODEL_NOT_FOUND;
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1023,6 +1066,7 @@ ErrCode readObj(const char* filename, triangle* storage, DWORD* count, VertexAtt
 	DWORD current_count = *count;
 	DWORD tri_count = 0;
 	while(file >> word){	//Lese Datei Wort für Wort
+		//TODO ifs sollten mit case ersetzt werden
 		if(word[0] == 'o' && word.size() == 1){
 			file >> word;
 			std::cout << "Filename:               " << word << std::endl;
@@ -1056,86 +1100,36 @@ ErrCode readObj(const char* filename, triangle* storage, DWORD* count, VertexAtt
 			uvs.push_back(uv);
 		}
 		if(word[0] == 'f' && word.size() == 1){
-			//Lese nur die Eckpunkte
-			DWORD pt_order[4];
-			DWORD uv_order[4];
-			DWORD c = 0;
-			DWORD c1 = 0;
-			std::string val;
+			DWORD pt_order[3];
+			DWORD uv_order[3];
+			DWORD normal_order[3];
 
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[0] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[0] = std::atoi(val.c_str())-1;
+			//Lese Punkt/Texture/Normal
+			file >> word;
+			if(splitString(word, pt_order[0], uv_order[0], normal_order[0]) != SUCCESS) return MODEL_BAD_FORMAT;
+			file >> word;
+			if(splitString(word, pt_order[1], uv_order[1], normal_order[1]) != SUCCESS) return MODEL_BAD_FORMAT;
+			file >> word;
+			if(splitString(word, pt_order[2], uv_order[2], normal_order[2]) != SUCCESS) return MODEL_BAD_FORMAT;
 
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[1] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[1] = std::atoi(val.c_str())-1;
-
-			//Lese Punkt/Texture Koordinate
-			file >> word; c = 0;
-			//Suche alle Zahlen die den Punkt beschreiben
-			for(size_t i=0; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=0; i < c; ++i){
-				val += word[i];
-			} pt_order[2] = std::atoi(val.c_str())-1;
-			//Suche alle Zahlen die die Texturkoordinaten bestimmen
-			c1 = c+1; c = 0;
-			for(size_t i=c1; i < word.size(); ++i){
-				if(word[i] >= '0' && word[i] <= '9') ++c;
-				else break;
-			} val.clear();
-			for(DWORD i=c1; i < c+c1; ++i){
-				val += word[i];
-			} uv_order[2] = std::atoi(val.c_str())-1;
-
-			storage[tri_count+current_count].points[0] = points[pt_order[0]];
-			storage[tri_count+current_count].points[1] = points[pt_order[1]];
-			storage[tri_count+current_count].points[2] = points[pt_order[2]];
-			attributesInfo.attributes[0][tri_count+current_count].attributes[0].x = uvs[uv_order[0]].x;
-			attributesInfo.attributes[0][tri_count+current_count].attributes[0].y = uvs[uv_order[0]].y;
-			attributesInfo.attributes[0][tri_count+current_count].attributes[1].x = uvs[uv_order[1]].x;
-			attributesInfo.attributes[0][tri_count+current_count].attributes[1].y = uvs[uv_order[1]].y;
-			attributesInfo.attributes[0][tri_count+current_count].attributes[2].x = uvs[uv_order[2]].x;
-			attributesInfo.attributes[0][tri_count+current_count].attributes[2].y = uvs[uv_order[2]].y;
-			// float x = (normals[pt_order[0]].x + normals[pt_order[1]].x + normals[pt_order[2]].x)/3.;	//TODO
-			// float y = (normals[pt_order[0]].y + normals[pt_order[1]].y + normals[pt_order[2]].y)/3.;
-			// float z = (normals[pt_order[0]].z + normals[pt_order[1]].x + normals[pt_order[2]].z)/3.;
-			// storage[tri_count+current_count].normal = {x, y, z};
+			storage[current_count+tri_count].points[0] = points[pt_order[0]];
+			storage[current_count+tri_count].points[1] = points[pt_order[1]];
+			storage[current_count+tri_count].points[2] = points[pt_order[2]];
+			storage[current_count+tri_count].attribute[0][0].x = uvs[uv_order[0]].x;
+			storage[current_count+tri_count].attribute[0][0].y = uvs[uv_order[0]].y;
+			storage[current_count+tri_count].attribute[0][1].x = uvs[uv_order[1]].x;
+			storage[current_count+tri_count].attribute[0][1].y = uvs[uv_order[1]].y;
+			storage[current_count+tri_count].attribute[0][2].x = uvs[uv_order[2]].x;
+			storage[current_count+tri_count].attribute[0][2].y = uvs[uv_order[2]].y;
+			storage[current_count+tri_count].attribute[1][0].x = normals[normal_order[0]].x;
+			storage[current_count+tri_count].attribute[1][0].y = normals[normal_order[0]].y;
+			storage[current_count+tri_count].attribute[1][0].z = normals[normal_order[0]].z;
+			storage[current_count+tri_count].attribute[1][1].x = normals[normal_order[1]].x;
+			storage[current_count+tri_count].attribute[1][1].y = normals[normal_order[1]].y;
+			storage[current_count+tri_count].attribute[1][1].z = normals[normal_order[1]].z;
+			storage[current_count+tri_count].attribute[1][2].x = normals[normal_order[2]].x;
+			storage[current_count+tri_count].attribute[1][2].y = normals[normal_order[2]].y;
+			storage[current_count+tri_count].attribute[1][2].z = normals[normal_order[2]].z;
 			++tri_count;
 		}
 	}

@@ -21,7 +21,7 @@
 
 static bool _running = true;
 // static camera _cam = {1., {110, -25, -80}, {0, 0.25}};
-static camera _cam = {1., {0, 0, -80}, {0, 0}};
+static camera _cam = {1., {0, -70, -80}, {0.25, 0.25}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
@@ -52,25 +52,23 @@ Menu settingsMenu;
 Window* window = nullptr;
 Font* font = nullptr;
 
-//TODO Nutze mehrere threads falls THREADING
-void glight(){
+//TODO mehrere Threads falls THREADING
+inline void fragmentShader(Window* window){
+	DWORD bufferWidth = window->windowWidth/window->pixelSize;
+	DWORD bufferHeight = window->windowHeight/window->pixelSize;
 	fvec3 light_dir = {2, -2, 1};
 	normalize(light_dir);
-	DWORD buffer_width = window->windowWidth/window->pixelSize;
-	DWORD buffer_height = window->windowHeight/window->pixelSize;
-	for(DWORD y=0; y < buffer_height; ++y){
-		for(DWORD x=0; x < buffer_width; ++x){
-
-			DWORD color = window->pixels[y*buffer_width+x];
-			// DWORD normal = _normal_buffer[y*buffer_width+x];
-			fvec3 n;
-			// n.x = (R(normal)/127.5)-1;
-			// n.y = (G(normal)/127.5)-1;
-			// n.z = (B(normal)/127.5)-1;
-			float occlusion = (dot(light_dir, n)+1)/2.f;
-			window->pixels[y*buffer_width+x] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
-
-		}
+	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+		if(window->fragmentFlag[i] == 0) continue;
+		fvec3 n;
+		n.x = window->attributeBuffers[1][i].x;
+		n.y = window->attributeBuffers[1][i].y;
+		n.z = window->attributeBuffers[1][i].z;
+		float uvx = window->attributeBuffers[0][i].x;
+		float uvy = window->attributeBuffers[0][i].y;
+		float occlusion = (dot(light_dir, n)+1)*0.5f;
+		DWORD color = texture2D(_default_texture, uvx, uvy);
+		window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
 	}
 }
 
@@ -81,14 +79,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(assignAttributeBuffers(window, 2), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
 
 	if(ErrCheck(createFont(font), "Font erstellen") != SUCCESS) return -1;
-	if(ErrCheck(loadFont("fonts/ascii.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
 	font->font_size = 42/window->pixelSize;
 
 	//TODO beides sollte in ein Struct gepackt werden und nur zusammen allokiert/deallokiert werden
 	triangle* triangles = new(std::nothrow) triangle[1100000];
-	VertexAttributesInfo attributesInfo;
-	attributesInfo.attributesCount = 1;
-	attributesInfo.attributes[0] = new TriangleAttribute[1100000];
 	if(!triangles){
 		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
 		return -1;
@@ -96,10 +91,10 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	DWORD triangle_count = 0;
 
 	// if(ErrCheck(loadImage("textures/low_poly_winter.tex", image), "Image laden") != SUCCESS) return -1;
-	if(ErrCheck(loadImage("textures/checkerboard.tex", _default_texture), "Image laden") != SUCCESS) return -1;
+	if(ErrCheck(loadImage("textures/basic.tex", _default_texture), "Image laden") != SUCCESS) return -1;
 
 	// if(ErrCheck(readObj("objects/low_poly_winter.obj", triangles, &triangle_count, attributesInfo, 50, 0, 0, 2), "Modell laden") != SUCCESS) return -1;
-	if(ErrCheck(readObj("objects/box0.obj", triangles, &triangle_count, attributesInfo, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(readObj("objects/terrain1.obj", triangles, &triangle_count, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
 
 	// triangles[0].points[2] = {-10, 10, 0};
 	// triangles[0].points[1] = {0, -10, 0};
@@ -167,8 +162,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	        thread.join();
 	    }
 #else
-		rasterize(window, triangles, 0, triangle_count, attributesInfo, &_cam);
-		// glight();
+		rasterize(window, triangles, 0, triangle_count, &_cam);
+		fragmentShader(window);
 #endif
 #ifdef PERFORMANCE_ANALYZER
     	recordData(_perfAnalyzer, 0);

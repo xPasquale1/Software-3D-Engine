@@ -27,7 +27,7 @@ struct fvec4{
 	float w;
 };
 
-constexpr inline float distance(ivec2& a, ivec2& b){return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
+inline constexpr float distance(ivec2& a, ivec2& b){return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
 inline constexpr void normalize(fvec3& vec)noexcept{
 	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
