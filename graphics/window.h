@@ -28,7 +28,7 @@ struct Window{
 	WORD windowHeight = 800;						//Fensterhöhe
 	DWORD* pixels;									//Pixelarray
 	DWORD* depth;									//Depthbuffer
-	BYTE* fragmentFlag;								//Buffer, welche Fragmente gezeichnet werden sollen TODO sollte 64bit sein
+	BYTE* fragmentFlag;								//Buffer, welche Fragmente gezeichnet werden sollen TODO sollte 64bit sein und bitmasken nutzen statt Bytes...
 	WORD pixelSize = 1;								//Größe der Pixel in Bildschirmpixeln
 	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
@@ -220,12 +220,11 @@ inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_
 }
 
 //Weißt dem Fenster bufferCount viele Vertex-Attribute-Buffer zu und löscht bestehende
-//TODO 255 sind zu viele, sollte Fehler werfen, falls man mehr wie MAXVERTEXATTRIBUTES erstellen will
 ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
-	if(bufferCount > 32) return BAD_ALLOC;	//TODO neuer Fehlercode
+	if(bufferCount > MAXVERTEXATTRIBUTES) return BAD_ALLOC;	//TODO neuer Fehlercode
 	for(BYTE i=0; i < window->attributeBuffersCount; ++i) delete[] window->attributeBuffers[i];
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
@@ -370,8 +369,7 @@ inline ErrCode drawLine(Window* window, WORD start_x, WORD start_y, WORD end_x, 
 	float y = start_y+0.5f;
 	for(int i = 0; i <= steps; ++i){
 		DWORD idx = (int)y*bufferWidth+(int)x;
-		if(idx >= 0 && idx < bufferWidth*window->windowHeight/window->pixelSize) window->pixels[idx] = color;	//TODO remove
-		// window->pixels[(int)y*bufferWidth+(int)x] = color;
+		window->pixels[(int)y*bufferWidth+(int)x] = color;
 		x += xinc;
 		y += yinc;
 	}
@@ -512,7 +510,7 @@ ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
 
 //Gibts zurück wie viele Pixel der Text unter der gegebenen Font benötigt
 //TODO font könnte nullptr sein -> INVALIDHANDLEERRORS?
-WORD getStringFontSize(Font& font, std::string& text)noexcept{
+inline WORD getStringFontSize(Font& font, std::string& text)noexcept{
 	float div = (float)font.char_size.y/font.font_size;
 	WORD offset = 0;
 	for(size_t i=0; i < text.size(); ++i){
@@ -549,7 +547,7 @@ DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD
 
 //Gibt zurück, wie breit der String zu zeichnen war, String muss \0 terminiert sein!
 //TODO Errors? meh, if window wird evtl bei jedem Aufruf von drawFontChar gemacht
-DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
+inline DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
 	DWORD offset = 0;
 	DWORD idx = 0;
 	while(string[idx] != '\0'){
@@ -753,7 +751,6 @@ inline void drawTriangleOutline(Window* window, triangle& tri)noexcept{
 typedef void (*fragShader)(Window*, DWORD, DWORD);
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
-//TODO es sollten vertex attribute übergeben werden, die dann alle interpoliert werden, so machen es auch moderne grafikkarten
 inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;

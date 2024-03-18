@@ -13,10 +13,8 @@
 	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
 	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
-	TODO Erste per pixel Beleuchtungsmodelle überlegen und implementieren
+	TODO Shadow mapping oder ähnliches
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,...
-	TODO Weitere Buffer an das Fenster anfügen um zusätzliche Vertex Attribute per pixel interpoliert zu speichern, sollte also irgendwie mit Triangle.attributes
-	zusammenhängen... Erst mal überlegen wie das am besten gehen würde tho
 */
 
 static bool _running = true;
@@ -96,31 +94,6 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// if(ErrCheck(readObj("objects/low_poly_winter.obj", triangles, &triangle_count, attributesInfo, 50, 0, 0, 2), "Modell laden") != SUCCESS) return -1;
 	if(ErrCheck(readObj("objects/terrain1.obj", triangles, &triangle_count, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
 
-	// triangles[0].points[2] = {-10, 10, 0};
-	// triangles[0].points[1] = {0, -10, 0};
-	// triangles[0].points[0] = {10, 10, 0};
-	// triangles[0].points[0] = {-10, -10, 0};
-	// triangles[0].points[1] = {-10, 10, 0};
-	// triangles[0].points[2] = {10, -10, 0};
-	// triangles[0].colors[0] = RGBA(255, 0, 0);
-	// triangles[0].colors[1] = RGBA(0, 255, 0);
-	// triangles[0].colors[2] = RGBA(0, 0, 255);
-	// triangles[0].uv[0] = {0, 0};
-	// triangles[0].uv[1] = {0, 1};
-	// triangles[0].uv[2] = {1, 0};
-	// triangles[1].points[0] = {10, -10, 0};
-	// triangles[1].points[1] = {-10, 10, 0};
-	// triangles[1].points[2] = {10, 10, 0};
-	// triangles[1].colors[2] = RGBA(255, 0, 0);
-	// triangles[1].colors[1] = RGBA(0, 255, 0);
-	// triangles[1].colors[0] = RGBA(0, 0, 255);
-	// triangles[1].uv[0] = {1, 0};
-	// triangles[1].uv[1] = {0, 1};
-	// triangles[1].uv[2] = {1, 1};
-	// triangle_count = 2;
-
-	// triangle_count = 0;
-	// createCube(triangles, triangle_count, 0, 0, 0, 20, 20, 20);
 	RECT rect;
 	GetWindowRect(window->handle, &rect);
 	SetCursorPos(window->windowWidth/2+rect.left, window->windowHeight/2+rect.top);
