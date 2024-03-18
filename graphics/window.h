@@ -13,7 +13,7 @@
 //haben nicht immer einen pointer der vllt nicht gebraucht wird, da es keine attribute gibt
 
 #define INVALIDHANDLEERRORS
-#define MAXVERTEXATTRIBUTES 4
+#define MAXVERTEXATTRIBUTES 2
 
 #define WINDOWFLAGSTYPE BYTE
 enum WINDOWFLAG : WINDOWFLAGSTYPE{
@@ -717,7 +717,7 @@ inline void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 
 struct triangle{
 	fvec3 points[3];
-	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO omg das ist einfach nur schrecklich, bitte das unten implementieren... bitte
+	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO vllt kann man die max. attribute per runtime setzen?, aber bitte lieber das unten implementieren...
 };
 
 //TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
@@ -754,7 +754,7 @@ typedef void (*fragShader)(Window*, DWORD, DWORD);
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO es sollten vertex attribute übergeben werden, die dann alle interpoliert werden, so machen es auch moderne grafikkarten
-inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal)noexcept{
+inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -763,12 +763,13 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal)n
 
 	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
 	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
+	if(ymin == ymax) return;
 	DWORD xmin = min(pt0.x, min(pt1.x, pt2.x));
 	DWORD xmax = max(pt0.x, max(pt1.x, pt2.x));
 
 	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
-	float div = cross(vs1, vs2);
+	float div = 1.f/cross(vs1, vs2);
 
 	float invZ[3] = {1.f/pt0.z, 1.f/pt1.z, 1.f/pt2.z};
 	fvec4 attr[window->attributeBuffersCount][3];
@@ -781,15 +782,14 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri, fvec3& normal)n
 		}
 	}
 
-	// DWORD normalColor = RGBA(127.5f*(1+normal.x), 127.5f*(1+normal.y), 127.5f*(1+normal.z));
-
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
 	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
-	float u = cross(q, vs2)/div; float v = cross(vs1, q)/div;
-	float deltaX_u = (pt2.y - pt0.y)/div; float deltaX_v = (pt1.y - pt0.y)/div;
-	float deltaY_u = (pt2.x - pt0.x)/div; float deltaY_v = (pt1.x - pt0.x)/div;
+	float u = cross(q, vs2)*div; float v = cross(vs1, q)*div;
+	float deltaX_u = (pt2.y - pt0.y)*div; float deltaX_v = (pt1.y - pt0.y)*div;
+	float deltaY_u = (pt2.x - pt0.x)*div; float deltaY_v = (pt1.x - pt0.x)*div;
+	float tmp_u; float tmp_v;
 	for(DWORD y = ymin; y <= ymax; ++y){
-		float tmp_u = u; float tmp_v = v;
+		tmp_u = u; tmp_v = v;
 		bool wasIn = false;
 		for(DWORD x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
@@ -843,23 +843,34 @@ inline bool rayPlaneIntersection(plane& p, fvec3& start, fvec3& end, float& t, f
 	}
 	return false;
 }
-
-inline __attribute__((always_inline)) void removeTriangleFromBuffer(triangle* buffer, BYTE& count, BYTE& temp_count, BYTE& i)noexcept{
-	buffer[i] = buffer[temp_count-1];
-	--i; --temp_count; --count;
-	return;
+//Nur wenn man schon weiß, dass es eine Kollision geben muss...
+inline float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3& cp)noexcept{
+	fvec3 dir = {end.x-start.x, end.y-start.y, end.z-start.z};
+	float d = dot(p.normal, dir);
+	fvec3 tmp = {p.pos.x-start.x, p.pos.y-start.y, p.pos.z-start.z};
+	float t = dot(tmp, p.normal)/d;
+	cp = {start.x+dir.x*t, start.y+dir.y*t, start.z+dir.z*t};
+	return t;
 }
 
+inline BYTE removeTriangleFromBuffer(triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
+	buffer[i] = buffer[temp_count-1];
+	--i; --temp_count;
+	return count-1;
+}
+
+//TODO man kann vllt nur die indexe speichern und die vektoren + attribute erst in den cases kopieren/zuweisen
 inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
-	BYTE tmp_off = count;		//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
-	BYTE offset = count;		//Originaler Offset der neuen Dreiecke
-	BYTE temp_count = count;	//Index des letzten originalen Dreiecks
+	BYTE tmp_off = count;			//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
+	BYTE offset = count;			//Originaler Offset der neuen Dreiecke
+	BYTE temp_count = count;		//Index des letzten originalen Dreiecks
+	fvec3 in_v[3]; fvec3 out_v[3];
+	fvec4 in_attr[attributeCount][3]; fvec4 out_attr[attributeCount][3];
+	fvec3 vec;
 	for(BYTE i=0; i < temp_count; ++i){
-		fvec3 in_v[3]; fvec3 out_v[3];	//TODO Speicher die Indexe die innerhalb/ausserhalb liegen
-		fvec4 in_attr[attributeCount][3]; fvec4 out_attr[attributeCount][3];
 		BYTE in = 0; BYTE out = 0;
-		for(int j=0; j < 3; ++j){
-			fvec3 vec = buffer[i].points[j]; vec.x -= p.pos.x; vec.y -= p.pos.y; vec.z -= p.pos.z;
+		for(BYTE j=0; j < 3; ++j){
+			vec = buffer[i].points[j]; vec.x -= p.pos.x; vec.y -= p.pos.y; vec.z -= p.pos.z;
 			float dist = dot(vec, p.normal);
 			if(dist < 0.){
 				out_v[out] = buffer[i].points[j];
@@ -873,19 +884,18 @@ inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCou
 		}
 		switch(in){
 			case 0:{	//Dreieck liegt komplett ausserhalb, es muss entfernt werden
-				removeTriangleFromBuffer(buffer, count, temp_count, i);
+				count = removeTriangleFromBuffer(buffer, count, temp_count, i);
 				break;
 			}
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
-				float t;
-				rayPlaneIntersection(p, in_v[0], out_v[0], t, buffer[i].points[1]);
+				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[i].points[1]);
 				for(BYTE k=0; k < attributeCount; ++k){
 					buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
 					buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
 					buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
 					buffer[i].attribute[k][1].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
 				}
-				rayPlaneIntersection(p, in_v[0], out_v[1], t, buffer[i].points[2]);
+				t = rayPlaneIntersectionFast(p, in_v[0], out_v[1], buffer[i].points[2]);
 				for(BYTE k=0; k < attributeCount; ++k){
 					buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
 					buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
@@ -897,9 +907,8 @@ inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCou
 				break;
 			}
 			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
-				removeTriangleFromBuffer(buffer, count, temp_count, i);
-				float t;
-				rayPlaneIntersection(p, in_v[0], out_v[0], t, buffer[tmp_off].points[2]);
+				count = removeTriangleFromBuffer(buffer, count, temp_count, i);
+				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[tmp_off].points[2]);
 				for(BYTE k=0; k < attributeCount; ++k){
 					buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
 					buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
@@ -910,7 +919,7 @@ inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCou
 				}
 				buffer[tmp_off].points[0] = in_v[0];
 				buffer[tmp_off].points[1] = in_v[1];
-				rayPlaneIntersection(p, in_v[1], out_v[0], t, buffer[tmp_off+1].points[2]);
+				t = rayPlaneIntersectionFast(p, in_v[1], out_v[0], buffer[tmp_off+1].points[2]);
 				for(BYTE k=0; k < attributeCount; ++k){
 					buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
 					buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
@@ -927,7 +936,7 @@ inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCou
 			}
 		}
 	}
-	for(int i=0; i < count-temp_count; ++i){
+	for(BYTE i=0; i < count-temp_count; ++i){
 		buffer[temp_count+i] = buffer[offset+i];
 	}
 	return;
@@ -943,25 +952,25 @@ inline BYTE clipping(Window* window, triangle* buffer)noexcept{
 	BYTE count = 1;
 	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
-	plane pz = {}; pz.normal = {0, 0, 1}; pz.pos = {0, 0, 0};
+	plane p = {}; p.normal = {0, 0, 1}; p.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(pz, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window->attributeBuffersCount);
 
-	plane px = {}; px.normal = {XMIN*aspect_ratio, 0, 1};
-	normalize(px.normal);
-	clipPlane(px, buffer, count, window->attributeBuffersCount);
+	p.normal = {XMIN*aspect_ratio, 0, 1}; p.pos = {0, 0, 0};
+	normalize(p.normal);
+	clipPlane(p, buffer, count, window->attributeBuffersCount);
 
-	plane pnx = {}; pnx.normal = {XMAX*aspect_ratio, 0, 1};
-	normalize(pnx.normal);
-	clipPlane(pnx, buffer, count, window->attributeBuffersCount);
+	p.normal = {XMAX*aspect_ratio, 0, 1};
+	normalize(p.normal);
+	clipPlane(p, buffer, count, window->attributeBuffersCount);
 
-	plane py = {}; py.normal = {0, YMIN, 1};
-	normalize(py.normal);
-	clipPlane(py, buffer, count, window->attributeBuffersCount);
+	p.normal = {0, YMIN, 1};
+	normalize(p.normal);
+	clipPlane(p, buffer, count, window->attributeBuffersCount);
 
-	plane pny = {}; pny.normal = {0, YMAX, 1};
-	normalize(pny.normal);
-	clipPlane(pny, buffer, count, window->attributeBuffersCount);
+	p.normal = {0, YMAX, 1};
+	normalize(p.normal);
+	clipPlane(p, buffer, count, window->attributeBuffersCount);
 
 	return count;
 }
@@ -972,35 +981,30 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, camera* cam)noexcept{
+inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, camera& cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)window->windowWidth/window->windowHeight;
-	float sin_rotx = sin(cam->rot.x);
-	float cos_rotx = cos(cam->rot.x);
-	float sin_roty = sin(cam->rot.y);
-	float cos_roty = cos(cam->rot.y);
+	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	float sin_roty = sin(cam.rot.y);
+	float cos_roty = cos(cam.rot.y);
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
-	triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen
+	triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen TODO 32?
     for(DWORD i=startIdx; i < endIdx; ++i){
     	triangle tri = tris[i];
-    	//TODO kann man auch im Dreieck speichern
-    	fvec3 l1 = {tri.points[1].x-tri.points[0].x, tri.points[1].y-tri.points[0].y, tri.points[1].z-tri.points[0].z};
-    	fvec3 l2 = {tri.points[2].x-tri.points[0].x, tri.points[2].y-tri.points[0].y, tri.points[2].z-tri.points[0].z};
-    	fvec3 world_normal = cross(l1, l2);
-    	normalize(world_normal);
-    	for(int j=0; j < 3; ++j){
+    	for(BYTE j=0; j < 3; ++j){
     		float d[3];
-    		d[0] = (tri.points[j].x-cam->pos.x);
-    		d[1] = (tri.points[j].y-cam->pos.y);
-    		d[2] = (tri.points[j].z-cam->pos.z);
+    		d[0] = (tri.points[j].x-cam.pos.x);
+    		d[1] = (tri.points[j].y-cam.pos.y);
+    		d[2] = (tri.points[j].z-cam.pos.z);
     		float v[3]{0};
-    	    for(WORD a=0; a < 3; ++a){
-    	        for(WORD b=0; b < 3; ++b){
+    	    for(BYTE a=0; a < 3; ++a){
+    	        for(BYTE b=0; b < 3; ++b){
     	        	v[a] += (rotm[a][b]*d[b]);
     	        }
     	    }
@@ -1011,19 +1015,18 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     	fvec3 l01 = {tri.points[1].x-tri.points[0].x, tri.points[1].y-tri.points[0].y, tri.points[1].z-tri.points[0].z};
     	fvec3 l02 = {tri.points[2].x-tri.points[0].x, tri.points[2].y-tri.points[0].y, tri.points[2].z-tri.points[0].z};
     	fvec3 normal = cross(l01, l02);
-    	normalize(normal);
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) > 0) continue;
 #endif
     	buffer[0] = tri;
     	BYTE count = clipping(window, buffer);
-    	for(byte j=0; j < count; ++j){
+    	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0]; fvec3 pt2 = buffer[j].points[1]; fvec3 pt3 = buffer[j].points[2];
-    		buffer[j].points[0].x = pt1.x*(cam->focal_length/pt1.z)/aspect_ratio; buffer[j].points[0].y = pt1.y*(cam->focal_length/pt1.z);
-    		buffer[j].points[1].x = pt2.x*(cam->focal_length/pt2.z)/aspect_ratio; buffer[j].points[1].y = pt2.y*(cam->focal_length/pt2.z);
-    		buffer[j].points[2].x = pt3.x*(cam->focal_length/pt3.z)/aspect_ratio; buffer[j].points[2].y = pt3.y*(cam->focal_length/pt3.z);
+    		buffer[j].points[0].x = pt1.x*(cam.focal_length/pt1.z)*aspect_ratio; buffer[j].points[0].y = pt1.y*(cam.focal_length/pt1.z);
+    		buffer[j].points[1].x = pt2.x*(cam.focal_length/pt2.z)*aspect_ratio; buffer[j].points[1].y = pt2.y*(cam.focal_length/pt2.z);
+    		buffer[j].points[2].x = pt3.x*(cam.focal_length/pt3.z)*aspect_ratio; buffer[j].points[2].y = pt3.y*(cam.focal_length/pt3.z);
     		buffer[j].points[0].z = pt1.z; buffer[j].points[1].z = pt2.z; buffer[j].points[2].z = pt3.z;
-    		drawTriangleFilledOld(window, buffer[j], world_normal);
+    		drawTriangleFilledOld(window, buffer[j]);
 			// drawTriangleOutline(window, buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;

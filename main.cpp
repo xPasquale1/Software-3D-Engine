@@ -83,7 +83,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	font->font_size = 42/window->pixelSize;
 
 	//TODO beides sollte in ein Struct gepackt werden und nur zusammen allokiert/deallokiert werden
-	triangle* triangles = new(std::nothrow) triangle[1100000];
+	triangle* triangles = new(std::nothrow) triangle[200000];
 	if(!triangles){
 		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
 		return -1;
@@ -151,23 +151,23 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		startTimer(_perfAnalyzer, 0);
 #endif
 #ifdef THREADING
-		uint t_count = triangle_count/THREADCOUNT;
+		DWORD t_count = triangle_count/THREADCOUNT;
 	    std::vector<std::thread> threads;
 	    for(int i=0; i < THREADCOUNT-1; ++i){
-	        threads.push_back(std::thread(rasterize, triangles, t_count*i, t_count*(i+1), &_cam));
+	        threads.push_back(std::thread(rasterize, window, triangles, t_count*i, t_count*(i+1), std::ref(_cam)));
 	    }
-	    threads.push_back(std::thread(rasterize, triangles, t_count*(THREADCOUNT-1), triangle_count, &_cam));
+	    threads.push_back(std::thread(rasterize, window, triangles, t_count*(THREADCOUNT-1), triangle_count, std::ref(_cam)));
 
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
 #else
-		rasterize(window, triangles, 0, triangle_count, &_cam);
-		fragmentShader(window);
+		rasterize(window, triangles, 0, triangle_count, _cam);
 #endif
 #ifdef PERFORMANCE_ANALYZER
     	recordData(_perfAnalyzer, 0);
 #endif
+		fragmentShader(window);
 
     	update(getAvgData(_perfAnalyzer, 0)+1);
 		std::string val = floatToString(getAvgData(_perfAnalyzer, 0), 4);

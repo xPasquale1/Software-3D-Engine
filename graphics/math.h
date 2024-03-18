@@ -30,12 +30,12 @@ struct fvec4{
 inline constexpr float distance(ivec2& a, ivec2& b){return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
 inline constexpr void normalize(fvec3& vec)noexcept{
-	float length = sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
-	vec.x /= length; vec.y /= length; vec.z /= length;
+	float length = 1.f/sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
+	vec.x *= length; vec.y *= length; vec.z *= length;
 }
 inline constexpr void normalize(fvec2& vec)noexcept{
-	float length = sqrt(vec.x*vec.x + vec.y*vec.y);
-	vec.x /= length; vec.y /= length;
+	float length = 1.f/sqrt(vec.x*vec.x + vec.y*vec.y);
+	vec.x *= length; vec.y *= length;
 }
 inline constexpr float dot(fvec3& a, fvec3& b)noexcept{return (a.x * b.x + a.y * b.y + a.z * b.z);}
 inline constexpr float dot(fvec2& a, fvec2& b)noexcept{return (a.x * b.x + a.y * b.y);}

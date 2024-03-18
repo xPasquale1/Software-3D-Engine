@@ -39,31 +39,34 @@ inline ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=E
 	switch(code){
 	case BAD_ALLOC:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[BAD_ALLOC ERROR] " << msg << std::endl;
-		return BAD_ALLOC;
+		return code;
 	case GENERIC_ERROR:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[GENERIC_ERROR ERROR] " << msg << std::endl;
-		return GENERIC_ERROR;
+		return code;
 	case CREATE_WINDOW:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[CREATE_WINDOW ERROR] " << msg << std::endl;
-		return CREATE_WINDOW;
+		return code;
 	case TEXTURE_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[TEXTURE_NOT_FOUND ERROR] " << msg << std::endl;
-		return TEXTURE_NOT_FOUND;
+		return code;
 	case MODEL_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MODEL_NOT_FOUND ERROR] " << msg << std::endl;
-		return MODEL_NOT_FOUND;
+		return code;
+	case MODEL_BAD_FORMAT:
+		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MODEL_BAD_FORMAT ERROR] " << msg << std::endl;
+		return code;
 	case FILE_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[FILE_NOT_FOUND ERROR] " << msg << std::endl;
-		return FILE_NOT_FOUND;
+		return code;
 	case WINDOW_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[WINDOW_NOT_FOUND ERROR] " << msg << std::endl;
-		return WINDOW_NOT_FOUND;
+		return code;
 	case APP_INIT:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[APP_INIT ERROR] " << msg << std::endl;
-		return APP_INIT;
+		return code;
 	case INIT_RENDER_TARGET:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[INIT_RENDER_TARGET ERROR] " << msg << std::endl;
-		return INIT_RENDER_TARGET;
+		return code;
 	default: return SUCCESS;
 	}
 	return SUCCESS;
