@@ -185,75 +185,42 @@ inline constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTON button){retur
 inline constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.buttons |= button;}
 inline constexpr void resetButton(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.buttons &= ~button;}
 
-struct Timer{
-	LARGE_INTEGER startTime;
-	LARGE_INTEGER frequency;
-};
+//TODO gescheiter Timer
+//Zeitunterschied in Millisekunden
+// inline constexpr long long systemTimeDiff(SYSTEMTIME& start, SYSTEMTIME& end){
+// 	return (end.wYear-start.wYear)*31536000000+(end.wDay-start.wDay)*86400000+(end.wHour-start.wHour)*3600000+(end.wMinute-start.wMinute)*60000+(end.wSecond-start.wSecond)*1000+end.wMilliseconds-start.wMilliseconds;
+// }
 
-//Setzt den Startzeitpunkt des Timers zurück
-inline void resetTimer(Timer& timer){
-	QueryPerformanceFrequency(&timer.frequency); 
-	QueryPerformanceCounter(&timer.startTime);
-}
-//Gibt den Zeitunterschied seid dem Startzeitpunkt in Millisekunden zurück
-inline float getTimerMillis(Timer& timer){
-	LARGE_INTEGER endTime;
-	QueryPerformanceCounter(&endTime);
-	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
-	timediff *= 1000;
-	return ((float)timediff / timer.frequency.QuadPart);
-}
-//Gibt den Zeitunterschied seid dem Startzeitpunkt in Mikrosekunden zurück
-inline float getTimerMicros(Timer& timer){
-	LARGE_INTEGER endTime;
-	QueryPerformanceCounter(&endTime);
-	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
-	timediff *= 1000000;
-	return ((float)timediff / timer.frequency.QuadPart);
-}
-//Gibt den Zeitunterschied seid dem Startzeitpunkt in "Nanosekunden" zurück
-//(leider hängt alles von QueryPerformanceFrequency() ab, also kann es sein, dass man nur Intervalle von Nanosekunden bekommt)
-inline float getTimerNanos(Timer& timer){
-	LARGE_INTEGER endTime;
-	QueryPerformanceCounter(&endTime);
-	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
-	timediff *= 1000000000;
-	return ((float)timediff / timer.frequency.QuadPart);
-}
-
+#include <chrono>
 #define PERFORMANCE_ANALYZER
 #define PERFORMANCE_ANALYZER_DATA_POINTS 3
+//TODO chrono... ew, win api hat gute schnittstelle mit filetime
 struct PerfAnalyzer{
 	//Indexe: 0 rasterizer, 1 drawing, 2 ungenutzt
 	float data[PERFORMANCE_ANALYZER_DATA_POINTS*8] = {};
-	BYTE counter[PERFORMANCE_ANALYZER_DATA_POINTS] = {};
+	BYTE counter[PERFORMANCE_ANALYZER_DATA_POINTS-1] = {};
 	DWORD totalTriangles = 0;
-	DWORD drawnTriangles = 0;	//Wegen clipping und backface culling nicht gezeichnete Dreiecke
+	DWORD drawnTriangles = 0;
 	DWORD pixelsDrawn = 0;
 	DWORD pixelsCulled = 0;		//Wegen Depthbuffer nicht gezeichnete Pixel
-	Timer timer[PERFORMANCE_ANALYZER_DATA_POINTS];
+	std::chrono::high_resolution_clock::time_point tp[2];
 }; static PerfAnalyzer _perfAnalyzer;
 
-void resetAllTimers(PerfAnalyzer& pa){
-	for(int i=0; i < PERFORMANCE_ANALYZER_DATA_POINTS; ++i) resetTimer(pa.timer[i]);
-}
-//Setzt Statistiken zurück
-void resetData(PerfAnalyzer& pa){
+void startTimer(PerfAnalyzer& pa, BYTE idx){pa.tp[idx] = std::chrono::high_resolution_clock::now();}
+float stopTimer(PerfAnalyzer& pa, BYTE idx){return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();}
+void reset(PerfAnalyzer& pa){
 	pa.totalTriangles = 0;
 	pa.drawnTriangles = 0;
 	pa.pixelsDrawn = 0;
 	pa.pixelsCulled = 0;
 }
-void startRecordData(PerfAnalyzer& pa, BYTE idx){
-	resetTimer(pa.timer[idx]);
-}
 void recordData(PerfAnalyzer& pa, BYTE idx){
-	float ms = getTimerMillis(pa.timer[idx]);
+	float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();
 	pa.data[pa.counter[idx]/32+idx*8] = ms;
 	pa.counter[idx] += 32;
 }
 void recordDataNoInc(PerfAnalyzer& pa, BYTE idx){
-	float ms = getTimerMillis(pa.timer[idx]);
+	float ms = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::high_resolution_clock::now()-pa.tp[idx]).count();
 	pa.data[pa.counter[idx]/32+idx*8] += ms;
 }
 float getAvgData(PerfAnalyzer& pa, BYTE idx){
