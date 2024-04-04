@@ -382,8 +382,6 @@ struct Image{
 	WORD height = 0;	//y-Dimension
 };
 
-Image _default_texture;
-
 ErrCode loadImage(const char* name, Image& image)noexcept{
 	std::fstream file; file.open(name, std::ios::in);
 	if(!file.is_open()) return FILE_NOT_FOUND;
@@ -436,7 +434,7 @@ ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start
 	for(int y=start_y; y < end_y; ++y){
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
-			WORD rx = (float)(x-start_x)/(end_x-start_x)*(image.width-1);
+			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
 			if(A(color) > 0) window->pixels[y*buffer_width+x] = color;
 		}
@@ -457,7 +455,7 @@ ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD s
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
 			if(x < 0 || x >= (int)buffer_width) continue;
-			WORD rx = (float)(x-start_x)/(end_x-start_x)*(image.width-1);
+			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
 			if(A(color) > 0) window->pixels[y*buffer_width+x] = color;
 		}
@@ -710,53 +708,85 @@ inline void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
 
-#define CULLBACKFACES
+// #define CULLBACKFACES
+// #define EARLYZCULLING
 #define DEPTH_DIVISOR 10000.f
+#define MATERIALMAXTEXTURECOUNT 4
 
-struct triangle{
+struct Triangle{
 	fvec3 points[3];
 	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO vllt kann man die max. attribute per runtime setzen?, aber bitte lieber das unten implementieren...
 };
 
 //TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
 struct VertexAttributePointers{
-	DWORD attributesCount = 0;								//Wie viele Attribute es gibt
-	float* attributes[MAXVERTEXATTRIBUTES]{nullptr};		//TODO wäre nicht void* möglich? dann zugriff per fvec2, fvec3,...
-	BYTE componentsCount[MAXVERTEXATTRIBUTES]{0};			//Gibt an, wie viele Komponenten das Attribute hat (nur 1-4)
+	DWORD attributesCount = 0;							//Wie viele Attribute es gibt
+	float* attributes[MAXVERTEXATTRIBUTES];				//TODO wäre nicht void* möglich? dann zugriff per fvec2, fvec3,...
+	BYTE componentsCount[MAXVERTEXATTRIBUTES];			//Gibt an, wie viele Komponenten das Attribute hat (nur 1-4)
 }; //static VertexAttributePointers attributePointers;
 
 inline void addVertexAttributePointer(BYTE location, BYTE attributesCount, float* data){}
 
-//Einfacher Texture lookup; u, v von 0 - 1
-//TODO aktuell extra Funktion das nicht das modulo wrapping macht
+//Speicher ein Material aus einer .mtl file
+struct Material{
+	std::string name;
+	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte vllt mal 
+};
+
+//Speichert ein Modell + optionales Material
+//TODO könnte dann noch sowas wie eine AABB bekommen oder so, um das clipping zu beschleunigen
+struct TriangleModel{
+	Triangle* triangles = nullptr;
+	DWORD triangleCount = 0;
+	DWORD triangleCapacity = 0;
+	Material* material = nullptr;
+};
+
+void destroyTriangleModel(TriangleModel& model)noexcept{
+	delete[] model.triangles;
+	// delete model.material;	//TODO hm is doof
+}
+
+inline void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
+	Triangle* newArray = new Triangle[model.triangleCapacity+additionalCapacity];
+	for(DWORD i=0; i < model.triangleCount; ++i){
+		newArray[i] = model.triangles[i];
+	}
+	Triangle* oldArray = model.triangles;
+	model.triangles = newArray;
+	delete[] oldArray;
+	model.triangleCapacity += additionalCapacity;
+}
+
+//Einfacher Texture lookup
+//TODO aktuell extra Funktion das nicht das modulo wrapping macht und das abs
 inline constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
-	int u1 = u*(image.width-1);
-	int v1 = v*(image.height-1);
+	int u1 = abs(u*(image.width-1));
+	int v1 = abs(v*(image.height-1));
 	int idx = u1*image.width+v1;
 	return image.data[idx%(image.width*image.height)];
 }
 
 //Zeichnet nur die Umrandung eines Dreiecks
-inline void drawTriangleOutline(Window* window, triangle& tri)noexcept{
+inline void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5f)+0.5f)*buffer_width; pt1.x = ((pt1.x*0.5f)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5f)+0.5)*buffer_width;
-	pt0.y = ((pt0.y*0.5f)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5f)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5f)+0.5)*buffer_height;
+	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
+	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
 	drawLine(window, pt0.x, pt0.y, pt1.x, pt1.y, RGBA(255, 255, 255, 255));
 	drawLine(window, pt0.x, pt0.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
 	drawLine(window, pt1.x, pt1.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
 }
 
-typedef void (*fragShader)(Window*, DWORD, DWORD);
-
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
-inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
+//TODO man könnte nur pointer in einem Buffer speichern und einmal zum ende dann über alle Attribute,... loopen, spart eine Menge Kopieren und so
+inline void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5f)+0.5f)*buffer_width; pt1.x = ((pt1.x*0.5f)+0.5f)*buffer_width; pt2.x = ((pt2.x*0.5f)+0.5f)*buffer_width;
-	pt0.y = ((pt0.y*0.5f)+0.5f)*buffer_height; pt1.y = ((pt1.y*0.5f)+0.5f)*buffer_height; pt2.y = ((pt2.y*0.5f)+0.5f)*buffer_height;
+	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5f)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
+	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5f)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
 
 	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
 	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
@@ -766,9 +796,9 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
 
 	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
-	float div = 1.f/cross(vs1, vs2);
+	float div = 1/cross(vs1, vs2);
 
-	float invZ[3] = {1.f/pt0.z, 1.f/pt1.z, 1.f/pt2.z};
+	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
 	fvec4 attr[window->attributeBuffersCount][3];
 	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
 		for(BYTE j=0; j < 3; ++j){
@@ -792,9 +822,9 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
 			//w -> pt0, u -> pt1, v -> pt2
 			if((v >= 0)&&(u >= 0)&&(u + v <= 1)){
 				wasIn = true;
-				float w = 1.f-u-v;
+				float w = 1-u-v;
 				DWORD idx = y*buffer_width+x;
-				float depth = 1.f/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
+				float depth = 1/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= window->depth[idx]){
@@ -819,6 +849,129 @@ inline void drawTriangleFilledOld(Window* window, triangle& tri)noexcept{
 		}
 		u = tmp_u; v = tmp_v;
 		u -= deltaY_u; v += deltaY_v;
+	}
+}
+
+inline void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
+	DWORD bufferWidth = window->windowWidth/window->pixelSize;
+	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
+	pt0.x = ((pt0.x*0.5)+0.5)*bufferWidth; pt1.x = ((pt1.x*0.5f)+0.5)*bufferWidth; pt2.x = ((pt2.x*0.5)+0.5)*bufferWidth;
+	pt0.y = ((pt0.y*0.5)+0.5)*bufferHeight; pt1.y = ((pt1.y*0.5f)+0.5)*bufferHeight; pt2.y = ((pt2.y*0.5)+0.5)*bufferHeight;
+
+	int pt0x = pt0.x; int pt0y = pt0.y;
+	int pt1x = pt1.x; int pt1y = pt1.y;
+	int pt2x = pt2.x; int pt2y = pt2.y;
+	if(pt0y > pt1y) std::swap(pt0x, pt1x), std::swap(pt0y, pt1y);
+	if(pt0y > pt2y) std::swap(pt0x, pt2x), std::swap(pt0y, pt2y);
+	if(pt1y > pt2y) std::swap(pt1x, pt2x), std::swap(pt1y, pt2y);
+	if(pt0y == pt2y) return;
+
+	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
+	fvec4 attr[window->attributeBuffersCount][3];
+	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+		for(BYTE j=0; j < 3; ++j){
+			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
+			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
+			attr[i][j].z = tri.attribute[i][j].z*invZ[j];
+			attr[i][j].w = tri.attribute[i][j].w*invZ[j];
+		}
+	}
+
+	float dx = pt2x-pt0x;
+	int dy = pt2y-pt0y;
+	if(dx == 0) dx = 1e-8;
+	float mP2P0 = dy/dx;
+	float imP2P0 = 1/mP2P0;
+	float bP2P0 = pt0y-mP2P0*pt0x;
+
+	float div = 1/((pt1.x-pt0.x)*(pt2.y-pt1.y)-(pt1.y-pt0.y)*(pt2.x-pt1.x));
+	float incM1 = (float)(pt2.y-pt1.y)*div;
+	float incM2 = (float)(pt0.y-pt2.y)*div;
+
+	dx = pt1x-pt0x;
+	dy = pt1y-pt0y;
+	if(dy != 0){
+		if(dx == 0) dx = 1e-8;
+		float mP1P0 = dy/dx;
+		float imP1P0 = 1/mP1P0;
+		float bP1P0 = pt0y-mP1P0*pt0x;
+
+		for(int y=pt0y; y <= pt1y; ++y){
+			int xP2P0 = (y-bP2P0)*imP2P0;
+			int xP1P0 = (y-bP1P0)*imP1P0;
+			int xBeg = min(xP2P0, xP1P0);
+			int xEnd = max(xP2P0, xP1P0);
+			float m1 = (float)((pt1.x-xBeg)*(pt2.y-y)-(pt2.x-xBeg)*(pt1.y-y))*div;
+			float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
+			for(;xBeg < xEnd; ++xBeg){
+				float m3 = 1-m2-m1;
+				DWORD idx = y*bufferWidth+xBeg;
+				float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
+				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+				DWORD inc_depth = depth*DEPTH_DIVISOR;
+				if(inc_depth <= window->depth[idx]){
+					#ifdef PERFORMANCE_ANALYZER
+					_perfAnalyzer.pixelsDrawn++;
+					#endif
+					window->depth[idx] = inc_depth;
+					window->fragmentFlag[idx] = 1;
+					for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+						window->attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
+						window->attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
+						window->attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
+						window->attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+					}
+				}
+				#ifdef PERFORMANCE_ANALYZER
+				else _perfAnalyzer.pixelsCulled++;
+				#endif
+				m1 -= incM1;
+				m2 -= incM2;
+			}
+		}
+	}
+
+	dx = pt2x-pt1x;
+	dy = pt2y-pt1y;
+	if(dy == 0) return;
+	if(dx == 0) dx = 1e-8;
+	float mP2P1 = dy/dx;
+	float imP2P1 = 1/mP2P1;
+	float bP2P1 = pt1y-mP2P1*pt1x;
+
+	for(int y=pt1y; y <= pt2y; ++y){
+		int xP2P0 = (y-bP2P0)*imP2P0;
+		int xP2P1 = (y-bP2P1)*imP2P1;
+		int xBeg = min(xP2P0, xP2P1);
+		int xEnd = max(xP2P0, xP2P1);
+		float m1 = (float)((pt1.x-xBeg)*(pt2.y-y)-(pt2.x-xBeg)*(pt1.y-y))*div;
+		float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
+		for(;xBeg < xEnd; ++xBeg){
+			float m3 = 1-m2-m1;
+			DWORD idx = y*bufferWidth+xBeg;
+			float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
+			//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+			DWORD inc_depth = depth*DEPTH_DIVISOR;
+			if(inc_depth <= window->depth[idx]){
+				#ifdef PERFORMANCE_ANALYZER
+				_perfAnalyzer.pixelsDrawn++;
+				#endif
+				window->depth[idx] = inc_depth;
+				window->fragmentFlag[idx] = 1;
+				for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+					window->attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
+					window->attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
+					window->attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
+					window->attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+				}
+			}
+			#ifdef PERFORMANCE_ANALYZER
+			else _perfAnalyzer.pixelsCulled++;
+			#endif
+			m1 -= incM1;
+			m2 -= incM2;
+		}
 	}
 }
 
@@ -850,14 +1003,14 @@ inline float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3&
 	return t;
 }
 
-inline BYTE removeTriangleFromBuffer(triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
+inline BYTE removeTriangleFromBuffer(Triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
 	buffer[i] = buffer[temp_count-1];
 	--i; --temp_count;
 	return count-1;
 }
 
-//TODO man kann vllt nur die indexe speichern und die vektoren + attribute erst in den cases kopieren/zuweisen
-inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
+//TODO kann man bestimmt auch noch weiter optimieren, indexe zu speichern hat nichts gebracht...
+inline void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
 	BYTE tmp_off = count;			//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	BYTE offset = count;			//Originaler Offset der neuen Dreiecke
 	BYTE temp_count = count;		//Index des letzten originalen Dreiecks
@@ -945,7 +1098,7 @@ inline void clipPlane(plane& p, triangle* buffer, BYTE& count, BYTE attributeCou
 #define YMAX 1.01f
 
 //TODO kann bestimmt um einiges optimiert werden
-inline BYTE clipping(Window* window, triangle* buffer)noexcept{
+inline BYTE clipping(Window* window, Triangle* buffer)noexcept{
 	BYTE count = 1;
 	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
@@ -978,7 +1131,7 @@ struct camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endIdx, camera& cam)noexcept{
+inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, camera& cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -991,9 +1144,10 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
-	triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen TODO 32?
+	Triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen
     for(DWORD i=startIdx; i < endIdx; ++i){
-    	triangle tri = tris[i];
+		Triangle& tri = buffer[0];
+    	tri = tris[i];
     	for(BYTE j=0; j < 3; ++j){
     		float d[3];
     		d[0] = (tri.points[j].x-cam.pos.x);
@@ -1015,7 +1169,9 @@ inline void rasterize(Window* window, triangle* tris, DWORD startIdx, DWORD endI
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) > 0) continue;
 #endif
-    	buffer[0] = tri;
+#ifdef EARLYZCULLING
+		if(tri.points[0].z < 0 && tri.points[1].z < 0 && tri.points[2].z < 0) continue;
+#endif
     	BYTE count = clipping(window, buffer);
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0]; fvec3 pt2 = buffer[j].points[1]; fvec3 pt3 = buffer[j].points[2];
@@ -1054,9 +1210,11 @@ inline ErrCode splitString(const std::string& string, DWORD& value0, DWORD& valu
 	return SUCCESS;
 }
 
-//TODO sollte Kontainer übergeben bekommen, die das Objekt speichern und nicht ein ganzes Dreiecks array
-//TODO man sollte übergeben können, ob uvs und normalen genutzt werden und auch in welche location die gespeichert werden
-ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, float y, float z, float scale=1)noexcept{
+//TODO alle weiteren Funktionen sollten in eine andere Datei, da dies ja nichts mehr direkt mit dem rendering zu tun haben
+
+//TODO unterstützt nur Flächen die aus Dreiecken bestehen
+//TODO man sollte übergeben können in welche location die Attribute gespeichert werden
+ErrCode readObj(const char* filename, Triangle* storage, BYTE attributeCount, DWORD* count, float x, float y, float z, float scale=1)noexcept{
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
 	std::string word;
@@ -1115,21 +1273,25 @@ ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, 
 			storage[current_count+tri_count].points[0] = points[pt_order[0]];
 			storage[current_count+tri_count].points[1] = points[pt_order[1]];
 			storage[current_count+tri_count].points[2] = points[pt_order[2]];
-			storage[current_count+tri_count].attribute[0][0].x = uvs[uv_order[0]].x;
-			storage[current_count+tri_count].attribute[0][0].y = uvs[uv_order[0]].y;
-			storage[current_count+tri_count].attribute[0][1].x = uvs[uv_order[1]].x;
-			storage[current_count+tri_count].attribute[0][1].y = uvs[uv_order[1]].y;
-			storage[current_count+tri_count].attribute[0][2].x = uvs[uv_order[2]].x;
-			storage[current_count+tri_count].attribute[0][2].y = uvs[uv_order[2]].y;
-			storage[current_count+tri_count].attribute[1][0].x = normals[normal_order[0]].x;
-			storage[current_count+tri_count].attribute[1][0].y = normals[normal_order[0]].y;
-			storage[current_count+tri_count].attribute[1][0].z = normals[normal_order[0]].z;
-			storage[current_count+tri_count].attribute[1][1].x = normals[normal_order[1]].x;
-			storage[current_count+tri_count].attribute[1][1].y = normals[normal_order[1]].y;
-			storage[current_count+tri_count].attribute[1][1].z = normals[normal_order[1]].z;
-			storage[current_count+tri_count].attribute[1][2].x = normals[normal_order[2]].x;
-			storage[current_count+tri_count].attribute[1][2].y = normals[normal_order[2]].y;
-			storage[current_count+tri_count].attribute[1][2].z = normals[normal_order[2]].z;
+			if(attributeCount > 0){
+				storage[current_count+tri_count].attribute[0][0].x = uvs[uv_order[0]].x;
+				storage[current_count+tri_count].attribute[0][0].y = uvs[uv_order[0]].y;
+				storage[current_count+tri_count].attribute[0][1].x = uvs[uv_order[1]].x;
+				storage[current_count+tri_count].attribute[0][1].y = uvs[uv_order[1]].y;
+				storage[current_count+tri_count].attribute[0][2].x = uvs[uv_order[2]].x;
+				storage[current_count+tri_count].attribute[0][2].y = uvs[uv_order[2]].y;
+			}
+			if(attributeCount > 1){
+				storage[current_count+tri_count].attribute[1][0].x = normals[normal_order[0]].x;
+				storage[current_count+tri_count].attribute[1][0].y = normals[normal_order[0]].y;
+				storage[current_count+tri_count].attribute[1][0].z = normals[normal_order[0]].z;
+				storage[current_count+tri_count].attribute[1][1].x = normals[normal_order[1]].x;
+				storage[current_count+tri_count].attribute[1][1].y = normals[normal_order[1]].y;
+				storage[current_count+tri_count].attribute[1][1].z = normals[normal_order[1]].z;
+				storage[current_count+tri_count].attribute[1][2].x = normals[normal_order[2]].x;
+				storage[current_count+tri_count].attribute[1][2].y = normals[normal_order[2]].y;
+				storage[current_count+tri_count].attribute[1][2].z = normals[normal_order[2]].z;
+			}
 			++tri_count;
 		}
 	}
@@ -1141,7 +1303,369 @@ ErrCode readObj(const char* filename, triangle* storage, DWORD* count, float x, 
 	return SUCCESS;
 }
 
-inline void createCube(triangle* tri, DWORD& count, float x, float y, float z, float dx, float dy, float dz){
+//Gibt das Keyword der obj/mtl Zeile als Zahlenwert zurück, für z.b. die Verwendung in einem switch case
+//TODO Hashfunktion ist nun ja... billig, aber tut es fürs erste
+inline constexpr WORD hashKeywords(const char* string)noexcept{
+	size_t size = strlen(string);
+	WORD out = 7;
+	for(WORD i=0; i < size; ++i){
+		out *= 31;
+		out += string[i];
+	}
+	return out;
+}
+
+enum OBJKEYWORD{
+	OBJ_V = hashKeywords("v"),
+	OBJ_VT = hashKeywords("vt"),
+	OBJ_VN = hashKeywords("vn"),
+	OBJ_F = hashKeywords("f"),
+	OBJ_S = hashKeywords("s"),
+	OBJ_O = hashKeywords("o"),
+	OBJ_G = hashKeywords("g"),
+	OBJ_MTLLIB = hashKeywords("mtllib"),
+	OBJ_USEMTL = hashKeywords("usemtl"),
+	OBJ_COMMENT = hashKeywords("#")
+};
+
+enum MTLKEYWORD{	//TODO hier fehlen noch ein paar
+	MTL_NEWMTL = hashKeywords("newmtl"),
+	MTL_MAP_KD = hashKeywords("map_Kd"),
+	MTL_MAP_DISP = hashKeywords("map_Disp"),
+	MTL_MAP_KA = hashKeywords("map_Ka"),
+	MTL_MAP_D = hashKeywords("map_d"),
+	MTL_COMMENT = hashKeywords("#"),
+	MTL_KA = hashKeywords("Ka"),
+	MTL_KD = hashKeywords("Kd"),
+	MTL_KS = hashKeywords("Ks"),
+	MTL_KE = hashKeywords("Ke"),
+	MTL_NI = hashKeywords("Ni"),
+	MTL_NS = hashKeywords("Ns"),
+	MTL_D = hashKeywords("d"),
+	MTL_ILLUM = hashKeywords("illum")
+};
+
+//Liest ein Wort aus einer Datei wie der << Operator aber gibt zusätzlich zurück, ob \n oder eof gefunden wurde
+inline bool readWord(std::fstream& file, std::string& buffer)noexcept{
+	char c;
+	buffer.clear();
+	bool newline = false;
+	c = file.peek();
+	while(c == ' ' || c == '\n'){
+		file.get();
+		c = file.peek();
+	}
+	while(1){
+		c = file.get();
+		if(c == ' ') break;
+		if(c == '\n'){
+			newline = true;
+			break;
+		}
+		if(file.eof()) return true;
+		buffer += c;
+	}
+	while(1){
+		c = file.peek();
+		if(c == ' '){
+			file.get();
+			continue;
+		}
+		if(c == '\n'){
+			newline = true;
+			file.get();
+			continue;
+		}
+		if(file.eof()) return true;
+		break;
+	}
+	return newline;
+}
+
+//Ließt die obj Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
+//und gibt evtl. Fehler zurück
+inline ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
+	switch(key){
+		case OBJ_VN:
+		case OBJ_V:{
+			std::string buffer;
+			float* data = (float*)outData;
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[0] = std::atof(buffer.c_str());
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[1] = std::atof(buffer.c_str());
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[2] = std::atof(buffer.c_str());
+			break;
+		}
+		case OBJ_VT:{
+			std::string buffer;
+			float* data = (float*)outData;
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[0] = std::atof(buffer.c_str());
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[1] = std::atof(buffer.c_str());
+			break;
+		}
+		case OBJ_S:{	//TODO muss noch implementiert werden
+			std::string buffer;
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			break;
+		}
+		case OBJ_F:{
+			std::string buffer;
+			DWORD* data = (DWORD*)outData;
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[0], data[1], data[2]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[3], data[4], data[5]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[6], data[7], data[8]) != SUCCESS) return MODEL_BAD_FORMAT;
+			break;
+		}
+		case OBJ_O:
+		case OBJ_G:
+		case OBJ_MTLLIB:
+		case OBJ_USEMTL:{
+			std::string buffer;
+			BYTE* data = (BYTE*)outData;
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			for(size_t i=0; i < buffer.size(); ++i){
+				data[i] = buffer[i];
+			}
+			data[buffer.size()] = '\0';
+			break;
+		}
+		case OBJ_COMMENT:{
+			std::string buffer;
+			BYTE* data = (BYTE*)outData;
+			DWORD idx = 0;
+			while(!readWord(file, buffer)){
+				for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
+			}
+			for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
+			data[idx] = '\0';
+			break;
+		}
+		default: return MODEL_BAD_FORMAT;
+	}
+	return SUCCESS;
+}
+
+//Ließt die mtl Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
+//und gibt evtl. Fehler zurück
+//TODO hier fehlen noch ein paar
+inline ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
+	switch(key){
+		case MTL_KA:
+		case MTL_KD:
+		case MTL_KS:
+		case MTL_KE:{
+			std::string buffer;
+			float* data = (float*)outData;
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[0] = std::atof(buffer.c_str());
+			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[1] = std::atof(buffer.c_str());
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			data[2] = std::atof(buffer.c_str());
+			break;
+		}
+		case MTL_D:
+		case MTL_NI:
+		case MTL_NS:
+		case MTL_ILLUM:
+		case MTL_NEWMTL:{
+			std::string buffer;
+			BYTE* data = (BYTE*)outData;
+			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			for(size_t i=0; i < buffer.size(); ++i){
+				data[i] = buffer[i];
+			}
+			data[buffer.size()] = '\0';
+			break;
+		}
+		case MTL_MAP_D:
+		case MTL_MAP_KD:
+		case MTL_COMMENT:{
+			std::string buffer;
+			BYTE* data = (BYTE*)outData;
+			DWORD idx = 0;
+			while(!readWord(file, buffer)){
+				for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
+				data[idx++] = ' ';	//TODO EINFACH NUR FALSCH, DAS IST NUR HIER WEIL ICH ZU FAUL WAR MIR EINE BESSERE LÖSUNG FÜR DAS PFAD PROBLEM ZU ÜBERLEGEN
+			}
+			for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
+			data[idx] = '\0';
+			break;
+		}
+		default: return MODEL_BAD_FORMAT;
+	}
+	return SUCCESS;
+}
+
+//TODO noch nicht alle Keywords werden beachtet
+ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount){
+	std::fstream file;
+	file.open(filename, std::ios::in);
+	if(!file.is_open()) return MODEL_NOT_FOUND;
+	std::string word;
+	void* data[80];
+	while(file >> word){
+		MTLKEYWORD key = (MTLKEYWORD)hashKeywords(word.c_str());
+		switch(key){
+			case MTL_NEWMTL:{
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				materialCount++;
+				materials[materialCount-1].name = std::string((char*)data);
+				break;
+			}
+			case MTL_MAP_KD:{
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
+				std::string textureFile = std::string((char*)data);
+				size_t index = 0;
+				while(true){
+					index = textureFile.find("\\", index);
+					if(index == std::string::npos) break;
+					textureFile.replace(index, 2, "/");
+					index += 2;
+				}
+				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				break;
+			}
+			case MTL_NS:	//TODO müssen alle noch implementiert werden
+			case MTL_KA:
+			case MTL_KD:
+			case MTL_KS:
+			case MTL_KE:
+			case MTL_NI:
+			case MTL_D:
+			case MTL_ILLUM:
+			case MTL_COMMENT:{
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				break;
+			}
+			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes MTL Keyword").c_str());
+		}
+	}
+	return SUCCESS;
+}
+
+//TODO Idee: das TriangleContainer Zeug ist für den Anfang evtl. unnötig, es ist schon nervig genug die Dreiecke der Modelle zu allokieren, ohne
+//zu wissen, wie viele es werden also einen Art std::vector wäre angebracht
+//Speichert die Modelle der .obj Datei und alle .mtl Materialen falls es diese noch nicht gibt 
+//TODO man sollte übergeben können in welche location die Attribute gespeichert werden
+//TODO unterstützt nur Flächen die aus Dreiecken bestehen
+ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scale=1)noexcept{
+	std::fstream file;
+	file.open(filename, std::ios::in);
+	if(!file.is_open()) return MODEL_NOT_FOUND;
+	std::string word;
+	std::vector<fvec3> points;
+	std::vector<fvec3> normals;
+	std::vector<fvec2> uvs;
+	void* data[80];
+	TriangleModel* model = nullptr;
+	while(file >> word){
+		OBJKEYWORD key = (OBJKEYWORD)hashKeywords(word.c_str());
+		switch(key){
+			case OBJ_O:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				modelCount++;
+				break;
+			}
+			case OBJ_V:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				points.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
+				break;
+			}
+			case OBJ_VN:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				normals.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
+				break;
+			}
+			case OBJ_VT:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				uvs.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale});
+				break;
+			}
+			case OBJ_F:{
+				DWORD pt_order[3];
+				DWORD uv_order[3];
+				DWORD normal_order[3];
+
+				if(models[modelCount-1].triangleCount >= models[modelCount-1].triangleCapacity) increaseTriangleCapacity(models[modelCount-1], 100);	//TODO 100
+				
+				//Lese Punkt/Texture/Normal
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				pt_order[0] = ((DWORD*)data)[0]; uv_order[0] = ((DWORD*)data)[1]; normal_order[0] = ((DWORD*)data)[2];
+				pt_order[1] = ((DWORD*)data)[3]; uv_order[1] = ((DWORD*)data)[4]; normal_order[1] = ((DWORD*)data)[5];
+				pt_order[2] = ((DWORD*)data)[6]; uv_order[2] = ((DWORD*)data)[7]; normal_order[2] = ((DWORD*)data)[8];
+
+				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0");
+				DWORD modelIdx = modelCount-1;
+				DWORD triangleIdx = models[modelIdx].triangleCount;
+
+				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[0]];
+				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[1]];
+				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[2]];
+				if(attributeCount > 0){
+					models[modelIdx].triangles[triangleIdx].attribute[0][0].x = uvs[uv_order[0]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[0][0].y = uvs[uv_order[0]].y;
+					models[modelIdx].triangles[triangleIdx].attribute[0][1].x = uvs[uv_order[1]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[0][1].y = uvs[uv_order[1]].y;
+					models[modelIdx].triangles[triangleIdx].attribute[0][2].x = uvs[uv_order[2]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[0][2].y = uvs[uv_order[2]].y;
+				}
+				if(attributeCount > 1){
+					models[modelIdx].triangles[triangleIdx].attribute[1][0].x = normals[normal_order[0]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[1][0].y = normals[normal_order[0]].y;
+					models[modelIdx].triangles[triangleIdx].attribute[1][0].z = normals[normal_order[0]].z;
+					models[modelIdx].triangles[triangleIdx].attribute[1][1].x = normals[normal_order[1]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[1][1].y = normals[normal_order[1]].y;
+					models[modelIdx].triangles[triangleIdx].attribute[1][1].z = normals[normal_order[1]].z;
+					models[modelIdx].triangles[triangleIdx].attribute[1][2].x = normals[normal_order[2]].x;
+					models[modelIdx].triangles[triangleIdx].attribute[1][2].y = normals[normal_order[2]].y;
+					models[modelIdx].triangles[triangleIdx].attribute[1][2].z = normals[normal_order[2]].z;
+				}
+				models[modelIdx].triangleCount++;
+				break;
+			}
+			case OBJ_MTLLIB:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				size_t lastSlash = std::string(filename).find_last_of("/");
+				std::string path = std::string(filename).substr(0, lastSlash+1);
+				std::string mtlFile = path + std::string((char*)data);
+				std::cout << mtlFile << std::endl;
+				if(ErrCheck(loadMtl(mtlFile.c_str(), materials, materialCount), "Mtl Datei laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				break;
+			}
+			case OBJ_USEMTL:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				DWORD i=0;
+				for(;i < materialCount; ++i){
+					if(strcmp((char*)data, materials[i].name.c_str()) == 0){
+						models[modelCount-1].material = &materials[i];
+						break;
+					}
+				}
+				if(i == materialCount) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material nicht gefunden").c_str());
+				break;
+			}
+			case OBJ_G:			//TODO müssen alle noch implementiert werden
+			case OBJ_S:
+			case OBJ_COMMENT:{
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				break;
+			}
+			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes OBJ Keyword").c_str());
+		}
+	}
+	return SUCCESS;
+}
+
+inline void createCube(Triangle* tri, DWORD& count, float x, float y, float z, float dx, float dy, float dz){
 	tri[count].points[0].x = x+dx;
 	tri[count].points[0].y = y+dy;
 	tri[count].points[0].z = z;

@@ -14,12 +14,13 @@
 	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
 	da Dreiecke eigentlich nie einzeln eingelesen werden)
 	TODO Shadow mapping oder ähnliches
-	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,...
+	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
 */
 
+#define PIXELSIZE 2
+
 static bool _running = true;
-// static camera _cam = {1., {110, -25, -80}, {0, 0.25}};
-static camera _cam = {1., {0, -70, -80}, {0.25, 0.25}};
+static camera _cam = {1., {0, -10, -30}, {0, 0}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
@@ -45,19 +46,20 @@ Menu settingsMenu;
 
 // #define THREADING
 #define THREADCOUNT 8
-#define SPEED 0.1
+#define SPEED 0.25
 
 Window* window = nullptr;
 Font* font = nullptr;
 
 //TODO mehrere Threads falls THREADING
-inline void fragmentShader(Window* window){
+inline void textureShader(Window* window, Image& image){
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
-	fvec3 light_dir = {2, -2, 1};
+	fvec3 light_dir = {2, 2, 1};
 	normalize(light_dir);
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
 		if(window->fragmentFlag[i] == 0) continue;
+		window->fragmentFlag[i] = 0;
 		fvec3 n;
 		n.x = window->attributeBuffers[1][i].x;
 		n.y = window->attributeBuffers[1][i].y;
@@ -65,15 +67,16 @@ inline void fragmentShader(Window* window){
 		float uvx = window->attributeBuffers[0][i].x;
 		float uvy = window->attributeBuffers[0][i].y;
 		float occlusion = (dot(light_dir, n)+1)*0.5f;
-		DWORD color = texture2D(_default_texture, uvx, uvy);
-		window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
+		DWORD color = texture2D(image, uvx, uvy);
+		// window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
+		window->pixels[i] = color;
 	}
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	if(ErrCheck(initApp(), "App initialisieren") != SUCCESS) return -1;
 
-	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 2, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
+	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, PIXELSIZE, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
 	if(ErrCheck(assignAttributeBuffers(window, 2), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
 
 	if(ErrCheck(createFont(font), "Font erstellen") != SUCCESS) return -1;
@@ -81,47 +84,51 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	font->font_size = 42/window->pixelSize;
 
 	//TODO beides sollte in ein Struct gepackt werden und nur zusammen allokiert/deallokiert werden
-	triangle* triangles = new(std::nothrow) triangle[200000];
-	if(!triangles){
-		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für die statischen Dreiecke allokieren!");
+	// Triangle* triangles = new(std::nothrow) Triangle[300000];
+	TriangleModel* models = new(std::nothrow) TriangleModel[500];
+	DWORD modelCount = 0;
+	Material* materials = new(std::nothrow) Material[50];
+	DWORD materialCount = 0;
+	if(!models || !materials){
+		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
 		return -1;
 	}
-	DWORD triangle_count = 0;
+	// DWORD triangle_count = 0;
 
-	// if(ErrCheck(loadImage("textures/low_poly_winter.tex", image), "Image laden") != SUCCESS) return -1;
-	if(ErrCheck(loadImage("textures/basic.tex", _default_texture), "Image laden") != SUCCESS) return -1;
+	Image texture;
+	if(ErrCheck(loadImage("textures/basic.tex", texture), "Image laden") != SUCCESS) return -1;
 
-	// if(ErrCheck(readObj("objects/low_poly_winter.obj", triangles, &triangle_count, attributesInfo, 50, 0, 0, 2), "Modell laden") != SUCCESS) return -1;
-	if(ErrCheck(readObj("objects/terrain1.obj", triangles, &triangle_count, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(readObj("objects/sponza.obj", triangles, 2, &triangle_count, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/sponza_stripped.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
 
 	RECT rect;
 	GetWindowRect(window->handle, &rect);
 	SetCursorPos(window->windowWidth/2+rect.left, window->windowHeight/2+rect.top);
 
 	//TODO dynamisch buttons hinzufügen und entfernen
-	Button settingButtons[5];
-	// settingButtons[0].size = {105, 15};
-	// settingButtons[0].pos = {(int)window->windowWidth/window->pixelSize-settingButtons[0].size.x-10, settingButtons[0].size.y+10};
-	// settingButtons[0].event = setWireframeMode; settingButtons[0].text = "WIREFRAME";
-	// settingButtons[1].size = {105, 15};
-	// settingButtons[1].pos = {(int)window->windowWidth/window->pixelSize-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*2};
-	// settingButtons[1].event = setShadedMode; settingButtons[1].text = "SHADED";
-	// settingButtons[2].size = {105, 15};
-	// settingButtons[2].pos = {(int)window->windowWidth/window->pixelSize-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*3};
-	// settingButtons[2].event = setDepthMode; settingButtons[2].text = "DEPTH";
-	// settingButtons[3].size = {105, 15};
-	// settingButtons[3].pos = {(int)window->windowWidth/window->pixelSize-settingButtons[0].size.x-10, (settingButtons[0].size.y+10)*4};
-	// settingButtons[3].event = setNormalMode; settingButtons[3].text = "NORMALS";
-	// settingsMenu.buttons = settingButtons;
+	Button settingsButtons[5];
+	// settingsButtons[0].size = {105, 15};
+	// settingsButtons[0].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, settingsButtons[0].size.y+10};
+	// settingsButtons[0].event = setWireframeMode; settingsButtons[0].text = "WIREFRAME";
+	// settingsButtons[1].size = {105, 15};
+	// settingsButtons[1].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*2};
+	// settingsButtons[1].event = setShadedMode; settingsButtons[1].text = "SHADED";
+	// settingsButtons[2].size = {105, 15};
+	// settingsButtons[2].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*3};
+	// settingsButtons[2].event = setDepthMode; settingsButtons[2].text = "DEPTH";
+	// settingsButtons[3].size = {105, 15};
+	// settingsButtons[3].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*4};
+	// settingsButtons[3].event = setNormalMode; settingsButtons[3].text = "NORMALS";
+	// settingsMenu.buttons = settingsButtons;
 	settingsMenu.button_count = 0;
 
 	while(_running){
 		getMessages(window);
-		reset(_perfAnalyzer);
+		resetData(_perfAnalyzer);
 		clearWindow(window);
 
 #ifdef PERFORMANCE_ANALYZER
-		startTimer(_perfAnalyzer, 0);
+		resetTimer(_perfAnalyzer.timer[0]);
 #endif
 #ifdef THREADING
 		DWORD t_count = triangle_count/THREADCOUNT;
@@ -135,32 +142,34 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	        thread.join();
 	    }
 #else
-		rasterize(window, triangles, 0, triangle_count, _cam);
+		for(DWORD i=0; i < modelCount; ++i){
+			rasterize(window, models[i].triangles, 0, models[i].triangleCount, _cam);
+			textureShader(window, models[i].material->textures[0]);
+		}
 #endif
 #ifdef PERFORMANCE_ANALYZER
     	recordData(_perfAnalyzer, 0);
 #endif
-		fragmentShader(window);
 
     	update(getAvgData(_perfAnalyzer, 0)+1);
-		std::string val = floatToString(getAvgData(_perfAnalyzer, 0), 4);
+		
+		std::string val = floatToString(getAvgData(_perfAnalyzer, 0), 2) + "ms";
 		drawFontString(window, *font, val.c_str(), 5, 2);
-		val = floatToString(getAvgData(_perfAnalyzer, 1), 4);
+		val = floatToString(getAvgData(_perfAnalyzer, 1), 2) + "ms";
 		drawFontString(window, *font, val.c_str(), 5, font->font_size+4);
-		val = floatToString(getAvgData(_perfAnalyzer, 2), 4);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*2+6);
 		val = longToString(_perfAnalyzer.totalTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*3+8);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*2+6);
 		val = longToString(_perfAnalyzer.drawnTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*4+10);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*3+8);
 		val = longToString(_perfAnalyzer.pixelsDrawn);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+12);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*4+10);
 		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*6+14);
+		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+12);
+
 		drawWindow(window);
 	}
 
-	delete[] triangles;
+	// delete[] triangles;
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();
@@ -201,7 +210,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
 			// ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
-			ErrCheck(resizeWindow(window, width, height, 2), "Fenster skalieren");
+			ErrCheck(resizeWindow(window, width, height, PIXELSIZE), "Fenster skalieren");
 			break;
 		}
 		case WM_LBUTTONDOWN:{

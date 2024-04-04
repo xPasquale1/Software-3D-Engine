@@ -27,7 +27,7 @@ struct fvec4{
 	float w;
 };
 
-inline constexpr float distance(ivec2& a, ivec2& b){return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
+inline constexpr float distance(ivec2& a, ivec2& b)noexcept{return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
 inline constexpr void normalize(fvec3& vec)noexcept{
 	float length = 1.f/sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);
@@ -53,13 +53,21 @@ inline constexpr float max(float a, float b)noexcept{
 //	return a*(a>b)+b*(b>=a);
 	return a > b ? a : b;
 }
+inline constexpr int min(int a, int b)noexcept{
+//	return a*(a<b)+b*(b<=a);
+	return a < b ? a : b;
+}
+inline constexpr int max(int a, int b)noexcept{
+//	return a*(a>b)+b*(b>=a);
+	return a > b ? a : b;
+}
 
-inline constexpr float clamp(float val, float minVal, float maxVal){
+inline constexpr float clamp(float val, float minVal, float maxVal)noexcept{
 	return max(min(val, maxVal), minVal);
 }
 
 //Interpoliere die Werte A und B linear für einen Punkt C
-inline constexpr float interpolateLinear(float valA, float valB, fvec2 posA, fvec2 posB, fvec2 posC){
+inline constexpr float interpolateLinear(float valA, float valB, fvec2 posA, fvec2 posB, fvec2 posC)noexcept{
 	float valDiff = valB-valA;
 	return valA + (valDiff*(posC.x-posA.x)+valDiff*(posC.y-posA.y))/((posB.x-posA.x)+(posB.y-posA.y));
 }
