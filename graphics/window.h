@@ -730,8 +730,15 @@ inline void addVertexAttributePointer(BYTE location, BYTE attributesCount, float
 //Speicher ein Material aus einer .mtl file
 struct Material{
 	std::string name;
-	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte vllt mal 
+	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
+	BYTE textureCount = 0;
 };
+
+void destroyMaterial(Material& material){
+	for(BYTE i=0; i < material.textureCount; ++i){
+		destroyImage(material.textures[i]);
+	}
+}
 
 //Speichert ein Modell + optionales Material
 //TODO könnte dann noch sowas wie eine AABB bekommen oder so, um das clipping zu beschleunigen
@@ -759,12 +766,13 @@ inline void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapac
 }
 
 //Einfacher Texture lookup
-//TODO aktuell extra Funktion das nicht das modulo wrapping macht und das abs
+//TODO aktuell noch falsch, da 1 auf 0 abgebildet wird
 inline constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
-	int u1 = abs(u*(image.width-1));
-	int v1 = abs(v*(image.height-1));
-	int idx = u1*image.width+v1;
-	return image.data[idx%(image.width*image.height)];
+	u = u - floor(u);
+	v = v - floor(v);
+	WORD u1 = u*(image.width-1);
+	WORD v1 = v*(image.height-1);
+	return image.data[v1*image.width+u1];
 }
 
 //Zeichnet nur die Umrandung eines Dreiecks
@@ -1508,21 +1516,26 @@ inline ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)no
 ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount){
 	std::fstream file;
 	file.open(filename, std::ios::in);
-	if(!file.is_open()) return MODEL_NOT_FOUND;
+	if(!file.is_open()) return MATERIAL_NOT_FOUND;
 	std::string word;
 	void* data[80];
+	DWORD lineNumber = 0;
 	while(file >> word){
+		lineNumber++;
 		MTLKEYWORD key = (MTLKEYWORD)hashKeywords(word.c_str());
 		switch(key){
 			case MTL_NEWMTL:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				materialCount++;
 				materials[materialCount-1].name = std::string((char*)data);
 				break;
 			}
+			case MTL_MAP_D:{	//TODO richtig implementieren
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				break;
+			}
 			case MTL_MAP_KD:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
-				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				std::string textureFile = std::string((char*)data);
 				size_t index = 0;
 				while(true){
@@ -1531,7 +1544,9 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 					textureFile.replace(index, 2, "/");
 					index += 2;
 				}
-				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
+				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				materials[materialCount-1].textureCount++;
 				break;
 			}
 			case MTL_NS:	//TODO müssen alle noch implementiert werden
@@ -1543,10 +1558,10 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 			case MTL_D:
 			case MTL_ILLUM:
 			case MTL_COMMENT:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
-			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes MTL Keyword").c_str());
+			default: return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " Unbekanntes MTL Keyword in Zeile: " + longToString(lineNumber)).c_str());
 		}
 	}
 	return SUCCESS;
@@ -1566,28 +1581,29 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 	std::vector<fvec3> normals;
 	std::vector<fvec2> uvs;
 	void* data[80];
-	TriangleModel* model = nullptr;
+	bool hasMaterial = false;
+	DWORD lineNumber = 0;
 	while(file >> word){
+		lineNumber++;
 		OBJKEYWORD key = (OBJKEYWORD)hashKeywords(word.c_str());
 		switch(key){
 			case OBJ_O:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
-				modelCount++;
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
 			case OBJ_V:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				points.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
 				break;
 			}
 			case OBJ_VN:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
-				normals.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				normals.push_back({((float*)data)[0], ((float*)data)[1], ((float*)data)[2]});
 				break;
 			}
 			case OBJ_VT:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
-				uvs.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale});
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				uvs.push_back({((float*)data)[0], ((float*)data)[1]});
 				break;
 			}
 			case OBJ_F:{
@@ -1598,12 +1614,12 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				if(models[modelCount-1].triangleCount >= models[modelCount-1].triangleCapacity) increaseTriangleCapacity(models[modelCount-1], 100);	//TODO 100
 				
 				//Lese Punkt/Texture/Normal
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				pt_order[0] = ((DWORD*)data)[0]; uv_order[0] = ((DWORD*)data)[1]; normal_order[0] = ((DWORD*)data)[2];
 				pt_order[1] = ((DWORD*)data)[3]; uv_order[1] = ((DWORD*)data)[4]; normal_order[1] = ((DWORD*)data)[5];
 				pt_order[2] = ((DWORD*)data)[6]; uv_order[2] = ((DWORD*)data)[7]; normal_order[2] = ((DWORD*)data)[8];
 
-				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0");
+				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0 aka keine o Zeile bevor einer f Zeile");
 				DWORD modelIdx = modelCount-1;
 				DWORD triangleIdx = models[modelIdx].triangleCount;
 
@@ -1633,16 +1649,28 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				break;
 			}
 			case OBJ_MTLLIB:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				size_t lastSlash = std::string(filename).find_last_of("/");
 				std::string path = std::string(filename).substr(0, lastSlash+1);
 				std::string mtlFile = path + std::string((char*)data);
 				std::cout << mtlFile << std::endl;
-				if(ErrCheck(loadMtl(mtlFile.c_str(), materials, materialCount), "Mtl Datei laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				ErrCode err = loadMtl(mtlFile.c_str(), materials, materialCount);
+				if(err == MATERIAL_NOT_FOUND){
+					ErrCheck(err, std::string(word + " Material Bibliothek nicht gefunden... fahre ohne fort... in Zeile: " + longToString(lineNumber)).c_str());
+					break;
+				}
+				if(ErrCheck(err, "Mtl Datei laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				hasMaterial = true;
 				break;
 			}
 			case OBJ_USEMTL:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				modelCount++;
+				if(!hasMaterial){
+					if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+					ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material angefordert, Datei hat aber keins in Zeile: " + longToString(lineNumber)).c_str());
+					break;
+				}
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				DWORD i=0;
 				for(;i < materialCount; ++i){
 					if(strcmp((char*)data, materials[i].name.c_str()) == 0){
@@ -1650,16 +1678,16 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 						break;
 					}
 				}
-				if(i == materialCount) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material nicht gefunden").c_str());
+				if(i == materialCount) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material nicht gefunden in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
 			case OBJ_G:			//TODO müssen alle noch implementiert werden
 			case OBJ_S:
 			case OBJ_COMMENT:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, word.c_str());
+				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
-			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes OBJ Keyword").c_str());
+			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes OBJ Keyword in Zeile: " + longToString(lineNumber)).c_str());
 		}
 	}
 	return SUCCESS;

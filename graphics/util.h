@@ -24,7 +24,9 @@ enum ErrCode{
 	CREATE_WINDOW,
 	TEXTURE_NOT_FOUND,
 	MODEL_NOT_FOUND,
+	MATERIAL_NOT_FOUND,
 	MODEL_BAD_FORMAT,
+	MATERIAL_BAD_FORMAT,
 	FILE_NOT_FOUND,
 	WINDOW_NOT_FOUND,
 	INIT_RENDER_TARGET
@@ -66,6 +68,12 @@ inline ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=E
 		return code;
 	case INIT_RENDER_TARGET:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[INIT_RENDER_TARGET ERROR] " << msg << std::endl;
+		return code;
+	case MATERIAL_NOT_FOUND:
+		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MATERIAL_NOT_FOUND ERROR] " << msg << std::endl;
+		return code;
+	case MATERIAL_BAD_FORMAT:
+		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MATERIAL_BAD_FORMAT ERROR] " << msg << std::endl;
 		return code;
 	default: return SUCCESS;
 	}

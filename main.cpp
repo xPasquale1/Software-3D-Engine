@@ -60,14 +60,15 @@ inline void textureShader(Window* window, Image& image){
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
 		if(window->fragmentFlag[i] == 0) continue;
 		window->fragmentFlag[i] = 0;
+		float uvx = window->attributeBuffers[0][i].x;
+		float uvy = window->attributeBuffers[0][i].y;
+		DWORD color = texture2D(image, uvx, uvy);
+		if(A(color) == 0) return;
 		fvec3 n;
 		n.x = window->attributeBuffers[1][i].x;
 		n.y = window->attributeBuffers[1][i].y;
 		n.z = window->attributeBuffers[1][i].z;
-		float uvx = window->attributeBuffers[0][i].x;
-		float uvy = window->attributeBuffers[0][i].y;
 		float occlusion = (dot(light_dir, n)+1)*0.5f;
-		DWORD color = texture2D(image, uvx, uvy);
 		// window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
 		window->pixels[i] = color;
 	}
@@ -83,9 +84,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
 	font->font_size = 42/window->pixelSize;
 
-	//TODO beides sollte in ein Struct gepackt werden und nur zusammen allokiert/deallokiert werden
-	// Triangle* triangles = new(std::nothrow) Triangle[300000];
-	TriangleModel* models = new(std::nothrow) TriangleModel[500];
+	//TODO dynamisch
+	TriangleModel* models = new(std::nothrow) TriangleModel[50];
 	DWORD modelCount = 0;
 	Material* materials = new(std::nothrow) Material[50];
 	DWORD materialCount = 0;
@@ -93,13 +93,12 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
 		return -1;
 	}
-	// DWORD triangle_count = 0;
 
-	Image texture;
-	if(ErrCheck(loadImage("textures/basic.tex", texture), "Image laden") != SUCCESS) return -1;
+	Image defaultTexture;
+	if(ErrCheck(loadImage("textures/cat.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
-	// if(ErrCheck(readObj("objects/sponza.obj", triangles, 2, &triangle_count, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
-	if(ErrCheck(loadObj("objects/sponza_stripped.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/terrain1_optimized.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
 
 	RECT rect;
 	GetWindowRect(window->handle, &rect);
@@ -144,7 +143,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 #else
 		for(DWORD i=0; i < modelCount; ++i){
 			rasterize(window, models[i].triangles, 0, models[i].triangleCount, _cam);
-			textureShader(window, models[i].material->textures[0]);
+			if(models[i].material == nullptr) textureShader(window, defaultTexture);
+			else textureShader(window, models[i].material->textures[0]);
 		}
 #endif
 #ifdef PERFORMANCE_ANALYZER
@@ -169,7 +169,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		drawWindow(window);
 	}
 
-	// delete[] triangles;
+	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
+	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();
