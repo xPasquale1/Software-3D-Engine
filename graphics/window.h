@@ -383,28 +383,19 @@ struct Image{
 };
 
 ErrCode loadImage(const char* name, Image& image)noexcept{
-	std::fstream file; file.open(name, std::ios::in);
-	if(!file.is_open()) return FILE_NOT_FOUND;
-	//Lese Breite und Höhe
-	std::string word;
-	file >> word;
-	image.width = std::atoi(word.c_str());
-	file >> word;
-	image.height = std::atoi(word.c_str());
-	int pos = file.tellg();
-	image.data = new(std::nothrow) DWORD[image.width*image.height];
-	if(!image.data) return BAD_ALLOC;
-	file.close();
+	std::fstream file;
 	file.open(name, std::ios::in | std::ios::binary);
 	if(!file.is_open()) return FILE_NOT_FOUND;
-	file.seekg(pos);
-	char val[4];
-	file.read(&val[0], 1);	//überspringe letztes Leerzeichen
+	file.read((char*)&image.width, 2);
+	file.read((char*)&image.height, 2);
+	image.data = new(std::nothrow) DWORD[image.width*image.height];
+	if(!image.data) return BAD_ALLOC;
+	BYTE val[4];
 	for(DWORD i=0; i < image.width*image.height; ++i){
-		file.read(&val[0], 1);
-		file.read(&val[1], 1);
-		file.read(&val[2], 1);
-		file.read(&val[3], 1);
+		file.read((char*)&val[0], 1);
+		file.read((char*)&val[1], 1);
+		file.read((char*)&val[2], 1);
+		file.read((char*)&val[3], 1);
 		image.data[i] = RGBA(val[0], val[1], val[2], val[3]);
 	}
 	file.close();
@@ -421,6 +412,13 @@ inline DWORD getImage(Image& image, float x, float y)noexcept{
 	DWORD ry = y*image.height;
 	DWORD rx = x*(image.width-1);
 	return image.data[ry*image.width+rx];
+}
+
+inline void flipImageVertically(Image& image){
+	DWORD revIdx = image.width*image.height-1;
+	for(DWORD i=0; i < image.width*image.height/2; ++i){
+		std::swap(image.data[i], image.data[revIdx--]);
+	}
 }
 
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
@@ -1133,13 +1131,13 @@ inline BYTE clipping(Window* window, Triangle* buffer)noexcept{
 	return count;
 }
 
-struct camera{
+struct Camera{
 	float focal_length;
 	fvec3 pos;
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, camera& cam)noexcept{
+inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1195,6 +1193,10 @@ inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     	}
     }
     return;
+}
+
+inline void rasterizeTriangleModel(Window* window, TriangleModel& model, Camera& cam){
+	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 }
 
 inline ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWORD& value2)noexcept{
@@ -1546,6 +1548,7 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				}
 				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
 				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
 				materials[materialCount-1].textureCount++;
 				break;
 			}
@@ -1619,7 +1622,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				pt_order[1] = ((DWORD*)data)[3]; uv_order[1] = ((DWORD*)data)[4]; normal_order[1] = ((DWORD*)data)[5];
 				pt_order[2] = ((DWORD*)data)[6]; uv_order[2] = ((DWORD*)data)[7]; normal_order[2] = ((DWORD*)data)[8];
 
-				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0 aka keine o Zeile bevor einer f Zeile");
+				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0 aka keine usemtl Zeile vor einer f Zeile");
 				DWORD modelIdx = modelCount-1;
 				DWORD triangleIdx = models[modelIdx].triangleCount;
 
@@ -1653,7 +1656,6 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				size_t lastSlash = std::string(filename).find_last_of("/");
 				std::string path = std::string(filename).substr(0, lastSlash+1);
 				std::string mtlFile = path + std::string((char*)data);
-				std::cout << mtlFile << std::endl;
 				ErrCode err = loadMtl(mtlFile.c_str(), materials, materialCount);
 				if(err == MATERIAL_NOT_FOUND){
 					ErrCheck(err, std::string(word + " Material Bibliothek nicht gefunden... fahre ohne fort... in Zeile: " + longToString(lineNumber)).c_str());

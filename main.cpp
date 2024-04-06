@@ -8,11 +8,8 @@
 /*	TODO programm crashed falls die clipping region gleich/größer wie der Bildschirm ist, wahrscheinlich schreibt
 	der rasterizer ausserhalb des pixel arrays
 	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer Auflösung genutzt
-	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle fragmente die zu groß sind? aufwand größer?)
-	TODO Bilder müssen um 90° nach rechts gedreht werden damit die uv Koordinaten stimmen...
-	TODO Alle Dreiecke sollten in einem Kontainer-System gespeichert werden, es sollte schnell sein die Daten zu
-	finden (hashing/array) es sollte aber auch schnell gehen diese wieder zu löschen (Datenpackete Objektweiße speichern,
-	da Dreiecke eigentlich nie einzeln eingelesen werden)
+	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle verticies die zu groß sind? aufwand größer?)
+	TODO uhm ja das weirde ghosting und so
 	TODO Shadow mapping oder ähnliches
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
 */
@@ -20,7 +17,7 @@
 #define PIXELSIZE 2
 
 static bool _running = true;
-static camera _cam = {1., {0, -10, -30}, {0, 0}};
+static Camera cam = {1., {0, -10, -30}, {0, 0}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt);
@@ -51,7 +48,6 @@ Menu settingsMenu;
 Window* window = nullptr;
 Font* font = nullptr;
 
-//TODO mehrere Threads falls THREADING
 inline void textureShader(Window* window, Image& image){
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
@@ -72,6 +68,12 @@ inline void textureShader(Window* window, Image& image){
 		// window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
 		window->pixels[i] = color;
 	}
+}
+
+inline void drawTriangleModel(Window* window, TriangleModel& model, Image& defaultTexture){
+	rasterize(window, model.triangles, 0, model.triangleCount, cam);
+	if(model.material == nullptr) textureShader(window, defaultTexture);
+	else textureShader(window, model.material->textures[0]);
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
@@ -95,7 +97,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 	Image defaultTexture;
-	if(ErrCheck(loadImage("textures/cat.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
+	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
 	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/terrain1_optimized.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
@@ -130,22 +132,24 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		resetTimer(_perfAnalyzer.timer[0]);
 #endif
 #ifdef THREADING
-		DWORD t_count = triangle_count/THREADCOUNT;
+		WORD modelInc = std::ceil(modelCount/THREADCOUNT);
 	    std::vector<std::thread> threads;
-	    for(int i=0; i < THREADCOUNT-1; ++i){
-	        threads.push_back(std::thread(rasterize, window, triangles, t_count*i, t_count*(i+1), std::ref(_cam)));
+		DWORD modelIdx = 0;
+		int remainingModelCount = modelCount;
+	    for(int i=THREADCOUNT; i > 0; --i){
+			int modelsPerThread = std::ceil(remainingModelCount/i);
+			for(int j=0; j < modelsPerThread; ++j){
+	        	threads.push_back(std::thread(drawTriangleModel, window, std::ref(models[modelIdx]), std::ref(defaultTexture)));
+				modelIdx++;
+				remainingModelCount--;
+			}
 	    }
-	    threads.push_back(std::thread(rasterize, window, triangles, t_count*(THREADCOUNT-1), triangle_count, std::ref(_cam)));
 
 	    for(auto& thread : threads){
 	        thread.join();
 	    }
 #else
-		for(DWORD i=0; i < modelCount; ++i){
-			rasterize(window, models[i].triangles, 0, models[i].triangleCount, _cam);
-			if(models[i].material == nullptr) textureShader(window, defaultTexture);
-			else textureShader(window, models[i].material->textures[0]);
-		}
+		for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
 #endif
 #ifdef PERFORMANCE_ANALYZER
     	recordData(_perfAnalyzer, 0);
@@ -179,19 +183,19 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 }
 
 void update(float dt){
-	float sin_rotx = sin(_cam.rot.x);
-	float cos_rotx = cos(_cam.rot.x);
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
 	if(!getMenuFlag(settingsMenu, MENU_OPEN)){
-		_cam.pos.x -= getButton(keyboard, KEY_W)*sin_rotx*SPEED*dt;
-		_cam.pos.z += getButton(keyboard, KEY_W)*cos_rotx*SPEED*dt;
-		_cam.pos.x += getButton(keyboard, KEY_S)*sin_rotx*SPEED*dt;
-		_cam.pos.z -= getButton(keyboard, KEY_S)*cos_rotx*SPEED*dt;
-		_cam.pos.x += getButton(keyboard, KEY_D)*cos_rotx*SPEED*dt;
-		_cam.pos.z += getButton(keyboard, KEY_D)*sin_rotx*SPEED*dt;
-		_cam.pos.x -= getButton(keyboard, KEY_A)*cos_rotx*SPEED*dt;
-		_cam.pos.z -= getButton(keyboard, KEY_A)*sin_rotx*SPEED*dt;
-		_cam.pos.y -= getButton(keyboard, KEY_SPACE)*SPEED*dt;
-		_cam.pos.y += getButton(keyboard, KEY_SHIFT)*SPEED*dt;
+		cam.pos.x -= getButton(keyboard, KEY_W)*sin_rotx*SPEED*dt;
+		cam.pos.z += getButton(keyboard, KEY_W)*cos_rotx*SPEED*dt;
+		cam.pos.x += getButton(keyboard, KEY_S)*sin_rotx*SPEED*dt;
+		cam.pos.z -= getButton(keyboard, KEY_S)*cos_rotx*SPEED*dt;
+		cam.pos.x += getButton(keyboard, KEY_D)*cos_rotx*SPEED*dt;
+		cam.pos.z += getButton(keyboard, KEY_D)*sin_rotx*SPEED*dt;
+		cam.pos.x -= getButton(keyboard, KEY_A)*cos_rotx*SPEED*dt;
+		cam.pos.z -= getButton(keyboard, KEY_A)*sin_rotx*SPEED*dt;
+		cam.pos.y -= getButton(keyboard, KEY_SPACE)*SPEED*dt;
+		cam.pos.y += getButton(keyboard, KEY_SHIFT)*SPEED*dt;
 	}else{
 		updateMenu(window, settingsMenu, *font);
 	}
@@ -246,8 +250,8 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			mouse.pos.x = (m_pos.x - w_pos.left)/window->pixelSize;
 			mouse.pos.y = ((m_pos.y - w_pos.top)-(point.y-w_pos.top))/window->pixelSize;
 				if(!getMenuFlag(settingsMenu, MENU_OPEN)){
-					_cam.rot.x -= ((float)m_pos.x-(window->windowWidth/2+w_pos.left)) * 0.001;
-					_cam.rot.y += ((float)m_pos.y-(window->windowHeight/2+w_pos.top)) * 0.001;
+					cam.rot.x -= ((float)m_pos.x-(window->windowWidth/2+w_pos.left)) * 0.001;
+					cam.rot.y += ((float)m_pos.y-(window->windowHeight/2+w_pos.top)) * 0.001;
 					SetCursorPos(window->windowWidth/2+w_pos.left, window->windowHeight/2+w_pos.top);
 				}
 			break;
