@@ -17,29 +17,30 @@
 #define PIXELSIZE 2
 
 static bool _running = true;
-static Camera cam = {1., {0, -10, -30}, {0, 0}};
+static Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-void update(float dt);
+void update(float dt)noexcept;
+
+enum RENDERMODE{
+	SHADED_MODE, WIREFRAME_MODE, DEPTH_MODE
+};
+static RENDERMODE renderMode;
 
 Menu settingsMenu;
-//Menü Funktionen
-// ErrCode setWireframeMode(void){
-// 	_render_mode = WIREFRAME_MODE;
-// 	return SUCCESS;
-// }
-// ErrCode setShadedMode(void){
-// 	_render_mode = SHADED_MODE;
-// 	return SUCCESS;
-// }
-// ErrCode setDepthMode(void){
-// 	_render_mode = DEPTH_MODE;
-// 	return SUCCESS;
-// }
-// ErrCode setNormalMode(void){
-// 	_render_mode = NORMAL_MODE;
-// 	return SUCCESS;
-// }
+// Menü Funktionen
+ErrCode setWireframeMode(void*)noexcept{
+	renderMode = WIREFRAME_MODE;
+	return SUCCESS;
+}
+ErrCode setShadedMode(void*)noexcept{
+	renderMode = SHADED_MODE;
+	return SUCCESS;
+}
+ErrCode setDepthMode(void*)noexcept{
+	renderMode = DEPTH_MODE;
+	return SUCCESS;
+}
 
 // #define THREADING
 #define THREADCOUNT 8
@@ -48,7 +49,7 @@ Menu settingsMenu;
 Window* window = nullptr;
 Font* font = nullptr;
 
-inline void textureShader(Window* window, Image& image){
+void textureShader(Window* window, Image& image)noexcept{
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
 	fvec3 light_dir = {2, 2, 1};
@@ -59,21 +60,35 @@ inline void textureShader(Window* window, Image& image){
 		float uvx = window->attributeBuffers[0][i].x;
 		float uvy = window->attributeBuffers[0][i].y;
 		DWORD color = texture2D(image, uvx, uvy);
-		if(A(color) == 0) return;
+		if(A(color) == 0) continue;
 		fvec3 n;
 		n.x = window->attributeBuffers[1][i].x;
 		n.y = window->attributeBuffers[1][i].y;
 		n.z = window->attributeBuffers[1][i].z;
 		float occlusion = (dot(light_dir, n)+1)*0.5f;
-		// window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
-		window->pixels[i] = color;
+		window->pixels[i] = RGBA(R(color)*occlusion, G(color)*occlusion, B(color)*occlusion);
 	}
 }
 
-inline void drawTriangleModel(Window* window, TriangleModel& model, Image& defaultTexture){
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
+void depthBufferShader(Window* window)noexcept{
+	DWORD bufferWidth = window->windowWidth/window->pixelSize;
+	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+		QWORD depth = window->depth[i]*255;
+		BYTE color = depth/0xFFFFFF;
+		window->pixels[i] = RGBA(color, color, color);
+	}
+}
+
+void drawTriangleModel(Window* window, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(window, model.triangles, 0, model.triangleCount, cam, (TRIANGLERENDERMODE)renderMode);
 	if(model.material == nullptr) textureShader(window, defaultTexture);
 	else textureShader(window, model.material->textures[0]);
+}
+
+void drawDepthBuffer(Window* window, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(window, model.triangles, 0, model.triangleCount, cam);
+	depthBufferShader(window);
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
@@ -102,26 +117,41 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -1.5), "Modell laden") != SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/terrain1_optimized.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
 
+	for(DWORD i=0; i < materialCount; ++i){
+		Image& image = materials[i].textures[0];
+		for(DWORD j=0; j < image.width*image.height; ++j){
+			if(A(image.data[j]) > 10) image.data[j] = RGBA(R(image.data[j]), G(image.data[j]), B(image.data[j]));
+			else image.data[j] = RGBA(R(image.data[j]), G(image.data[j]), B(image.data[j]), 0);
+		}
+	}
+
 	RECT rect;
 	GetWindowRect(window->handle, &rect);
 	SetCursorPos(window->windowWidth/2+rect.left, window->windowHeight/2+rect.top);
 
-	//TODO dynamisch buttons hinzufügen und entfernen
-	Button settingsButtons[5];
-	// settingsButtons[0].size = {105, 15};
-	// settingsButtons[0].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, settingsButtons[0].size.y+10};
-	// settingsButtons[0].event = setWireframeMode; settingsButtons[0].text = "WIREFRAME";
-	// settingsButtons[1].size = {105, 15};
-	// settingsButtons[1].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*2};
-	// settingsButtons[1].event = setShadedMode; settingsButtons[1].text = "SHADED";
-	// settingsButtons[2].size = {105, 15};
-	// settingsButtons[2].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*3};
-	// settingsButtons[2].event = setDepthMode; settingsButtons[2].text = "DEPTH";
-	// settingsButtons[3].size = {105, 15};
-	// settingsButtons[3].pos = {(int)window->windowWidth/window->pixelSize-settingsButtons[0].size.x-10, (settingsButtons[0].size.y+10)*4};
-	// settingsButtons[3].event = setNormalMode; settingsButtons[3].text = "NORMALS";
-	// settingsMenu.buttons = settingsButtons;
-	settingsMenu.button_count = 0;
+	ivec2 buttonPos = {20/window->pixelSize, 80/window->pixelSize};
+	ivec2 buttonSize = {280/window->pixelSize, 40/window->pixelSize};
+
+	settingsMenu.buttons[0].size = buttonSize;
+	settingsMenu.buttons[0].pos = buttonPos;
+	settingsMenu.buttons[0].event = setWireframeMode;
+	settingsMenu.buttons[0].text = "WIREFRAME";
+	settingsMenu.buttons[0].textsize = 36/window->pixelSize;
+
+	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	settingsMenu.buttons[1].size = buttonSize;
+	settingsMenu.buttons[1].pos = buttonPos;
+	settingsMenu.buttons[1].event = setShadedMode;
+	settingsMenu.buttons[1].text = "SHADED";
+	settingsMenu.buttons[1].textsize = 36/window->pixelSize;
+
+	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	settingsMenu.buttons[2].size = buttonSize;
+	settingsMenu.buttons[2].pos = buttonPos;
+	settingsMenu.buttons[2].event = setDepthMode;
+	settingsMenu.buttons[2].text = "DEPTH";
+	settingsMenu.buttons[2].textsize = 36/window->pixelSize;
+	settingsMenu.buttonCount = 3;
 
 	while(_running){
 		getMessages(window);
@@ -132,30 +162,22 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		resetTimer(_perfAnalyzer.timer[0]);
 #endif
 #ifdef THREADING
-		WORD modelInc = std::ceil(modelCount/THREADCOUNT);
-	    std::vector<std::thread> threads;
-		DWORD modelIdx = 0;
-		int remainingModelCount = modelCount;
-	    for(int i=THREADCOUNT; i > 0; --i){
-			int modelsPerThread = std::ceil(remainingModelCount/i);
-			for(int j=0; j < modelsPerThread; ++j){
-	        	threads.push_back(std::thread(drawTriangleModel, window, std::ref(models[modelIdx]), std::ref(defaultTexture)));
-				modelIdx++;
-				remainingModelCount--;
-			}
-	    }
-
-	    for(auto& thread : threads){
-	        thread.join();
-	    }
 #else
-		for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
+		switch(renderMode){
+			case WIREFRAME_MODE:
+			case SHADED_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
+				break;
+			}
+			case DEPTH_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(window, models[i], defaultTexture);
+				break;
+			}
+		}
 #endif
 #ifdef PERFORMANCE_ANALYZER
     	recordData(_perfAnalyzer, 0);
 #endif
-
-    	update(getAvgData(_perfAnalyzer, 0)+1);
 		
 		std::string val = floatToString(getAvgData(_perfAnalyzer, 0), 2) + "ms";
 		drawFontString(window, *font, val.c_str(), 5, 2);
@@ -170,6 +192,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		val = longToString(_perfAnalyzer.pixelsCulled);
 		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+12);
 
+		update(getAvgData(_perfAnalyzer, 0)+1);
+
 		drawWindow(window);
 	}
 
@@ -182,7 +206,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	return 0;
 }
 
-void update(float dt){
+void update(float dt)noexcept{
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	if(!getMenuFlag(settingsMenu, MENU_OPEN)){

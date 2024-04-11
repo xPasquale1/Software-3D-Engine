@@ -37,7 +37,7 @@ enum ErrCodeFlags{
 	ERR_ON_FATAL = 2
 };
 //TODO ERR_ON_FATAL ausgeben können wenn der nutzer es so möchte
-inline ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=ERR_NO_FLAG){
+ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=ERR_NO_FLAG)noexcept{
 	switch(code){
 	case BAD_ALLOC:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[BAD_ALLOC ERROR] " << msg << std::endl;
@@ -89,12 +89,11 @@ struct Mouse{
 	char button = 0;	//Bits: LMB, RMB, Rest ungenutzt
 }; static Mouse mouse;
 
-inline constexpr bool getButton(Mouse& mouse, MOUSEBUTTON button){return (mouse.button & button);}
-inline constexpr void setButton(Mouse& mouse, MOUSEBUTTON button){mouse.button |= button;}
-inline constexpr void resetButton(Mouse& mouse, MOUSEBUTTON button){mouse.button &= ~button;}
+constexpr bool getButton(Mouse& mouse, MOUSEBUTTON button)noexcept{return (mouse.button & button);}
+constexpr void setButton(Mouse& mouse, MOUSEBUTTON button)noexcept{mouse.button |= button;}
+constexpr void resetButton(Mouse& mouse, MOUSEBUTTON button)noexcept{mouse.button &= ~button;}
 
-//TODO always inline?, compiler weiß es bestimmt besser
-inline constexpr __attribute__((always_inline)) const char* stringLookUp2(long value){
+constexpr  const char* stringLookUp2(long value)noexcept{
 	return &"001020304050607080900111213141516171819102122232425262728292"
 			"031323334353637383930414243444546474849405152535455565758595"
 			"061626364656667686960717273747576777879708182838485868788898"
@@ -102,7 +101,7 @@ inline constexpr __attribute__((always_inline)) const char* stringLookUp2(long v
 }
 //std::to_string ist langsam, das ist simpel und schnell
 static char _dec_to_str_out[12] = "00000000000";
-inline const char* longToString(long value){
+const char* longToString(long value)noexcept{
 	char* ptr = _dec_to_str_out + 11;
 	*ptr = '0';
 	char c = 0;
@@ -126,7 +125,7 @@ inline const char* longToString(long value){
 }
 
 //value hat decimals Nachkommestellen
-inline std::string intToString(int value, BYTE decimals=2){
+std::string intToString(int value, BYTE decimals=2)noexcept{
 	std::string out = longToString(value);
 	if(out.size() < ((size_t)decimals+1) && out[0] != '-') out.insert(0, (decimals+1)-out.size(), '0');
 	else if(out.size() < ((size_t)decimals+2) && out[0] == '-') out.insert(1, (decimals+1)-(out.size()-1), '0');
@@ -134,7 +133,7 @@ inline std::string intToString(int value, BYTE decimals=2){
 	return out;
 }
 
-inline std::string floatToString(float value, BYTE decimals=2){
+std::string floatToString(float value, BYTE decimals=2)noexcept{
 	WORD precision = pow(10, decimals);
 	long val = value * precision;
 	return intToString(val, decimals);
@@ -189,9 +188,9 @@ struct Keyboard{
 	unsigned long long buttons;	//Bits siehe enum oben
 }; static Keyboard keyboard;
 
-inline constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTON button){return keyboard.buttons & button;}
-inline constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.buttons |= button;}
-inline constexpr void resetButton(Keyboard& keyboard, KEYBOARDBUTTON button){keyboard.buttons &= ~button;}
+constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{return keyboard.buttons & button;}
+constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{keyboard.buttons |= button;}
+constexpr void resetButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{keyboard.buttons &= ~button;}
 
 struct Timer{
 	LARGE_INTEGER startTime;
@@ -199,12 +198,12 @@ struct Timer{
 };
 
 //Setzt den Startzeitpunkt des Timers zurück
-inline void resetTimer(Timer& timer){
+void resetTimer(Timer& timer)noexcept{
 	QueryPerformanceFrequency(&timer.frequency); 
 	QueryPerformanceCounter(&timer.startTime);
 }
 //Gibt den Zeitunterschied seid dem Startzeitpunkt in Millisekunden zurück
-inline float getTimerMillis(Timer& timer){
+float getTimerMillis(Timer& timer)noexcept{
 	LARGE_INTEGER endTime;
 	QueryPerformanceCounter(&endTime);
 	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
@@ -212,7 +211,7 @@ inline float getTimerMillis(Timer& timer){
 	return ((float)timediff / timer.frequency.QuadPart);
 }
 //Gibt den Zeitunterschied seid dem Startzeitpunkt in Mikrosekunden zurück
-inline float getTimerMicros(Timer& timer){
+float getTimerMicros(Timer& timer)noexcept{
 	LARGE_INTEGER endTime;
 	QueryPerformanceCounter(&endTime);
 	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
@@ -221,7 +220,7 @@ inline float getTimerMicros(Timer& timer){
 }
 //Gibt den Zeitunterschied seid dem Startzeitpunkt in "Nanosekunden" zurück
 //(leider hängt alles von QueryPerformanceFrequency() ab, also kann es sein, dass man nur Intervalle von Nanosekunden bekommt)
-inline float getTimerNanos(Timer& timer){
+float getTimerNanos(Timer& timer)noexcept{
 	LARGE_INTEGER endTime;
 	QueryPerformanceCounter(&endTime);
 	LONGLONG timediff = endTime.QuadPart - timer.startTime.QuadPart;
@@ -242,29 +241,29 @@ struct PerfAnalyzer{
 	Timer timer[PERFORMANCE_ANALYZER_DATA_POINTS];
 }; static PerfAnalyzer _perfAnalyzer;
 
-void resetAllTimers(PerfAnalyzer& pa){
+void resetAllTimers(PerfAnalyzer& pa)noexcept{
 	for(int i=0; i < PERFORMANCE_ANALYZER_DATA_POINTS; ++i) resetTimer(pa.timer[i]);
 }
 //Setzt Statistiken zurück
-void resetData(PerfAnalyzer& pa){
+void resetData(PerfAnalyzer& pa)noexcept{
 	pa.totalTriangles = 0;
 	pa.drawnTriangles = 0;
 	pa.pixelsDrawn = 0;
 	pa.pixelsCulled = 0;
 }
-void startRecordData(PerfAnalyzer& pa, BYTE idx){
+void startRecordData(PerfAnalyzer& pa, BYTE idx)noexcept{
 	resetTimer(pa.timer[idx]);
 }
-void recordData(PerfAnalyzer& pa, BYTE idx){
+void recordData(PerfAnalyzer& pa, BYTE idx)noexcept{
 	float ms = getTimerMillis(pa.timer[idx]);
 	pa.data[pa.counter[idx]/32+idx*8] = ms;
 	pa.counter[idx] += 32;
 }
-void recordDataNoInc(PerfAnalyzer& pa, BYTE idx){
+void recordDataNoInc(PerfAnalyzer& pa, BYTE idx)noexcept{
 	float ms = getTimerMillis(pa.timer[idx]);
 	pa.data[pa.counter[idx]/32+idx*8] += ms;
 }
-float getAvgData(PerfAnalyzer& pa, BYTE idx){
+float getAvgData(PerfAnalyzer& pa, BYTE idx)noexcept{
 	float out = 0;
 	for(BYTE i=0; i < 8; ++i){
 		out += pa.data[i+8*idx];

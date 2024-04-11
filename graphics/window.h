@@ -43,17 +43,16 @@ enum APPLICATIONFLAG : APPLICATIONFLAGSTYPE{
 	APP_RUNNING=1,
 	APP_HAS_DEVICE=2
 };
-#define MAX_WINDOW_COUNT 10
 struct Application{
 	APPLICATIONFLAG flags = APP_RUNNING;		//Applikationsflags
 	ID2D1Factory* factory = nullptr;			//Direct2D Factory
 }; static Application app;
 
-inline bool getAppFlag(APPLICATIONFLAG flag)noexcept{return(app.flags & flag);}
-inline void setAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags | flag);}
-inline void resetAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags & ~flag);}
+bool getAppFlag(APPLICATIONFLAG flag)noexcept{return(app.flags & flag);}
+void setAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags | flag);}
+void resetAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags & ~flag);}
 
-inline ErrCode initApp()noexcept{
+ErrCode initApp()noexcept{
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &app.factory);
 	if(hr){
 		std::cerr << hr << std::endl;
@@ -63,7 +62,7 @@ inline ErrCode initApp()noexcept{
 }
 
 //TODO wirft das errors?
-inline ErrCode destroyApp()noexcept{
+ErrCode destroyApp()noexcept{
 	app.factory->Release();
 	return SUCCESS;
 }
@@ -160,21 +159,21 @@ ErrCode destroyWindow(Window*& window)noexcept{
 	return SUCCESS;
 }
 
-inline ErrCode setWindowFlag(Window* window, WINDOWFLAG state)noexcept{
+ErrCode setWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
 	window->flags = (WINDOWFLAG)(window->flags | state);
 	return SUCCESS;
 }
-inline ErrCode resetWindowFlag(Window* window, WINDOWFLAG state)noexcept{
+ErrCode resetWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
 	window->flags = (WINDOWFLAG)(window->flags & ~state);
 	return SUCCESS;
 }
-inline bool getWindowFlag(Window* window, WINDOWFLAG state)noexcept{
+bool getWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return false;
 	#endif
@@ -183,7 +182,7 @@ inline bool getWindowFlag(Window* window, WINDOWFLAG state)noexcept{
 
 //TODO Sollte ERRCODE zurückgeben und WINDOWFLAG als Referenzparameter übergeben bekommen
 //Gibt den nächsten Zustand des Fensters zurück und löscht diesen anschließend, Anwendung z.B. while(state = getNextWindowState() != WINDOW_NONE)...
-inline WINDOWFLAG getNextWindowState(Window* window)noexcept{
+WINDOWFLAG getNextWindowState(Window* window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NONE;
 	#endif
@@ -192,7 +191,7 @@ inline WINDOWFLAG getNextWindowState(Window* window)noexcept{
 	return flag;
 }
 
-inline ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_size)noexcept{
+ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_size)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -285,7 +284,7 @@ LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-inline void getMessages(Window* window)noexcept{
+void getMessages(Window* window)noexcept{
 	MSG msg;
 	while(PeekMessage(&msg, window->handle, 0, 0, PM_REMOVE)){
 		TranslateMessage(&msg);
@@ -293,13 +292,13 @@ inline void getMessages(Window* window)noexcept{
 	}
 }
 
-inline constexpr DWORD RGBA(BYTE r, BYTE g, BYTE b, BYTE a=255)noexcept{return DWORD(b|g<<8|r<<16|a<<24);}
-inline constexpr BYTE A(DWORD color)noexcept{return BYTE(color>>24);}
-inline constexpr BYTE R(DWORD color)noexcept{return BYTE(color>>16);}
-inline constexpr BYTE G(DWORD color)noexcept{return BYTE(color>>8);}
-inline constexpr BYTE B(DWORD color)noexcept{return BYTE(color);}
+constexpr DWORD RGBA(BYTE r, BYTE g, BYTE b, BYTE a=255)noexcept{return DWORD(b|g<<8|r<<16|a<<24);}
+constexpr BYTE A(DWORD color)noexcept{return BYTE(color>>24);}
+constexpr BYTE R(DWORD color)noexcept{return BYTE(color>>16);}
+constexpr BYTE G(DWORD color)noexcept{return BYTE(color>>8);}
+constexpr BYTE B(DWORD color)noexcept{return BYTE(color);}
 
-inline ErrCode clearWindow(Window* window)noexcept{
+ErrCode clearWindow(Window* window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -308,7 +307,7 @@ inline ErrCode clearWindow(Window* window)noexcept{
 	for(WORD y=0; y < buffer_height; ++y){
 		for(WORD x=0; x < buffer_width; ++x){
 			window->pixels[y*buffer_width+x] = RGBA(0, 0, 0);
-			window->depth[y*buffer_width+x] = 0xFFFFFFFF;
+			window->depth[y*buffer_width+x] = 0xFF'FF'FF'FF;
 			window->fragmentFlag[y*buffer_width+x] = 0;
 		}
 	}
@@ -317,7 +316,7 @@ inline ErrCode clearWindow(Window* window)noexcept{
 
 //TODO bitmap kann man bestimmt auch im Window speichern und auf dieser dann rummalen. anstatt diese immer neu zu erzeugen
 //Muss dann halt auch immer geupdated werden, wenn das Window skaliert wird,...
-inline ErrCode drawWindow(Window* window)noexcept{
+ErrCode drawWindow(Window* window)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -342,7 +341,7 @@ inline ErrCode drawWindow(Window* window)noexcept{
 	return SUCCESS;
 }
 
-inline ErrCode drawRectangle(Window* window, DWORD x, DWORD y, DWORD dx, DWORD dy, DWORD color)noexcept{
+ErrCode drawRectangle(Window* window, DWORD x, DWORD y, DWORD dx, DWORD dy, DWORD color)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -355,7 +354,7 @@ inline ErrCode drawRectangle(Window* window, DWORD x, DWORD y, DWORD dx, DWORD d
 	return SUCCESS;
 }
 
-inline ErrCode drawLine(Window* window, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
+ErrCode drawLine(Window* window, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
 	#ifdef INVALIDHANDLEERRORS
 	if(window == nullptr) return WINDOW_NOT_FOUND;
 	#endif
@@ -381,6 +380,14 @@ struct Image{
 	WORD width = 0;		//x-Dimension
 	WORD height = 0;	//y-Dimension
 };
+
+ErrCode createImage(Image& image, WORD width, WORD height){
+	image.data = new(std::nothrow) DWORD[width*height];
+	if(!image.data) return BAD_ALLOC;
+	image.width = width;
+	image.height = height;
+	return SUCCESS;
+}
 
 ErrCode loadImage(const char* name, Image& image)noexcept{
 	std::fstream file;
@@ -408,13 +415,13 @@ void destroyImage(Image& image)noexcept{
 }
 
 //x und y von 0 - 1, keine Tests auf Überlauf!
-inline DWORD getImage(Image& image, float x, float y)noexcept{
+DWORD getImage(Image& image, float x, float y)noexcept{
 	DWORD ry = y*image.height;
 	DWORD rx = x*(image.width-1);
 	return image.data[ry*image.width+rx];
 }
 
-inline void flipImageVertically(Image& image){
+void flipImageVertically(Image& image)noexcept{
 	DWORD revIdx = image.width*image.height-1;
 	for(DWORD i=0; i < image.width*image.height/2; ++i){
 		std::swap(image.data[i], image.data[revIdx--]);
@@ -468,7 +475,7 @@ struct Font{
 	BYTE char_sizes[96];	//Größe der Symbole in x-Richtung
 };
 
-//Allokiert eine Font auf dem Heap
+//Allokiert eine Font auf dem Heap... TODO wieso? Stack is auch okay und alle anderen Structs funktionieren genauso
 ErrCode createFont(Font*& font)noexcept{
 	font = new(std::nothrow) Font;
 	if(!font) return BAD_ALLOC;
@@ -506,7 +513,7 @@ ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
 
 //Gibts zurück wie viele Pixel der Text unter der gegebenen Font benötigt
 //TODO font könnte nullptr sein -> INVALIDHANDLEERRORS?
-inline WORD getStringFontSize(Font& font, std::string& text)noexcept{
+WORD getStringFontSize(Font& font, std::string& text)noexcept{
 	float div = (float)font.char_size.y/font.font_size;
 	WORD offset = 0;
 	for(size_t i=0; i < text.size(); ++i){
@@ -543,7 +550,7 @@ DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD
 
 //Gibt zurück, wie breit der String zu zeichnen war, String muss \0 terminiert sein!
 //TODO Errors? meh, if window wird evtl bei jedem Aufruf von drawFontChar gemacht
-inline DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
+DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
 	DWORD offset = 0;
 	DWORD idx = 0;
 	while(string[idx] != '\0'){
@@ -552,7 +559,7 @@ inline DWORD drawFontString(Window* window, Font& font, const char* string, DWOR
 	return offset;
 }
 
-ErrCode _defaultEvent(BYTE*){return SUCCESS;}
+ErrCode _defaultEvent(void*)noexcept{return SUCCESS;}
 enum BUTTONFLAGS{
 	BUTTON_VISIBLE=1,
 	BUTTON_CAN_HOVER=2,
@@ -562,10 +569,10 @@ enum BUTTONFLAGS{
 	BUTTON_DISABLED=32
 };
 struct Button{
-	ErrCode (*event)(BYTE*) = _defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
+	ErrCode (*event)(void*)noexcept = _defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
 	std::string text;
 	Image* image = nullptr;
-	Image* disabled_image = nullptr;
+	Image* disabledImage = nullptr;
 	ivec2 pos = {0, 0};
 	ivec2 repos = {0, 0};
 	ivec2 size = {50, 10};
@@ -574,21 +581,20 @@ struct Button{
 	DWORD color = RGBA(120, 120, 120);
 	DWORD hover_color = RGBA(120, 120, 255);
 	DWORD textcolor = RGBA(180, 180, 180);
-	DWORD disabled_color = RGBA(90, 90, 90);
+	DWORD disabledColor = RGBA(90, 90, 90);
 	WORD textsize = 16;
-	BYTE* data = nullptr;
+	void* data = nullptr;
 };
 
 void destroyButton(Button& button)noexcept{
 	destroyImage(*button.image);
-	delete[] button.data;
 }
 
-inline constexpr void setButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags |= flag;}
-inline constexpr void resetButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags &= ~flag;}
-inline constexpr bool getButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{return (button.flags & flag);}
+constexpr void setButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags |= flag;}
+constexpr void resetButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{button.flags &= ~flag;}
+constexpr bool getButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{return (button.flags & flag);}
 //TODO kann bestimmt besser geschrieben werden... und ErrCheck aufs Event sollte mit einem BUTTONSTATE entschieden werden
-inline void buttonsClicked(Button* buttons, WORD button_count)noexcept{
+void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE) || getButtonFlag(b, BUTTON_DISABLED)) continue;
@@ -607,15 +613,15 @@ inline void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 }
 
 //TODO meh, if window wird in jedem draw gemacht
-inline void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
+void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE)) continue;
 		if(getButtonFlag(b, BUTTON_DISABLED)){
-			if(b.disabled_image == nullptr)
-				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.disabled_color);
+			if(b.disabledImage == nullptr)
+				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.disabledColor);
 			else
-				copyImageToWindow(window, *b.disabled_image, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
+				copyImageToWindow(window, *b.disabledImage, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
 		}else if(b.image == nullptr){
 			if(getButtonFlag(b, BUTTON_CAN_HOVER) && getButtonFlag(b, BUTTON_HOVER))
 				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.hover_color);
@@ -648,7 +654,7 @@ inline void drawButtons(Window* window, Font& font, Button* buttons, WORD button
 	}
 }
 
-inline void updateButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
+void updateButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
 	buttonsClicked(buttons, button_count);
 	drawButtons(window, font, buttons, button_count);
 }
@@ -664,34 +670,35 @@ enum MENUFLAGS{
 	MENU_OPEN=1,
 	MENU_OPEN_TOGGLE=2
 };
+//TODO sollte alles dynamisch hinzugefügt werden
 #define MAX_BUTTONS 10
 #define MAX_STRINGS 20
 #define MAX_IMAGES 5
 struct Menu{
 	Image* images[MAX_IMAGES];	//Sind für die Buttons
-	BYTE image_count = 0;
+	BYTE imageCount = 0;
 	Button buttons[MAX_BUTTONS];
-	BYTE button_count = 0;
+	BYTE buttonCount = 0;
 	BYTE flags = MENU_OPEN;		//Bits: offen, toggle bit für offen, Rest ungenutzt
 	ivec2 pos = {};				//TODO Position in Bildschirmpixelkoordinaten
 	Label labels[MAX_STRINGS];
-	BYTE label_count = 0;
+	BYTE labelCount = 0;
 };
 
 void destroyMenu(Menu& menu)noexcept{
-	for(WORD i=0; i < menu.image_count; ++i){
+	for(WORD i=0; i < menu.imageCount; ++i){
 		destroyImage(*menu.images[i]);
 	}
 }
 
-inline constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags |= flag;}
-inline constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~flag;}
-inline constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
+constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags |= flag;}
+constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~flag;}
+constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
 
-inline void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
+void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 	if(getMenuFlag(menu, MENU_OPEN)){
-		updateButtons(window, font, menu.buttons, menu.button_count);
-		for(WORD i=0; i < menu.label_count; ++i){
+		updateButtons(window, font, menu.buttons, menu.buttonCount);
+		for(WORD i=0; i < menu.labelCount; ++i){
 			Label& label = menu.labels[i];
 			DWORD offset = 0;
 			for(size_t j=0; j < label.text.size(); ++j){
@@ -706,10 +713,10 @@ inline void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
 
-// #define CULLBACKFACES
+#define CULLBACKFACES
 // #define EARLYZCULLING
 #define DEPTH_DIVISOR 10000.f
-#define MATERIALMAXTEXTURECOUNT 4
+#define MATERIALMAXTEXTURECOUNT 3
 
 struct Triangle{
 	fvec3 points[3];
@@ -723,7 +730,7 @@ struct VertexAttributePointers{
 	BYTE componentsCount[MAXVERTEXATTRIBUTES];			//Gibt an, wie viele Komponenten das Attribute hat (nur 1-4)
 }; //static VertexAttributePointers attributePointers;
 
-inline void addVertexAttributePointer(BYTE location, BYTE attributesCount, float* data){}
+void addVertexAttributePointer(BYTE location, BYTE attributesCount, float* data)noexcept{}
 
 //Speicher ein Material aus einer .mtl file
 struct Material{
@@ -732,7 +739,7 @@ struct Material{
 	BYTE textureCount = 0;
 };
 
-void destroyMaterial(Material& material){
+void destroyMaterial(Material& material)noexcept{
 	for(BYTE i=0; i < material.textureCount; ++i){
 		destroyImage(material.textures[i]);
 	}
@@ -752,7 +759,7 @@ void destroyTriangleModel(TriangleModel& model)noexcept{
 	// delete model.material;	//TODO hm is doof
 }
 
-inline void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
+void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
 	Triangle* newArray = new Triangle[model.triangleCapacity+additionalCapacity];
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
@@ -765,7 +772,7 @@ inline void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapac
 
 //Einfacher Texture lookup
 //TODO aktuell noch falsch, da 1 auf 0 abgebildet wird
-inline constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
+constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
 	u = u - floor(u);
 	v = v - floor(v);
 	WORD u1 = u*(image.width-1);
@@ -774,7 +781,7 @@ inline constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
 }
 
 //Zeichnet nur die Umrandung eines Dreiecks
-inline void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
+void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -787,7 +794,7 @@ inline void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO man könnte nur pointer in einem Buffer speichern und einmal zum ende dann über alle Attribute,... loopen, spart eine Menge Kopieren und so
-inline void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
+void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -858,7 +865,7 @@ inline void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 	}
 }
 
-inline void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
+void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
 	DWORD bufferWidth = window->windowWidth/window->pixelSize;
 	DWORD bufferHeight = window->windowHeight/window->pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
@@ -988,7 +995,7 @@ struct plane{
 
 //Berechnet Kollisionspunkt zwischen einem Plane und 2 punkten (die eine linie bilden)
 //Gibt zurück, ob eine Kollision stattgefunden hat und den Kollisionspunkt cp, sowie t als skalares Parameter (zwischen 0 - 1, start*(1-t)+end*t)
-inline bool rayPlaneIntersection(plane& p, fvec3& start, fvec3& end, float& t, fvec3& cp)noexcept{
+bool rayPlaneIntersection(plane& p, fvec3& start, fvec3& end, float& t, fvec3& cp)noexcept{
 	fvec3 dir = {end.x-start.x, end.y-start.y, end.z-start.z};
 	float d = dot(p.normal, dir);
 	if(d != 0){
@@ -1000,7 +1007,7 @@ inline bool rayPlaneIntersection(plane& p, fvec3& start, fvec3& end, float& t, f
 	return false;
 }
 //Nur wenn man schon weiß, dass es eine Kollision geben muss...
-inline float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3& cp)noexcept{
+float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3& cp)noexcept{
 	fvec3 dir = {end.x-start.x, end.y-start.y, end.z-start.z};
 	float d = dot(p.normal, dir);
 	fvec3 tmp = {p.pos.x-start.x, p.pos.y-start.y, p.pos.z-start.z};
@@ -1009,14 +1016,14 @@ inline float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3&
 	return t;
 }
 
-inline BYTE removeTriangleFromBuffer(Triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
+BYTE removeTriangleFromBuffer(Triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
 	buffer[i] = buffer[temp_count-1];
 	--i; --temp_count;
 	return count-1;
 }
 
 //TODO kann man bestimmt auch noch weiter optimieren, indexe zu speichern hat nichts gebracht...
-inline void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
+void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
 	BYTE tmp_off = count;			//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	BYTE offset = count;			//Originaler Offset der neuen Dreiecke
 	BYTE temp_count = count;		//Index des letzten originalen Dreiecks
@@ -1098,13 +1105,13 @@ inline void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCou
 	return;
 }
 
-#define XMIN -1.01f
-#define XMAX 1.01f
-#define YMIN -1.01f
-#define YMAX 1.01f
+#define XMIN -1.001f
+#define XMAX 1.001f
+#define YMIN -1.001f
+#define YMAX 1.001f
 
 //TODO kann bestimmt um einiges optimiert werden
-inline BYTE clipping(Window* window, Triangle* buffer)noexcept{
+BYTE clipping(Window* window, Triangle* buffer)noexcept{
 	BYTE count = 1;
 	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
 
@@ -1137,7 +1144,11 @@ struct Camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+enum TRIANGLERENDERMODE{
+	TRI_FILLED, TRI_WIREFRAME
+};
+
+void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam, TRIANGLERENDERMODE mode=TRI_FILLED)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1154,8 +1165,8 @@ inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
+		float d[3];
     	for(BYTE j=0; j < 3; ++j){
-    		float d[3];
     		d[0] = (tri.points[j].x-cam.pos.x);
     		d[1] = (tri.points[j].y-cam.pos.y);
     		d[2] = (tri.points[j].z-cam.pos.z);
@@ -1172,11 +1183,11 @@ inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     	fvec3 l01 = {tri.points[1].x-tri.points[0].x, tri.points[1].y-tri.points[0].y, tri.points[1].z-tri.points[0].z};
     	fvec3 l02 = {tri.points[2].x-tri.points[0].x, tri.points[2].y-tri.points[0].y, tri.points[2].z-tri.points[0].z};
     	fvec3 normal = cross(l01, l02);
-#ifdef CULLBACKFACES
-    	if(dot(tri.points[0], normal) > 0) continue;
-#endif
 #ifdef EARLYZCULLING
 		if(tri.points[0].z < 0 && tri.points[1].z < 0 && tri.points[2].z < 0) continue;
+#endif
+#ifdef CULLBACKFACES
+    	if(dot(tri.points[0], normal) <= 0) continue;
 #endif
     	BYTE count = clipping(window, buffer);
     	for(BYTE j=0; j < count; ++j){
@@ -1185,8 +1196,16 @@ inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     		buffer[j].points[1].x = pt2.x*(cam.focal_length/pt2.z)*aspect_ratio; buffer[j].points[1].y = pt2.y*(cam.focal_length/pt2.z);
     		buffer[j].points[2].x = pt3.x*(cam.focal_length/pt3.z)*aspect_ratio; buffer[j].points[2].y = pt3.y*(cam.focal_length/pt3.z);
     		buffer[j].points[0].z = pt1.z; buffer[j].points[1].z = pt2.z; buffer[j].points[2].z = pt3.z;
-    		drawTriangleFilledOld(window, buffer[j]);
-			// drawTriangleOutline(window, buffer[j]);
+    		switch(mode){
+				case TRI_FILLED:{
+					drawTriangleFilledOld(window, buffer[j]);
+					break;
+				}
+				case TRI_WIREFRAME:{
+					drawTriangleOutline(window, buffer[j]);
+					break;
+				}
+			}
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
 #endif
@@ -1195,11 +1214,11 @@ inline void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     return;
 }
 
-inline void rasterizeTriangleModel(Window* window, TriangleModel& model, Camera& cam){
+void rasterizeTriangleModel(Window* window, TriangleModel& model, Camera& cam)noexcept{
 	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 }
 
-inline ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWORD& value2)noexcept{
+ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWORD& value2)noexcept{
 	std::string buffer[3];
 	BYTE idx = 0;
 	for(size_t i=0; i < string.size(); ++i){
@@ -1315,7 +1334,7 @@ ErrCode readObj(const char* filename, Triangle* storage, BYTE attributeCount, DW
 
 //Gibt das Keyword der obj/mtl Zeile als Zahlenwert zurück, für z.b. die Verwendung in einem switch case
 //TODO Hashfunktion ist nun ja... billig, aber tut es fürs erste
-inline constexpr WORD hashKeywords(const char* string)noexcept{
+constexpr WORD hashKeywords(const char* string)noexcept{
 	size_t size = strlen(string);
 	WORD out = 7;
 	for(WORD i=0; i < size; ++i){
@@ -1356,7 +1375,7 @@ enum MTLKEYWORD{	//TODO hier fehlen noch ein paar
 };
 
 //Liest ein Wort aus einer Datei wie der << Operator aber gibt zusätzlich zurück, ob \n oder eof gefunden wurde
-inline bool readWord(std::fstream& file, std::string& buffer)noexcept{
+bool readWord(std::fstream& file, std::string& buffer)noexcept{
 	char c;
 	buffer.clear();
 	bool newline = false;
@@ -1394,7 +1413,7 @@ inline bool readWord(std::fstream& file, std::string& buffer)noexcept{
 
 //Ließt die obj Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
 //und gibt evtl. Fehler zurück
-inline ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
+ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 	switch(key){
 		case OBJ_VN:
 		case OBJ_V:{
@@ -1465,7 +1484,7 @@ inline ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)no
 //Ließt die mtl Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
 //und gibt evtl. Fehler zurück
 //TODO hier fehlen noch ein paar
-inline ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
+ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 	switch(key){
 		case MTL_KA:
 		case MTL_KD:
@@ -1515,7 +1534,7 @@ inline ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)no
 }
 
 //TODO noch nicht alle Keywords werden beachtet
-ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount){
+ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
 	if(!file.is_open()) return MATERIAL_NOT_FOUND;
@@ -1695,7 +1714,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 	return SUCCESS;
 }
 
-inline void createCube(Triangle* tri, DWORD& count, float x, float y, float z, float dx, float dy, float dz){
+void createCube(Triangle* tri, DWORD& count, float x, float y, float z, float dx, float dy, float dz)noexcept{
 	tri[count].points[0].x = x+dx;
 	tri[count].points[0].y = y+dy;
 	tri[count].points[0].z = z;
