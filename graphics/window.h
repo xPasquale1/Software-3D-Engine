@@ -725,14 +725,18 @@ struct Triangle{
 
 //TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
 struct VertexAttributePointers{
-	DWORD attributesCount = 0;							//Wie viele Attribute es gibt
-	float* attributes[MAXVERTEXATTRIBUTES];				//TODO wäre nicht void* möglich? dann zugriff per fvec2, fvec3,...
-	BYTE componentsCount[MAXVERTEXATTRIBUTES];			//Gibt an, wie viele Komponenten das Attribute hat (nur 1-4)
-}; //static VertexAttributePointers attributePointers;
+	DWORD attributesCount = 0;		//Wie viele Attribute es gibt
+	void* attributes;				//Die Attribute als generischer void*, entsprechend muss gecastet werden
+	BYTE* componentsCount;			//Gibt an, wie viele Komponenten das Attribute hat
+};
 
-void addVertexAttributePointer(BYTE location, BYTE attributesCount, float* data)noexcept{}
+//Wird im Speicher so für alle Dreiecke angelegt: Atrribute Punkt1, Attribute Punkt2, Attribute Punkt3, Attribut Punkt1,...
+void addVertexAttributePointer(VertexAttributePointers& attributePointer, DWORD attributesCount, void* data)noexcept{
+	attributePointer.attributesCount = attributesCount;
+	attributePointer.attributes = data;
+}
 
-//Speicher ein Material aus einer .mtl file
+//Speichert ein Material aus einer .mtl file
 struct Material{
 	std::string name;
 	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
@@ -794,6 +798,7 @@ void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
 
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO man könnte nur pointer in einem Buffer speichern und einmal zum ende dann über alle Attribute,... loopen, spart eine Menge Kopieren und so
+//Also im Sinne von man kopiert die finalen Attribute erst, nachdem der depthBuffer alles getestet hat
 void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 	DWORD buffer_width = window->windowWidth/window->pixelSize;
 	DWORD buffer_height = window->windowHeight/window->pixelSize;
