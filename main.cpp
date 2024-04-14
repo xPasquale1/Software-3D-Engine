@@ -60,7 +60,7 @@ void textureShader(Window* window, Image& image)noexcept{
 		float uvx = window->attributeBuffers[0][i].x;
 		float uvy = window->attributeBuffers[0][i].y;
 		DWORD color = texture2D(image, uvx, uvy);
-		if(A(color) == 0) continue;
+		if(A(color) < 10) continue;
 		fvec3 n;
 		n.x = window->attributeBuffers[1][i].x;
 		n.y = window->attributeBuffers[1][i].y;
@@ -116,14 +116,6 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, -4.5), "Modell laden") != SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/terrain1_optimized.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
-
-	for(DWORD i=0; i < materialCount; ++i){
-		Image& image = materials[i].textures[0];
-		for(DWORD j=0; j < image.width*image.height; ++j){
-			if(A(image.data[j]) > 10) image.data[j] = RGBA(R(image.data[j]), G(image.data[j]), B(image.data[j]));
-			else image.data[j] = RGBA(R(image.data[j]), G(image.data[j]), B(image.data[j]), 0);
-		}
-	}
 
 	RECT rect;
 	GetWindowRect(window->handle, &rect);

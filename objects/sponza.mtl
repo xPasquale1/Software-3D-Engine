@@ -1,0 +1,270 @@
+# Blender MTL File: 'None'
+# Material Count: 24
+
+newmtl Material__25
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\lion.tex
+
+newmtl Material__298
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\background.tex
+
+newmtl Material__57
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\vase_plant.tex
+map_d D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\vase_plant.tex
+
+newmtl arch
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_arch_diff.tex
+
+newmtl bricks
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\spnza_bricks_a_diff.tex
+
+newmtl ceiling
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_ceiling_a_diff.tex
+
+newmtl chain
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\chain_texture.tex
+map_d D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\chain_texture.tex
+
+newmtl column_a
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_column_a_diff.tex
+
+newmtl column_b
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_column_b_diff.tex
+
+newmtl column_c
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_column_c_diff.tex
+
+newmtl details
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_details_diff.tex
+
+newmtl fabric_a
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_fabric_diff.tex
+
+newmtl fabric_c
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_curtain_diff.tex
+
+newmtl fabric_d
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_fabric_blue_diff.tex
+
+newmtl fabric_e
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_fabric_green_diff.tex
+
+newmtl fabric_f
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_curtain_green_diff.tex
+
+newmtl fabric_g
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_curtain_blue_diff.tex
+
+newmtl flagpole
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_flagpole_diff.tex
+
+newmtl floor
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_floor_a_diff.tex
+
+newmtl leaf
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_thorn_diff.tex
+map_d D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_thorn_diff.tex
+
+newmtl roof
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_roof_diff.tex
+map_d D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\sponza_roof_diff.tex
+
+newmtl vase
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\vase_dif.tex
+
+newmtl vase_hanging
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\vase_hanging.tex
+
+newmtl vase_round
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\sponza\\vase_round.tex

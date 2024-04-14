@@ -718,23 +718,17 @@ void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
 #define DEPTH_DIVISOR 10000.f
 #define MATERIALMAXTEXTURECOUNT 3
 
+//TODO sollte auch weg und alles über VertexAttributePointer umgesetzt werden
 struct Triangle{
 	fvec3 points[3];
 	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO vllt kann man die max. attribute per runtime setzen?, aber bitte lieber das unten implementieren...
 };
 
 //TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
-struct VertexAttributePointers{
-	DWORD attributesCount = 0;		//Wie viele Attribute es gibt
-	void* attributes;				//Die Attribute als generischer void*, entsprechend muss gecastet werden
-	BYTE* componentsCount;			//Gibt an, wie viele Komponenten das Attribute hat
+struct VertexAttributePointer{
+	void* attributes = nullptr;		//Die Attribute als generischer void*, entsprechend muss gecastet werden
+	BYTE componentsCount;			//Gibt an, wie viele Komponenten das Attribute hat
 };
-
-//Wird im Speicher so für alle Dreiecke angelegt: Atrribute Punkt1, Attribute Punkt2, Attribute Punkt3, Attribut Punkt1,...
-void addVertexAttributePointer(VertexAttributePointers& attributePointer, DWORD attributesCount, void* data)noexcept{
-	attributePointer.attributesCount = attributesCount;
-	attributePointer.attributes = data;
-}
 
 //Speichert ein Material aus einer .mtl file
 struct Material{
