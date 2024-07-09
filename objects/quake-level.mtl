@@ -1,0 +1,145 @@
+# Blender MTL File: 'None'
+# Material Count: 13
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\*lava1.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\_lava1.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\*teleport.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\_teleport.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\cop1_2.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\cop1_2.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\cop1_7.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\cop1_7.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\cop3_4.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\cop3_4.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\light3_7.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\light3_7.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\metal1_3.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\metal1_3.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\metal1_4.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\metal1_4.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\metal5_8.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\metal5_8.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\metal6_1.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\metal6_1.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\metal6_2.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\metal6_2.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\mmetal1_3.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\mmetal1_3.tex
+
+newmtl D:\Games\Quake\id1\pak0_files\maps\e1m1\sky4.png
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\quake-level\\sky4.tex

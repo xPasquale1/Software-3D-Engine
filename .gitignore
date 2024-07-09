@@ -1,6 +1,11 @@
-/Debug/
-/Release/
 objects/forest0.obj
-textures/forest0.tex
 objects/kingdoms.obj
-textures/kingdoms.tex
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/settings.json
+main.exe
+objects/sponza.obj
+objects/sponza.mtl
+objects/sponza_stripped.obj
+objects/sponza_stripped.mtl
+textures/sponza
