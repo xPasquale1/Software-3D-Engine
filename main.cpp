@@ -40,39 +40,39 @@ WORD sliderCount = 0;
 
 #define SPEED 0.25
 
-Window* window = nullptr;
-Font* font = nullptr;
+Window window;
+Font font;
 
-void textureShader(Window* window, Image& image)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+void textureShader(Window& window, Image& image)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	fvec3 light_dir = {2, 2, 1};
 	light_dir = normalize(light_dir);
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		if(window->fragmentFlag[i] == 0) continue;
-		window->fragmentFlag[i] = 0;
-		float uvx = window->attributeBuffers[0][i].x;
-		float uvy = window->attributeBuffers[0][i].y;
+		if(window.fragmentFlag[i] == 0) continue;
+		window.fragmentFlag[i] = 0;
+		float uvx = window.attributeBuffers[0][i].x;
+		float uvy = window.attributeBuffers[0][i].y;
 		DWORD color = texture2D(image, uvx, uvy);
 		if(A(color) < 120){
-			window->depth[i] = 0xFF'FF'FF'FF;
+			window.depth[i] = 0xFF'FF'FF'FF;
 			continue;
 		}
-		window->pixels[i] = color;
+		window.pixels[i] = color;
 	}
 }
 
-void fxaa(Window* window)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+void fxaa(Window& window)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		DWORD color = window->pixels[i];
+		DWORD color = window.pixels[i];
 		BYTE luminance = 0.2126*R(color)+0.7152*G(color)+0.0722*B(color);
-		window->pixels[i] = RGBA(luminance, luminance, luminance);
+		window.pixels[i] = RGBA(luminance, luminance, luminance);
 	}
 }
 
-#define RANDOMNORMALSCOUNT 64
+#define RANDOMNORMALSCOUNT 256
 fvec3 randomNormalVectorBuffer[RANDOMNORMALSCOUNT];
 
 fvec3 generateRandomNormalInHemisphere(fvec3& normal)noexcept{
@@ -96,11 +96,11 @@ uivec3 worldCoordinatesToScreenspace(fvec3& worldPixelPosition, float rotMat[3][
 }
 
 void ssao()noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
-	if(window->bufferCount < 1) return;
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+	if(window.bufferCount < 1) return;
 	float rotm[3][3];
-	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -112,14 +112,14 @@ void ssao()noexcept{
 	for(WORD y=0; y < bufferHeight; ++y){
 		for(WORD x=0; x < bufferWidth; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window->attributeBuffers[1][idx].x;
-			worldNormal.y = window->attributeBuffers[1][idx].y;
-			worldNormal.z = window->attributeBuffers[1][idx].z;
+			worldNormal.x = window.attributeBuffers[1][idx].x;
+			worldNormal.y = window.attributeBuffers[1][idx].y;
+			worldNormal.z = window.attributeBuffers[1][idx].z;
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window->attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window->attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window->attributeBuffers[2][idx].z;
+			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
+			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
+			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
 
 			const int ssaoSamples = 16;
 			const float ssaoMaxLength = 10;
@@ -144,21 +144,21 @@ void ssao()noexcept{
 					continue;
 				}
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window->depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
 				if(depthDiff <= minDepth || depthDiff >= maxDepth) strength++;
 			}
 			strength /= ssaoSamples;
-			window->buffers[0][idx] = R(window->buffers[0][idx], 255*strength);
+			window.buffers[0][idx] = R(window.buffers[0][idx], 255*strength);
 		}
 	}
 }
 
 void ssr(Camera& cam)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
-	if(window->bufferCount < 1) return;
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+	if(window.bufferCount < 1) return;
 	float rotm[3][3];
-	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -170,15 +170,15 @@ void ssr(Camera& cam)noexcept{
 	for(WORD y=0; y < bufferHeight; ++y){
 		for(WORD x=0; x < bufferWidth; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window->attributeBuffers[1][idx].x;
-			worldNormal.y = window->attributeBuffers[1][idx].y;
-			worldNormal.z = window->attributeBuffers[1][idx].z;
+			worldNormal.x = window.attributeBuffers[1][idx].x;
+			worldNormal.y = window.attributeBuffers[1][idx].y;
+			worldNormal.z = window.attributeBuffers[1][idx].z;
 			if(worldNormal.y < 0.99) continue;
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window->attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window->attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window->attributeBuffers[2][idx].z;
+			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
+			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
+			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
 
 			fvec3 viewDir = {worldPixelPosition.x-cam.pos.x, worldPixelPosition.y-cam.pos.y, worldPixelPosition.z-cam.pos.z};
 			viewDir = normalize(viewDir);
@@ -201,62 +201,89 @@ void ssr(Camera& cam)noexcept{
 
                 if(screenCoords.x >= bufferWidth || screenCoords.y >= bufferHeight) break;
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window->depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
                 if(depthDiff >= maxDepth) break;
 				if(depthDiff > 0){
                     hit = true;
-					DWORD currentColor = window->pixels[idx];
-					DWORD reflectionColor = window->pixels[screenCoords.y*bufferWidth+screenCoords.x];
-                    window->pixels[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
+					DWORD currentColor = window.pixels[idx];
+					DWORD reflectionColor = window.pixels[screenCoords.y*bufferWidth+screenCoords.x];
+                    window.pixels[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
 												G(currentColor)*albedoAmount+G(reflectionColor)*reflectionAmount,
 												B(currentColor)*albedoAmount+B(reflectionColor)*reflectionAmount);
                     break;
                 }
             }
 
-            if(!hit) window->pixels[idx] = RGBA(0, 191, 255);
+            if(!hit) window.pixels[idx] = RGBA(0, 191, 255);
 		}
 	}
 }
 
-void depthBufferShader(Window* window)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+void pointLightShader(Window& window)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+	fvec3 lightPos[] = {{0, -40, 0},{200, -160, 100}};
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		QWORD depth = window->depth[i]*255;
-		BYTE color = depth/0xFFFFFF;
-		window->pixels[i] = RGBA(color, color, color);
+		fvec3 worldPixelPosition;
+		worldPixelPosition.x = window.attributeBuffers[2][i].x;
+		worldPixelPosition.y = window.attributeBuffers[2][i].y;
+		worldPixelPosition.z = window.attributeBuffers[2][i].z;
+		fvec3 worldNormal;
+		worldNormal.x = window.attributeBuffers[1][i].x;
+		worldNormal.y = window.attributeBuffers[1][i].y;
+		worldNormal.z = window.attributeBuffers[1][i].z;
+		float totalStrength = 0;
+		for(int i=0; i < sizeof(lightPos)/sizeof(fvec3); ++i){
+			fvec3 posDiff = {worldPixelPosition.x-lightPos[i].x, worldPixelPosition.y-lightPos[i].y, worldPixelPosition.z-lightPos[i].z};
+			float distance = length(posDiff);
+			float strength = clamp(1-(distance/240.f), 0.f, 1.f);
+			strength *= clamp(dot(normalize(posDiff), worldNormal), 0.f, 1.f);
+			totalStrength += strength;
+		}
+		totalStrength = clamp(totalStrength, 0.f, 1.f);
+		DWORD color = window.pixels[i];
+		window.pixels[i] = RGBA(R(color)*totalStrength, G(color)*totalStrength, B(color)*totalStrength);
 	}
 }
 
-void normalBufferShader(Window* window)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+void depthBufferShader(Window& window)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+		QWORD depth = window.depth[i]*255;
+		BYTE color = depth/0xFFFFFF;
+		window.pixels[i] = RGBA(color, color, color);
+	}
+}
+
+void normalBufferShader(Window& window)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
 		fvec3 n;
-		n.x = window->attributeBuffers[1][i].x;
-		n.y = window->attributeBuffers[1][i].y;
-		n.z = window->attributeBuffers[1][i].z;
-		window->pixels[i] = RGBA((n.x+1)*127.5, (n.y+1)*127.5, (n.z+1)*127.5);
+		n.x = window.attributeBuffers[1][i].x;
+		n.y = window.attributeBuffers[1][i].y;
+		n.z = window.attributeBuffers[1][i].z;
+		window.pixels[i] = RGBA((n.x+1)*127.5, (n.y+1)*127.5, (n.z+1)*127.5);
 	}
 }
 
-void drawTriangleModel(Window* window, TriangleModel& model, Image& defaultTexture)noexcept{
+void drawTriangleModel(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
 	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 	if(model.material == nullptr) textureShader(window, defaultTexture);
 	else textureShader(window, model.material->textures[0]);
 }
 
-void drawTriangleModelOutline(Window* window, TriangleModel& model)noexcept{
+void drawTriangleModelOutline(Window& window, TriangleModel& model)noexcept{
 	rasterizeOutline(window, model.triangles, 0, model.triangleCount, cam);
 }
 
-void drawDepthBuffer(Window* window, TriangleModel& model, Image& defaultTexture)noexcept{
+void drawDepthBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
 	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 	depthBufferShader(window);
 }
 
-void drawNormalBuffer(Window* window, TriangleModel& model, Image& defaultTexture)noexcept{
+void drawNormalBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
 	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 	normalBufferShader(window);
 }
@@ -268,9 +295,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(assignAttributeBuffers(window, 3), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
 	if(ErrCheck(addBuffers(window, 2), "Buffer hinzufügen") != SUCCESS) return -1;
 
-	if(ErrCheck(createFont(font), "Font erstellen") != SUCCESS) return -1;
-	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", *font, {82, 83}), "Font laden") != SUCCESS) return -1;
-	font->font_size = 42/window->pixelSize;
+	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	font.font_size = 42/window.pixelSize;
 
 	//TODO dynamisch
 	TriangleModel* models = new(std::nothrow) TriangleModel[40];
@@ -299,11 +325,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 	RECT rect;
-	GetWindowRect(window->handle, &rect);
-	SetCursorPos(window->windowWidth/2+rect.left, window->windowHeight/2+rect.top);
+	GetWindowRect(window.handle, &rect);
+	SetCursorPos(window.windowWidth/2+rect.left, window.windowHeight/2+rect.top);
 
-	ivec2 buttonPos = {20/window->pixelSize, 80/window->pixelSize};
-	ivec2 buttonSize = {280/window->pixelSize, 40/window->pixelSize};
+	ivec2 buttonPos = {20/window.pixelSize, 80/window.pixelSize};
+	ivec2 buttonSize = {280/window.pixelSize, 40/window.pixelSize};
 
 	settingsMenu.buttons[0].size = buttonSize;
 	settingsMenu.buttons[0].pos = buttonPos;
@@ -311,57 +337,63 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[0].text = "WIREFRAME";
 	const RENDERMODE wireframeMode = WIREFRAME_MODE;
 	settingsMenu.buttons[0].data = (void*)&wireframeMode;
-	settingsMenu.buttons[0].textsize = 36/window->pixelSize;
+	settingsMenu.buttons[0].textsize = 36/window.pixelSize;
 
-	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
 	settingsMenu.buttons[1].size = buttonSize;
 	settingsMenu.buttons[1].pos = buttonPos;
 	settingsMenu.buttons[1].event = setRenderMode;
 	settingsMenu.buttons[1].text = "SHADED";
 	const RENDERMODE shadedMode = SHADED_MODE;
 	settingsMenu.buttons[1].data = (void*)&shadedMode;
-	settingsMenu.buttons[1].textsize = 36/window->pixelSize;
+	settingsMenu.buttons[1].textsize = 36/window.pixelSize;
 
-	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
 	settingsMenu.buttons[2].size = buttonSize;
 	settingsMenu.buttons[2].pos = buttonPos;
 	settingsMenu.buttons[2].event = setRenderMode;
 	settingsMenu.buttons[2].text = "DEPTH";
 	const RENDERMODE depthMode = DEPTH_MODE;
 	settingsMenu.buttons[2].data = (void*)&depthMode;
-	settingsMenu.buttons[2].textsize = 36/window->pixelSize;
+	settingsMenu.buttons[2].textsize = 36/window.pixelSize;
 
-	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
 	settingsMenu.buttons[3].size = buttonSize;
 	settingsMenu.buttons[3].pos = buttonPos;
 	settingsMenu.buttons[3].event = setRenderMode;
 	settingsMenu.buttons[3].text = "NORMAL";
 	const RENDERMODE normalMode = NORMAL_MODE;
 	settingsMenu.buttons[3].data = (void*)&normalMode;
-	settingsMenu.buttons[3].textsize = 36/window->pixelSize;
+	settingsMenu.buttons[3].textsize = 36/window.pixelSize;
 
-	buttonPos.y += buttonSize.y+10/window->pixelSize;
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
 	settingsMenu.buttons[4].size = buttonSize;
 	settingsMenu.buttons[4].pos = buttonPos;
 	settingsMenu.buttons[4].event = setRenderMode;
 	settingsMenu.buttons[4].text = "BUFFER0";
 	const RENDERMODE buffer0Mode = BUFFER0_MODE;
 	settingsMenu.buttons[4].data = (void*)&buffer0Mode;
-	settingsMenu.buttons[4].textsize = 36/window->pixelSize;
+	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
 	settingsMenu.buttonCount = 5;
 
-	debugSlider[0].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[0].sliderRadius+10/window->pixelSize};
+	debugSlider[0].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[0].sliderRadius+10/window.pixelSize};
 	debugSlider[0].sliderPos = 10;
 	debugSlider[0].value = 10;
-	debugSlider[1].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[1].sliderRadius+10/window->pixelSize*2+debugSlider[0].sliderRadius*2};
+	debugSlider[1].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[1].sliderRadius+10/window.pixelSize*2+debugSlider[0].sliderRadius*2};
 	debugSlider[1].sliderPos = 20;
 	debugSlider[1].value = 20;
 	sliderCount = 2;
 
 	for(WORD i=0; i < RANDOMNORMALSCOUNT; ++i){
-		float a = nextrand()/683565275.4f;
-		float b = nextrand()/683565275.4f;
-		randomNormalVectorBuffer[i] = {sin(a)*cos(b), sin(a)*sin(b), cos(a)};
+		while(1){
+			float a = nextrand()/2147483648.f-1;
+			float b = nextrand()/2147483648.f-1;
+			float c = nextrand()/2147483648.f-1;
+			if(a*a+b*b+c*c <= 1){
+				randomNormalVectorBuffer[i] = {a, b, c};
+				break;
+			}
+		}
 	}
 
 	while(_running){
@@ -382,6 +414,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 			}
 			case SHADED_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
+				pointLightShader(window);
 				break;
 			}
 			case DEPTH_MODE:{
@@ -392,52 +425,58 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(window, models[i], defaultTexture);
 				break;
 			}
-			#define SSAOFILTER
+			// #define SSAOFILTER
 			case BUFFER0_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
 				ssao();
 				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
+				DWORD bufferWidth = window.windowWidth/window.pixelSize;
+				DWORD bufferHeight = window.windowHeight/window.pixelSize;
 				#ifdef SSAOFILTER
-				DWORD bufferWidth = window->windowWidth/window->pixelSize;
-				DWORD bufferHeight = window->windowHeight/window->pixelSize;
 				for(DWORD y=0; y < bufferHeight; ++y){
 					for(DWORD x=0; x < bufferWidth; ++x){
 						DWORD idx = y*bufferWidth+x;
-						window->buffers[1][idx] = 0;
+						window.buffers[1][idx] = 0;
 						for(int dy=-2; dy < 2; ++dy){
 							for(int dx=-2; dx < 2; ++dx){
 								DWORD sampleIdx = ((y+dy)*bufferWidth+dx+x)%(bufferWidth*bufferHeight);
-								window->buffers[1][idx] += R(window->buffers[0][sampleIdx]);
+								window.buffers[1][idx] += R(window.buffers[0][sampleIdx]);
 							}
 						}
-						window->buffers[0][idx] = G(window->buffers[0][idx], window->buffers[1][idx]/16);
+						window.buffers[0][idx] = G(window.buffers[0][idx], window.buffers[1][idx]/16);
 					}
 				}
-				#endif
 				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-					DWORD color = window->pixels[i];
-					float factor = G(window->buffers[0][i])/255.f;
-					window->pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+					DWORD color = window.pixels[i];
+					float factor = G(window.buffers[0][i])/255.f;
+					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
+				#else
+				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+					DWORD color = window.pixels[i];
+					float factor = R(window.buffers[0][i])/255.f;
+					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+				}
+				#endif
 				break;
 			}
 		}
 #endif
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])/1000.f) + "ms";
-		drawFontString(window, *font, val.c_str(), 5, 2);
+		drawFontString(window, font, val.c_str(), 5, 2);
 		val = floatToString(performancePreFilter) + "ms";
-		drawFontString(window, *font, val.c_str(), 5, font->font_size+4);
+		drawFontString(window, font, val.c_str(), 5, font.font_size+4);
 		val = longToString(_perfAnalyzer.totalTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*2+6);
+		drawFontString(window, font, val.c_str(), 5, font.font_size*2+6);
 		val = longToString(_perfAnalyzer.drawnTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*3+8);
+		drawFontString(window, font, val.c_str(), 5, font.font_size*3+8);
 		val = longToString(_perfAnalyzer.pixelsDrawn);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*4+10);
+		drawFontString(window, font, val.c_str(), 5, font.font_size*4+10);
 		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*5+12);
+		drawFontString(window, font, val.c_str(), 5, font.font_size*5+12);
 		val = longToString(_perfAnalyzer.pointlessTriangles);
-		drawFontString(window, *font, val.c_str(), 5, font->font_size*6+14);
+		drawFontString(window, font, val.c_str(), 5, font.font_size*6+14);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 
@@ -468,8 +507,8 @@ void update(float dt)noexcept{
 		cam.pos.y -= getButton(keyboard, KEY_SPACE)*SPEED*dt;
 		cam.pos.y += getButton(keyboard, KEY_SHIFT)*SPEED*dt;
 	}else{
-		updateMenu(window, settingsMenu, *font);
-		updateFloatSliders(window, *font, debugSlider, sliderCount);
+		updateMenu(window, settingsMenu, font);
+		updateFloatSliders(window, font, debugSlider, sliderCount);
 	}
 }
 
@@ -479,7 +518,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 	switch(uMsg){
 		case WM_DESTROY:{
 			_running = false;
-			ErrCheck(setWindowFlag(window, WINDOW_CLOSE), "setze close Fensterstatus");
+			ErrCheck(setWindowFlag(*window, WINDOW_CLOSE), "setze close Fensterstatus");
 			break;
 		}
 		case WM_SIZE:{
@@ -487,7 +526,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
 			// ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
-			ErrCheck(resizeWindow(window, width, height, PIXELSIZE), "Fenster skalieren");
+			ErrCheck(resizeWindow(*window, width, height, PIXELSIZE), "Fenster skalieren");
 			break;
 		}
 		case WM_LBUTTONDOWN:{

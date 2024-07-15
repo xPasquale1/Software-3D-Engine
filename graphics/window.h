@@ -16,7 +16,6 @@
 	was für einen State die Applikation hat
 */
 
-#define INVALIDHANDLEERRORS
 #define MAXVERTEXATTRIBUTES 3
 #define MAXBUFFERS 8
 
@@ -28,7 +27,7 @@ enum WINDOWFLAG : WINDOWFLAGSTYPE{
 };
 //Hat viele Attribute die man auch über die win api abrufen könnte, aber diese extra zu speichern macht alles übersichtlicher
 struct Window{
-	HWND handle;									//Fensterhandle
+	HWND handle = NULL;								//Fensterhandle
 	WORD windowWidth = 800;							//Fensterbreite
 	WORD windowHeight = 800;						//Fensterhöhe
 	DWORD* pixels;									//Pixelarray
@@ -78,20 +77,16 @@ typedef LRESULT (*window_callback_function)(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 //Setzt bei Erfolg den Parameter window zu einem gültigen window, auf welches man dann zugreifen kann
 //window muss ein nullptr sein/kein vorhandenes window!
-ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, LONG x, LONG y, WORD pixelSize, Window*& window, const char* name = "Window", window_callback_function callback = default_window_callback, HWND parentWindow = NULL)noexcept{
+ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, LONG x, LONG y, WORD pixelSize, Window& window, const char* name = "Window", window_callback_function callback = default_window_callback, HWND parentWindow = NULL)noexcept{
 	//Erstelle Fenster Klasse
-	if(window != nullptr) return CREATE_WINDOW;
-
-	window = new Window;
-
 	WNDCLASS window_class = {};
 	window_class.hInstance = hInstance;
 	window_class.style = CS_HREDRAW | CS_VREDRAW;
-	std::string className = "Window-Class" + std::to_string((unsigned long long)window);	//TODO meh...
+	std::string className = "Window-Class" + std::to_string((unsigned long long)&window);	//TODO meh...
 	window_class.lpszClassName = className.c_str();
 	window_class.lpfnWndProc = callback;
 
-	window->windowClassName = className;
+	window.windowClassName = className;
 	//Registriere Fenster Klasse
 	if(!RegisterClass(&window_class)){
 		std::cerr << "Register-Class: " << GetLastError() << std::endl;
@@ -108,14 +103,14 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	DWORD h = rect.bottom - rect.top;
 
 	//Erstelle das Fenster
-	window->handle = CreateWindow(window_class.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, x, y, w, h, parentWindow, NULL, hInstance, NULL);
-	if(window->handle == NULL){
+	window.handle = CreateWindow(window_class.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, x, y, w, h, parentWindow, NULL, hInstance, NULL);
+	if(window.handle == NULL){
 		std::cerr << "Create-Window: "<< GetLastError() << std::endl;
 		return CREATE_WINDOW;
 	}
 
 	//TODO idk ob das so ok ist, win32 doku sagt nicht viel darüber aus... aber angeblich ist USERDATA genau für sowas gedacht und es sollte auch nie überschrieben werden...
-	SetWindowLongPtr(window->handle, GWLP_USERDATA, (LONG_PTR)window);
+	SetWindowLongPtr(window.handle, GWLP_USERDATA, (LONG_PTR)&window);
 
 	D2D1_RENDER_TARGET_PROPERTIES properties = {};
 	properties.type = D2D1_RENDER_TARGET_TYPE_DEFAULT;
@@ -126,10 +121,10 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	properties.usage = D2D1_RENDER_TARGET_USAGE_NONE;
 	properties.minLevel = D2D1_FEATURE_LEVEL_DEFAULT;
 	D2D1_HWND_RENDER_TARGET_PROPERTIES hwndProperties = {};
-	hwndProperties.hwnd = window->handle;
+	hwndProperties.hwnd = window.handle;
 	hwndProperties.pixelSize = D2D1::SizeU(windowWidth, windowHeight);
 	hwndProperties.presentOptions = D2D1_PRESENT_OPTIONS_IMMEDIATELY;
-    HRESULT hr = app.factory->CreateHwndRenderTarget(properties, hwndProperties, &window->renderTarget);
+    HRESULT hr = app.factory->CreateHwndRenderTarget(properties, hwndProperties, &window.renderTarget);
     if(hr){
 		std::cerr << "Create-Rendertarget: "<< hr << std::endl;
 		return INIT_RENDER_TARGET;
@@ -137,130 +132,106 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 
 	WORD buffer_width = windowWidth/pixelSize;
 	WORD buffer_height = windowHeight/pixelSize;
-	window->pixelSize = pixelSize;
-	window->pixels = new DWORD[buffer_width*buffer_height];
-	window->depth = new DWORD[buffer_width*buffer_height];
-	window->fragmentFlag = new BYTE[buffer_width*buffer_height];
-	window->windowWidth = windowWidth;
-	window->windowHeight = windowHeight;
+	window.pixelSize = pixelSize;
+	window.pixels = new DWORD[buffer_width*buffer_height];
+	window.depth = new DWORD[buffer_width*buffer_height];
+	window.fragmentFlag = new BYTE[buffer_width*buffer_height];
+	window.windowWidth = windowWidth;
+	window.windowHeight = windowHeight;
 	return SUCCESS;
 }
 
-ErrCode addBuffers(Window* window, BYTE count=1)noexcept{
+ErrCode addBuffers(Window& window, BYTE count=1)noexcept{
 	for(BYTE i=0; i < count; ++i){
-		if(window->bufferCount == MAXBUFFERS) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
-		window->buffers[window->bufferCount] = new(std::nothrow) DWORD[window->windowWidth*window->windowHeight];
-		if(!window->buffers[window->bufferCount]) return BAD_ALLOC;
-		window->bufferCount++;
+		if(window.bufferCount == MAXBUFFERS) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
+		window.buffers[window.bufferCount] = new(std::nothrow) DWORD[window.windowWidth*window.windowHeight];
+		if(!window.buffers[window.bufferCount]) return BAD_ALLOC;
+		window.bufferCount++;
 	}
 	return SUCCESS;
 }
 
-ErrCode removeBuffer(Window* window)noexcept{
-	if(window->bufferCount == 0) return SUCCESS;
-	delete[] window->buffers[window->bufferCount-1];
-	window->bufferCount--;
+ErrCode removeBuffer(Window& window)noexcept{
+	delete[] window.buffers[window.bufferCount-1];
+	window.bufferCount--;
 	return SUCCESS;
 }
 
 //Zerstört das Fenster und alle allokierten Ressourcen mit diesem
-ErrCode destroyWindow(Window*& window)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	while(window->bufferCount > 0) removeBuffer(window);
-	for(BYTE i=0; i < window->attributeBuffersCount; ++i) delete[] window->attributeBuffers[i];
-	if(!UnregisterClassA(window->windowClassName.c_str(), NULL)){
+ErrCode destroyWindow(Window& window)noexcept{
+	while(window.bufferCount > 0) removeBuffer(window);
+	for(BYTE i=0; i < window.attributeBuffersCount; ++i) delete[] window.attributeBuffers[i];
+	if(!UnregisterClassA(window.windowClassName.c_str(), NULL)){
 		std::cerr << GetLastError() << std::endl;
 		return GENERIC_ERROR;
 	}
-	DestroyWindow(window->handle);
-	delete[] window->pixels;
-	delete[] window->depth;
-	delete[] window->fragmentFlag;
-	delete window;
-	window = nullptr;
+	DestroyWindow(window.handle);
+	delete[] window.pixels;
+	delete[] window.depth;
+	delete[] window.fragmentFlag;
 	return SUCCESS;
 }
 
-ErrCode setWindowFlag(Window* window, WINDOWFLAG state)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	window->flags = (WINDOWFLAG)(window->flags | state);
+ErrCode setWindowFlag(Window& window, WINDOWFLAG state)noexcept{
+	window.flags = (WINDOWFLAG)(window.flags | state);
 	return SUCCESS;
 }
-ErrCode resetWindowFlag(Window* window, WINDOWFLAG state)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	window->flags = (WINDOWFLAG)(window->flags & ~state);
+ErrCode resetWindowFlag(Window& window, WINDOWFLAG state)noexcept{
+	window.flags = (WINDOWFLAG)(window.flags & ~state);
 	return SUCCESS;
 }
-bool getWindowFlag(Window* window, WINDOWFLAG state)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return false;
-	#endif
-	return (window->flags & state);
+bool getWindowFlag(Window& window, WINDOWFLAG state)noexcept{
+	return (window.flags & state);
 }
 
 //TODO Sollte ERRCODE zurückgeben und WINDOWFLAG als Referenzparameter übergeben bekommen
 //Gibt den nächsten Zustand des Fensters zurück und löscht diesen anschließend, Anwendung z.B. while(state = getNextWindowState() != WINDOW_NONE)...
-WINDOWFLAG getNextWindowState(Window* window)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NONE;
-	#endif
-	WINDOWFLAG flag = (WINDOWFLAG)(window->flags & -window->flags);
-	window->flags = (WINDOWFLAG)(window->flags & ~flag);
+WINDOWFLAG getNextWindowState(Window& window)noexcept{
+	WINDOWFLAG flag = (WINDOWFLAG)(window.flags & -window.flags);
+	window.flags = (WINDOWFLAG)(window.flags & ~flag);
 	return flag;
 }
 
-ErrCode resizeWindow(Window* window, WORD width, WORD height, WORD pixel_size)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	window->windowWidth = width;
-	window->windowHeight = height;
-	window->pixelSize = pixel_size;
-	delete[] window->pixels;
-	delete[] window->depth;
-	delete[] window->fragmentFlag;
+ErrCode resizeWindow(Window& window, WORD width, WORD height, WORD pixel_size)noexcept{
+	window.windowWidth = width;
+	window.windowHeight = height;
+	window.pixelSize = pixel_size;
+	delete[] window.pixels;
+	delete[] window.depth;
+	delete[] window.fragmentFlag;
 	WORD bufferWidth = width/pixel_size;
 	WORD bufferHeight = height/pixel_size;
-	window->pixels = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-	if(!window->pixels) return BAD_ALLOC;
-	window->depth = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-	if(!window->depth) return BAD_ALLOC;
-	window->fragmentFlag = new(std::nothrow) BYTE[bufferWidth*bufferHeight];
-	if(!window->fragmentFlag) return BAD_ALLOC;
-	window->renderTarget->Resize({width, height});
-	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
-		delete[] window->attributeBuffers[i];
-		window->attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
-		if(!window->attributeBuffers[i]) return BAD_ALLOC;
+	window.pixels = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
+	if(!window.pixels) return BAD_ALLOC;
+	window.depth = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
+	if(!window.depth) return BAD_ALLOC;
+	window.fragmentFlag = new(std::nothrow) BYTE[bufferWidth*bufferHeight];
+	if(!window.fragmentFlag) return BAD_ALLOC;
+	window.renderTarget->Resize({width, height});
+	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
+		delete[] window.attributeBuffers[i];
+		window.attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
+		if(!window.attributeBuffers[i]) return BAD_ALLOC;
 	}
-	for(BYTE i=0; i < window->bufferCount; ++i){
-		delete[] window->buffers[i];
-		window->buffers[i] = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-		if(!window->buffers[i]) return BAD_ALLOC;
+	for(BYTE i=0; i < window.bufferCount; ++i){
+		delete[] window.buffers[i];
+		window.buffers[i] = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
+		if(!window.buffers[i]) return BAD_ALLOC;
 	}
 	return SUCCESS;
 }
 
 //Weißt dem Fenster bufferCount viele Vertex-Attribute-Buffer zu und löscht bestehende
-ErrCode assignAttributeBuffers(Window* window, BYTE bufferCount)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
+ErrCode assignAttributeBuffers(Window& window, BYTE bufferCount)noexcept{
 	if(bufferCount > MAXVERTEXATTRIBUTES) return BAD_ALLOC;	//TODO neuer Fehlercode
-	for(BYTE i=0; i < window->attributeBuffersCount; ++i) delete[] window->attributeBuffers[i];
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+	for(BYTE i=0; i < window.attributeBuffersCount; ++i) delete[] window.attributeBuffers[i];
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	for(BYTE i=0; i < bufferCount; ++i){
-		window->attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
-		if(!window->attributeBuffers[i]) return BAD_ALLOC;
+		window.attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
+		if(!window.attributeBuffers[i]) return BAD_ALLOC;
 	}
-	window->attributeBuffersCount = bufferCount;
+	window.attributeBuffersCount = bufferCount;
 	return SUCCESS;
 }
 
@@ -271,15 +242,15 @@ LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 	if(window == nullptr) return DefWindowProc(hwnd, uMsg, wParam, lParam);	//TODO das ist ein Fehler, wie melden aber?
 	switch(uMsg){
 		case WM_DESTROY:{
-			ErrCheck(setWindowFlag(window, WINDOW_CLOSE), "setze close Fensterstatus");
+			ErrCheck(setWindowFlag(*window, WINDOW_CLOSE), "setze close Fensterstatus");
 			break;
 		}
 		case WM_SIZE:{
 			UINT width = LOWORD(lParam);
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
-			ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
-			ErrCheck(resizeWindow(window, width, height, 1), "Fenster skalieren");
+			ErrCheck(setWindowFlag(*window, WINDOW_RESIZE), "setzte resize Fensterstatus");
+			ErrCheck(resizeWindow(*window, width, height, 1), "Fenster skalieren");
 			break;
 		}
 		case WM_LBUTTONDOWN:{
@@ -313,9 +284,9 @@ LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 	return DefWindowProc(hwnd, uMsg, wParam, lParam);
 }
 
-void getMessages(Window* window)noexcept{
+void getMessages(Window& window)noexcept{
 	MSG msg;
-	while(PeekMessage(&msg, window->handle, 0, 0, PM_REMOVE)){
+	while(PeekMessage(&msg, window.handle, 0, 0, PM_REMOVE)){
 		TranslateMessage(&msg);
 		DispatchMessage(&msg);
 	}
@@ -332,17 +303,14 @@ constexpr DWORD R(DWORD color, DWORD r)noexcept{return (color&0xFF00FFFF)|r<<16;
 constexpr DWORD G(DWORD color, DWORD g)noexcept{return (color&0xFFFF00FF)|g<<8;}
 constexpr DWORD B(DWORD color, DWORD b)noexcept{return (color&0xFFFFFF00)|b;}
 
-ErrCode clearWindow(Window* window)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD buffer_width = window->windowWidth/window->pixelSize;
-	WORD buffer_height = window->windowHeight/window->pixelSize;
+ErrCode clearWindow(Window& window)noexcept{
+	WORD buffer_width = window.windowWidth/window.pixelSize;
+	WORD buffer_height = window.windowHeight/window.pixelSize;
 	for(WORD y=0; y < buffer_height; ++y){
 		for(WORD x=0; x < buffer_width; ++x){
-			window->pixels[y*buffer_width+x] = RGBA(0, 0, 0);
-			window->depth[y*buffer_width+x] = 0xFF'FF'FF'FF;
-			window->fragmentFlag[y*buffer_width+x] = 0;
+			window.pixels[y*buffer_width+x] = RGBA(0, 0, 0);
+			window.depth[y*buffer_width+x] = 0xFF'FF'FF'FF;
+			window.fragmentFlag[y*buffer_width+x] = 0;
 		}
 	}
 	return SUCCESS;
@@ -350,49 +318,40 @@ ErrCode clearWindow(Window* window)noexcept{
 
 //TODO bitmap kann man bestimmt auch im Window speichern und auf dieser dann rummalen. anstatt diese immer neu zu erzeugen
 //Muss dann halt auch immer geupdated werden, wenn das Window skaliert wird,...
-ErrCode drawWindow(Window* window)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	if(window->windowWidth == 0 || window->windowHeight == 0) return GENERIC_ERROR;
-	WORD buffer_width = window->windowWidth/window->pixelSize;
-	WORD buffer_height = window->windowHeight/window->pixelSize;
+ErrCode drawWindow(Window& window)noexcept{
+	if(window.windowWidth == 0 || window.windowHeight == 0) return GENERIC_ERROR;
+	WORD buffer_width = window.windowWidth/window.pixelSize;
+	WORD buffer_height = window.windowHeight/window.pixelSize;
 	ID2D1Bitmap* bitmap;
 	D2D1_BITMAP_PROPERTIES properties = {};
 	properties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
 	properties.pixelFormat.format = DXGI_FORMAT_B8G8R8A8_UNORM;
 	properties.dpiX = 96;
 	properties.dpiY = 96;
-	window->renderTarget->BeginDraw();
-	HRESULT hr = window->renderTarget->CreateBitmap({buffer_width, buffer_height}, window->pixels, buffer_width*4, properties, &bitmap);
+	window.renderTarget->BeginDraw();
+	HRESULT hr = window.renderTarget->CreateBitmap({buffer_width, buffer_height}, window.pixels, buffer_width*4, properties, &bitmap);
 	if(hr){
 		std::cerr << hr << std::endl;
 		exit(-2);
 	}
-	window->renderTarget->DrawBitmap(bitmap, D2D1::RectF(0, 0, window->windowWidth, window->windowHeight), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1::RectF(0, 0, buffer_width, buffer_height));
+	window.renderTarget->DrawBitmap(bitmap, D2D1::RectF(0, 0, window.windowWidth, window.windowHeight), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1::RectF(0, 0, buffer_width, buffer_height));
 	bitmap->Release();
-	window->renderTarget->EndDraw();
+	window.renderTarget->EndDraw();
 	return SUCCESS;
 }
 
-ErrCode drawRectangle(Window* window, WORD x, WORD y, WORD dx, WORD dy, DWORD color)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD buffer_width = window->windowWidth/window->pixelSize;
+ErrCode drawRectangle(Window& window, WORD x, WORD y, WORD dx, WORD dy, DWORD color)noexcept{
+	WORD buffer_width = window.windowWidth/window.pixelSize;
 	for(WORD i=y; i < y+dy; ++i){
 		for(WORD j=x; j < x+dx; ++j){
-			window->pixels[i*buffer_width+j] = color;
+			window.pixels[i*buffer_width+j] = color;
 		}
 	}
 	return SUCCESS;
 }
 
-ErrCode drawLine(Window* window, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD bufferWidth = window->windowWidth/window->pixelSize;
+ErrCode drawLine(Window& window, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
+	WORD bufferWidth = window.windowWidth/window.pixelSize;
 	int dx = end_x-start_x;
 	int dy = end_y-start_y;
 	int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
@@ -402,21 +361,18 @@ ErrCode drawLine(Window* window, WORD start_x, WORD start_y, WORD end_x, WORD en
 	float y = start_y+0.5f;
 	for(int i = 0; i <= steps; ++i){
 		DWORD idx = (int)y*bufferWidth+(int)x;
-		window->pixels[(int)y*bufferWidth+(int)x] = color;
+		window.pixels[(int)y*bufferWidth+(int)x] = color;
 		x += xinc;
 		y += yinc;
 	}
 	return SUCCESS;
 }
 
-ErrCode drawCircle(Window* window, WORD x, WORD y, WORD radius, DWORD color)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD bufferWidth = window->windowWidth/window->pixelSize;
+ErrCode drawCircle(Window& window, WORD x, WORD y, WORD radius, DWORD color)noexcept{
+	WORD bufferWidth = window.windowWidth/window.pixelSize;
 	for(SWORD i=-radius; i < radius; ++i){
 		for(SWORD j=-radius; j < radius; ++j){
-			if(j*j+i*i <= radius*radius) window->pixels[(i+y)*bufferWidth+j+x] = color;
+			if(j*j+i*i <= radius*radius) window.pixels[(i+y)*bufferWidth+j+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -428,7 +384,7 @@ struct Image{
 	WORD height = 0;	//y-Dimension
 };
 
-ErrCode createImage(Image& image, WORD width, WORD height){
+ErrCode createImage(Image& image, WORD width, WORD height)noexcept{
 	image.data = new(std::nothrow) DWORD[width*height];
 	if(!image.data) return BAD_ALLOC;
 	image.width = width;
@@ -454,6 +410,20 @@ ErrCode loadImage(const char* name, Image& image)noexcept{
 	}
 	file.close();
 	return SUCCESS;
+}
+
+//TODO sollte ErrCode zurückgeben
+Image generateMipMap(Image& image)noexcept{
+	Image out;
+	out.width = image.width/2;
+	out.height = image.height/2;
+	out.data = new DWORD[out.width*out.height];		//TODO Fehler testen
+	for(WORD y=0; y < image.height; y+=2){
+		for(WORD x=0; x < image.width; x+=2){
+			out.data[(y/2)*out.width+(x/2)] = image.data[y*image.width+x];
+		}
+	}
+	return out;
 }
 
 void destroyImage(Image& image)noexcept{
@@ -487,17 +457,14 @@ void flipImageVertically(Image& image)noexcept{
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
 //TODO up-/downscaling methoden wie nearest, bilinear,...
-ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD buffer_width = window->windowWidth/window->pixelSize;
+ErrCode copyImageToWindow(Window& window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
+	WORD buffer_width = window.windowWidth/window.pixelSize;
 	for(int y=start_y; y < end_y; ++y){
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
 			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
-			if(A(color) > 0) window->pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -505,12 +472,9 @@ ErrCode copyImageToWindow(Window* window, Image& image, WORD start_x, WORD start
 
 //Funktion testet ob jeder pixel im gültigen Fensterbereich liegt! idx ist der window index
 //TODO ist das wirklich nötig eine ganze extra Funktion dafür zu machen?
-ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return WINDOW_NOT_FOUND;
-	#endif
-	WORD buffer_width = window->windowWidth/window->pixelSize;
-	WORD buffer_height = window->windowHeight/window->pixelSize;
+ErrCode copyImageToWindowSave(Window& window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
+	WORD buffer_width = window.windowWidth/window.pixelSize;
+	WORD buffer_height = window.windowHeight/window.pixelSize;
 	for(int y=start_y; y < end_y; ++y){
 		if(y < 0 || y >= (int)buffer_height) continue;
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
@@ -518,7 +482,7 @@ ErrCode copyImageToWindowSave(Window* window, Image& image, WORD start_x, WORD s
 			if(x < 0 || x >= (int)buffer_width) continue;
 			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
-			if(A(color) > 0) window->pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -531,18 +495,9 @@ struct Font{
 	BYTE char_sizes[96];	//Größe der Symbole in x-Richtung
 };
 
-//Allokiert eine Font auf dem Heap... TODO wieso? Stack is auch okay und alle anderen Structs funktionieren genauso
-ErrCode createFont(Font*& font)noexcept{
-	font = new(std::nothrow) Font;
-	if(!font) return BAD_ALLOC;
-	return SUCCESS;
-}
-
-//Zerstört eine im Heap allokierte Font und alle weiteren allokierten Elemente
-void destroyFont(Font*& font)noexcept{
-	destroyImage(font->image);
-	delete font;
-	font = nullptr;
+//Zerstört die Font und alle weiteren allokierten Elemente
+void destroyFont(Font& font)noexcept{
+	destroyImage(font.image);
 }
 
 ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
@@ -581,24 +536,21 @@ WORD getStringFontSize(Font& font, std::string& text)noexcept{
 
 //Gibt zurück wie breit das Symbol war das gezeichnet wurde
 //TODO Errors? übergebe symbol größe als Referenz Parameter
-DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
-	#ifdef INVALIDHANDLEERRORS
-	if(window == nullptr) return 0;
-	#endif
+DWORD drawFontChar(Window& window, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
 	DWORD idx = (symbol-32);
 	float div = (float)font.char_size.y/font.font_size;
 	DWORD end_x = start_x+font.char_sizes[idx]/div;
 	DWORD end_y = start_y+font.font_size;
 	DWORD x_offset = (idx%16)*font.char_size.x;
 	DWORD y_offset = (idx/16)*font.char_size.y;
-	DWORD buffer_width = window->windowWidth/window->pixelSize;
+	DWORD buffer_width = window.windowWidth/window.pixelSize;
 	for(DWORD y=start_y; y < end_y; ++y){
 		float scaled_y = (float)(y-start_y)/(end_y-start_y);
 		for(DWORD x=start_x; x < end_x; ++x){
 			DWORD ry = scaled_y*font.char_size.y;
 			DWORD rx = (float)(x-start_x)/(end_x-start_x)*(font.char_sizes[idx]-1);
 			DWORD color = font.image.data[(ry+y_offset)*font.image.width+rx+x_offset];
-			if(A(color) > 0) window->pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
 		}
 	}
 	return end_x-start_x;
@@ -606,7 +558,7 @@ DWORD drawFontChar(Window* window, Font& font, char symbol, DWORD start_x, DWORD
 
 //Gibt zurück, wie breit der String zu zeichnen war, String muss \0 terminiert sein!
 //TODO Errors? meh, if window wird evtl bei jedem Aufruf von drawFontChar gemacht
-DWORD drawFontString(Window* window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
+DWORD drawFontString(Window& window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
 	DWORD offset = 0;
 	DWORD idx = 0;
 	while(string[idx] != '\0'){
@@ -669,7 +621,7 @@ void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 }
 
 //TODO meh, if window wird in jedem draw gemacht
-void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
+void drawButtons(Window& window, Font& font, Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE)) continue;
@@ -710,7 +662,7 @@ void drawButtons(Window* window, Font& font, Button* buttons, WORD button_count)
 	}
 }
 
-void updateButtons(Window* window, Font& font, Button* buttons, WORD button_count)noexcept{
+void updateButtons(Window& window, Font& font, Button* buttons, WORD button_count)noexcept{
 	buttonsClicked(buttons, button_count);
 	drawButtons(window, font, buttons, button_count);
 }
@@ -751,7 +703,7 @@ constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags |= fla
 constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~flag;}
 constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
 
-void updateMenu(Window* window, Menu& menu, Font& font)noexcept{
+void updateMenu(Window& window, Menu& menu, Font& font)noexcept{
 	if(getMenuFlag(menu, MENU_OPEN)){
 		updateButtons(window, font, menu.buttons, menu.buttonCount);
 		for(WORD i=0; i < menu.labelCount; ++i){
@@ -778,7 +730,7 @@ struct FloatSlider{
 	float value = 0;
 };
 
-void updateFloatSliders(Window* window, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
+void updateFloatSliders(Window& window, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
 	for(WORD i=0; i < sliderCount; ++i){
 		if(getButton(mouse, MOUSE_LMB)){
 			WORD x = mouse.pos.x-sliders[i].pos.x-sliders[i].sliderPos+sliders[i].sliderRadius;
@@ -862,9 +814,9 @@ constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
 }
 
 //Zeichnet nur die Umrandung eines Dreiecks
-void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
-	DWORD buffer_width = window->windowWidth/window->pixelSize;
-	DWORD buffer_height = window->windowHeight/window->pixelSize;
+void drawTriangleOutline(Window& window, Triangle& tri)noexcept{
+	DWORD buffer_width = window.windowWidth/window.pixelSize;
+	DWORD buffer_height = window.windowHeight/window.pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
 	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
 	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
@@ -876,9 +828,9 @@ void drawTriangleOutline(Window* window, Triangle& tri)noexcept{
 //TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
 //TODO man könnte nur pointer in einem Buffer speichern und einmal zum ende dann über alle Attribute,... loopen, spart eine Menge Kopieren und so
 //Also im Sinne von man kopiert die finalen Attribute erst, nachdem der depthBuffer alles getestet hat
-void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
-	DWORD buffer_width = window->windowWidth/window->pixelSize;
-	DWORD buffer_height = window->windowHeight/window->pixelSize;
+void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
+	DWORD buffer_width = window.windowWidth/window.pixelSize;
+	DWORD buffer_height = window.windowHeight/window.pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
 	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5f)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
 	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5f)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
@@ -899,8 +851,8 @@ void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 	float div = 1/cross(vs1, vs2);
 
 	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
-	fvec4 attr[window->attributeBuffersCount][3];
-	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+	fvec4 attr[window.attributeBuffersCount][3];
+	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
 		for(BYTE j=0; j < 3; ++j){
 			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
 			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
@@ -927,17 +879,17 @@ void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 				float depth = 1/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= window->depth[idx]){
+				if(inc_depth <= window.depth[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window->depth[idx] = inc_depth;
-					window->fragmentFlag[idx] = 1;
-					for(BYTE i=0; i < window->attributeBuffersCount; ++i){
-						window->attributeBuffers[i][idx].x = (w*attr[i][0].x + u*attr[i][1].x + v*attr[i][2].x)*depth;
-						window->attributeBuffers[i][idx].y = (w*attr[i][0].y + u*attr[i][1].y + v*attr[i][2].y)*depth;
-						window->attributeBuffers[i][idx].z = (w*attr[i][0].z + u*attr[i][1].z + v*attr[i][2].z)*depth;
-						window->attributeBuffers[i][idx].w = (w*attr[i][0].w + u*attr[i][1].w + v*attr[i][2].w)*depth;
+					window.depth[idx] = inc_depth;
+					window.fragmentFlag[idx] = 1;
+					for(BYTE i=0; i < window.attributeBuffersCount; ++i){
+						window.attributeBuffers[i][idx].x = (w*attr[i][0].x + u*attr[i][1].x + v*attr[i][2].x)*depth;
+						window.attributeBuffers[i][idx].y = (w*attr[i][0].y + u*attr[i][1].y + v*attr[i][2].y)*depth;
+						window.attributeBuffers[i][idx].z = (w*attr[i][0].z + u*attr[i][1].z + v*attr[i][2].z)*depth;
+						window.attributeBuffers[i][idx].w = (w*attr[i][0].w + u*attr[i][1].w + v*attr[i][2].w)*depth;
 					}
 				}
 				#ifdef PERFORMANCE_ANALYZER
@@ -953,9 +905,9 @@ void drawTriangleFilledOld(Window* window, Triangle& tri)noexcept{
 }
 
 //TODO besser wie der alte, aber die UV-Koordinaten sind an den Rändern von Texturen noch nicht ganz korrekt
-void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
-	DWORD bufferWidth = window->windowWidth/window->pixelSize;
-	DWORD bufferHeight = window->windowHeight/window->pixelSize;
+void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
+	DWORD bufferWidth = window.windowWidth/window.pixelSize;
+	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
 	pt0.x = ((pt0.x*0.5)+0.5)*bufferWidth; pt1.x = ((pt1.x*0.5f)+0.5)*bufferWidth; pt2.x = ((pt2.x*0.5)+0.5)*bufferWidth;
 	pt0.y = ((pt0.y*0.5)+0.5)*bufferHeight; pt1.y = ((pt1.y*0.5f)+0.5)*bufferHeight; pt2.y = ((pt2.y*0.5)+0.5)*bufferHeight;
@@ -969,8 +921,8 @@ void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
 	if(pt0y == pt2y) return;
 
 	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
-	fvec4 attr[window->attributeBuffersCount][3];
-	for(BYTE i=0; i < window->attributeBuffersCount; ++i){
+	fvec4 attr[window.attributeBuffersCount][3];
+	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
 		for(BYTE j=0; j < 3; ++j){
 			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
 			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
@@ -1011,17 +963,17 @@ void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
 				float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= window->depth[idx]){
+				if(inc_depth <= window.depth[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window->depth[idx] = inc_depth;
-					window->fragmentFlag[idx] = 1;
-					for(BYTE i=0; i < window->attributeBuffersCount; ++i){
-						window->attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
-						window->attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
-						window->attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
-						window->attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+					window.depth[idx] = inc_depth;
+					window.fragmentFlag[idx] = 1;
+					for(BYTE i=0; i < window.attributeBuffersCount; ++i){
+						window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
+						window.attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
+						window.attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
+						window.attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
 					}
 				}
 				#ifdef PERFORMANCE_ANALYZER
@@ -1054,17 +1006,17 @@ void drawTriangleFilledNew(Window* window, Triangle& tri)noexcept{
 			float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 			//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 			DWORD inc_depth = depth*DEPTH_DIVISOR;
-			if(inc_depth <= window->depth[idx]){
+			if(inc_depth <= window.depth[idx]){
 				#ifdef PERFORMANCE_ANALYZER
 				_perfAnalyzer.pixelsDrawn++;
 				#endif
-				window->depth[idx] = inc_depth;
-				window->fragmentFlag[idx] = 1;
-				for(BYTE i=0; i < window->attributeBuffersCount; ++i){
-					window->attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
-					window->attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
-					window->attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
-					window->attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+				window.depth[idx] = inc_depth;
+				window.fragmentFlag[idx] = 1;
+				for(BYTE i=0; i < window.attributeBuffersCount; ++i){
+					window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
+					window.attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
+					window.attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
+					window.attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
 				}
 			}
 			#ifdef PERFORMANCE_ANALYZER
@@ -1204,29 +1156,29 @@ void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noex
 #define YMAX 1.001f
 
 //TODO kann bestimmt um einiges optimiert werden
-BYTE clipping(Window* window, Triangle* buffer)noexcept{
+BYTE clipping(Window& window, Triangle* buffer)noexcept{
 	BYTE count = 1;
-	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
 
 	plane p = {}; p.normal = {0, 0, 1}; p.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(p, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window.attributeBuffersCount);
 
 	p.normal = {XMIN*aspect_ratio, 0, 1}; p.pos = {0, 0, 0};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window.attributeBuffersCount);
 
 	p.normal = {XMAX*aspect_ratio, 0, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window.attributeBuffersCount);
 
 	p.normal = {0, YMIN, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window.attributeBuffersCount);
 
 	p.normal = {0, YMAX, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window->attributeBuffersCount);
+	clipPlane(p, buffer, count, window.attributeBuffersCount);
 
 	return count;
 }
@@ -1237,12 +1189,12 @@ struct Camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1298,12 +1250,12 @@ void rasterize(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Cam
     return;
 }
 
-void rasterizeOutline(Window* window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)window->windowHeight/window->windowWidth;
+	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1355,7 +1307,7 @@ void rasterizeOutline(Window* window, Triangle* tris, DWORD startIdx, DWORD endI
     return;
 }
 
-void rasterizeTriangleModel(Window* window, TriangleModel& model, Camera& cam)noexcept{
+void rasterizeTriangleModel(Window& window, TriangleModel& model, Camera& cam)noexcept{
 	rasterize(window, model.triangles, 0, model.triangleCount, cam);
 }
 
@@ -1366,7 +1318,7 @@ ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWO
 	BYTE idx = 0;
 	for(size_t i=0; i < string.size(); ++i){
 		if(string[i] == '/'){
-			idx += 1;
+			idx++;
 			if(idx == 3) return MODEL_BAD_FORMAT;
 			continue;
 		};
