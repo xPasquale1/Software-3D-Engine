@@ -13,19 +13,25 @@
 */
 
 #define PIXELSIZE 2
-#define OLDTRIANGLEDRAWINGALGORITHM
+// #define NEWTRIANGLEDRAWINGALGORITHM
 #include "graphics/window.h"
 
-static bool _running = true;
-static Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
+bool _running = true;
+Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt)noexcept;
 
 enum RENDERMODE{
-	SHADED_MODE, WIREFRAME_MODE, DEPTH_MODE, NORMAL_MODE, BUFFER0_MODE
+	SHADED_MODE,
+	WIREFRAME_MODE,
+	DEPTH_MODE,
+	NORMAL_MODE,
+	SSAO_MODE,
+	SSR_MODE
 };
-static RENDERMODE renderMode;
+
+RENDERMODE renderMode;
 
 Menu settingsMenu;
 // Menü Funktionen
@@ -43,32 +49,27 @@ WORD sliderCount = 0;
 Window window;
 Font font;
 
-void textureShader(Window& window, Image& image)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	fvec3 light_dir = {2, 2, 1};
-	light_dir = normalize(light_dir);
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		if(window.fragmentFlag[i] == 0) continue;
-		window.fragmentFlag[i] = 0;
-		float uvx = window.attributeBuffers[0][i].x;
-		float uvy = window.attributeBuffers[0][i].y;
-		DWORD color = texture2D(image, uvx, uvy);
-		if(A(color) < 120){
-			window.depth[i] = 0xFF'FF'FF'FF;
-			continue;
-		}
-		window.pixels[i] = color;
-	}
+Colorbuffer colorBuffers[3];
+
+DWORD frameCounter = 0;
+
+fvec3 vertexShader(fvec3& point)noexcept{
+	return point;
 }
 
-void fxaa(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		DWORD color = window.pixels[i];
-		BYTE luminance = 0.2126*R(color)+0.7152*G(color)+0.0722*B(color);
-		window.pixels[i] = RGBA(luminance, luminance, luminance);
+//TODO Geht davon aus, dass Framebuffer und Depthbuffer die gleiche Größe haben
+void textureShader(Colorbuffer& colorBuffer, fvec4** attributeBuffers, BYTE* fragmentFlags, Image& image)noexcept{
+	for(DWORD i=0; i < colorBuffer.width*colorBuffer.height; ++i){
+		if(fragmentFlags[i] == 0) continue;
+		fragmentFlags[i] = 0;
+		float uvx = attributeBuffers[0][i].x;
+		float uvy = attributeBuffers[0][i].y;
+		DWORD color = textureRepeated(image, uvx, uvy);
+		if(A(color) < 120){
+			window.depth.data[i] = 0xFF'FF'FF'FF;
+			continue;
+		}
+		colorBuffer.data[i] = color;
 	}
 }
 
@@ -95,12 +96,10 @@ uivec3 worldCoordinatesToScreenspace(fvec3& worldPixelPosition, float rotMat[3][
 	return screenCoords;
 }
 
-void ssao()noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	if(window.bufferCount < 1) return;
+//TODO geht davon aus, dass der Framebuffer, Depthbuffer und die Colorbuffer die gleiche Größe haben
+void ssao(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers)noexcept{
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)colorBuffer.height/colorBuffer.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -109,17 +108,17 @@ void ssao()noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	DWORD idx = 0;
-	for(WORD y=0; y < bufferHeight; ++y){
-		for(WORD x=0; x < bufferWidth; ++x, ++idx){
+	for(WORD y=0; y < colorBuffer.width; ++y){
+		for(WORD x=0; x < colorBuffer.height; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window.attributeBuffers[1][idx].x;
-			worldNormal.y = window.attributeBuffers[1][idx].y;
-			worldNormal.z = window.attributeBuffers[1][idx].z;
+			worldNormal.x = attributeBuffers[1][idx].x;
+			worldNormal.y = attributeBuffers[1][idx].y;
+			worldNormal.z = attributeBuffers[1][idx].z;
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
+			worldPixelPosition.x = attributeBuffers[2][idx].x;
+			worldPixelPosition.y = attributeBuffers[2][idx].y;
+			worldPixelPosition.z = attributeBuffers[2][idx].z;
 
 			const int ssaoSamples = 16;
 			const float ssaoMaxLength = 10;
@@ -137,28 +136,26 @@ void ssao()noexcept{
 				dir.z *= length*ssaoMaxLength;
 				fvec3 samplePoint = {worldPixelPosition.x+dir.x, worldPixelPosition.y+dir.y, worldPixelPosition.z+dir.z};
 
-				uivec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, aspect_ratio, bufferWidth, bufferHeight);
+				uivec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, aspect_ratio, colorBuffer.width, colorBuffer.height);
 
-				if(screenCoords.x >= bufferWidth || screenCoords.y >= bufferHeight){
+				if(screenCoords.x >= colorBuffer.width || screenCoords.y >= colorBuffer.height){
 					strength++;
 					continue;
 				}
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-depthBuffer.data[screenCoords.y*depthBuffer.width+screenCoords.x];
 				if(depthDiff <= minDepth || depthDiff >= maxDepth) strength++;
 			}
 			strength /= ssaoSamples;
-			window.buffers[0][idx] = R(window.buffers[0][idx], 255*strength);
+			colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], 255*strength);
 		}
 	}
 }
 
-void ssr(Camera& cam)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	if(window.bufferCount < 1) return;
+//TODO geht davon aus, dass der Framebuffer, Depthbuffer und die Colorbuffer die gleiche Größe haben
+void ssr(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers, Camera& cam)noexcept{
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)colorBuffer.height/colorBuffer.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -167,18 +164,18 @@ void ssr(Camera& cam)noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	DWORD idx = 0;
-	for(WORD y=0; y < bufferHeight; ++y){
-		for(WORD x=0; x < bufferWidth; ++x, ++idx){
+	for(WORD y=0; y < colorBuffer.height; ++y){
+		for(WORD x=0; x < colorBuffer.width; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window.attributeBuffers[1][idx].x;
-			worldNormal.y = window.attributeBuffers[1][idx].y;
-			worldNormal.z = window.attributeBuffers[1][idx].z;
+			worldNormal.x = attributeBuffers[1][idx].x;
+			worldNormal.y = attributeBuffers[1][idx].y;
+			worldNormal.z = attributeBuffers[1][idx].z;
 			if(worldNormal.y < 0.99) continue;
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
+			worldPixelPosition.x = attributeBuffers[2][idx].x;
+			worldPixelPosition.y = attributeBuffers[2][idx].y;
+			worldPixelPosition.z = attributeBuffers[2][idx].z;
 
 			fvec3 viewDir = {worldPixelPosition.x-cam.pos.x, worldPixelPosition.y-cam.pos.y, worldPixelPosition.z-cam.pos.z};
 			viewDir = normalize(viewDir);
@@ -197,41 +194,39 @@ void ssr(Camera& cam)noexcept{
                 worldPixelPosition.y += reflDir.y * stepSize;
                 worldPixelPosition.z += reflDir.z * stepSize;
 
-				uivec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, aspect_ratio, bufferWidth, bufferHeight);
+				uivec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, aspect_ratio, colorBuffer.width, colorBuffer.height);
 
-                if(screenCoords.x >= bufferWidth || screenCoords.y >= bufferHeight) break;
+                if(screenCoords.x >= colorBuffer.width || screenCoords.y >= colorBuffer.height) break;
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-depthBuffer.data[screenCoords.y*depthBuffer.width+screenCoords.x];
                 if(depthDiff >= maxDepth) break;
 				if(depthDiff > 0){
                     hit = true;
-					DWORD currentColor = window.pixels[idx];
-					DWORD reflectionColor = window.pixels[screenCoords.y*bufferWidth+screenCoords.x];
-                    window.pixels[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
+					DWORD currentColor = colorBuffer.data[idx];
+					DWORD reflectionColor = colorBuffer.data[screenCoords.y*colorBuffer.width+screenCoords.x];
+                    colorBuffer.data[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
 												G(currentColor)*albedoAmount+G(reflectionColor)*reflectionAmount,
 												B(currentColor)*albedoAmount+B(reflectionColor)*reflectionAmount);
                     break;
                 }
             }
 
-            if(!hit) window.pixels[idx] = RGBA(0, 191, 255);
+            if(!hit) colorBuffer.data[idx] = RGBA(0, 191, 255);
 		}
 	}
 }
 
-void pointLightShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+void pointLightShader(Colorbuffer& colorBuffer, fvec4** attributeBuffers)noexcept{
 	fvec3 lightPos[] = {{0, -40, 0},{200, -160, 100}};
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+	for(DWORD i=0; i < colorBuffer.width*colorBuffer.height; ++i){
 		fvec3 worldPixelPosition;
-		worldPixelPosition.x = window.attributeBuffers[2][i].x;
-		worldPixelPosition.y = window.attributeBuffers[2][i].y;
-		worldPixelPosition.z = window.attributeBuffers[2][i].z;
+		worldPixelPosition.x = attributeBuffers[2][i].x;
+		worldPixelPosition.y = attributeBuffers[2][i].y;
+		worldPixelPosition.z = attributeBuffers[2][i].z;
 		fvec3 worldNormal;
-		worldNormal.x = window.attributeBuffers[1][i].x;
-		worldNormal.y = window.attributeBuffers[1][i].y;
-		worldNormal.z = window.attributeBuffers[1][i].z;
+		worldNormal.x = attributeBuffers[1][i].x;
+		worldNormal.y = attributeBuffers[1][i].y;
+		worldNormal.z = attributeBuffers[1][i].z;
 		float totalStrength = 0;
 		for(int i=0; i < sizeof(lightPos)/sizeof(fvec3); ++i){
 			fvec3 posDiff = {worldPixelPosition.x-lightPos[i].x, worldPixelPosition.y-lightPos[i].y, worldPixelPosition.z-lightPos[i].z};
@@ -241,51 +236,48 @@ void pointLightShader(Window& window)noexcept{
 			totalStrength += strength;
 		}
 		totalStrength = clamp(totalStrength, 0.f, 1.f);
-		DWORD color = window.pixels[i];
-		window.pixels[i] = RGBA(R(color)*totalStrength, G(color)*totalStrength, B(color)*totalStrength);
+		DWORD color = colorBuffer.data[i];
+		colorBuffer.data[i] = RGBA(R(color)*totalStrength, G(color)*totalStrength, B(color)*totalStrength);
 	}
 }
 
-void depthBufferShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		QWORD depth = window.depth[i]*255;
+//TODO Geht davon aus, dass der Framebuffer und der Depthbuffer die gleiche Größe haben
+void depthBufferShader(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer)noexcept{
+	for(DWORD i=0; i < colorBuffer.width*colorBuffer.height; ++i){
+		QWORD depth = depthBuffer.data[i]*255;
 		BYTE color = depth/0xFFFFFF;
-		window.pixels[i] = RGBA(color, color, color);
+		colorBuffer.data[i] = RGBA(color, color, color);
 	}
 }
 
-void normalBufferShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+void normalBufferShader(Colorbuffer& colorBuffer, fvec4** attributeBuffers)noexcept{
+	for(DWORD i=0; i < colorBuffer.width*colorBuffer.height; ++i){
 		fvec3 n;
-		n.x = window.attributeBuffers[1][i].x;
-		n.y = window.attributeBuffers[1][i].y;
-		n.z = window.attributeBuffers[1][i].z;
-		window.pixels[i] = RGBA((n.x+1)*127.5, (n.y+1)*127.5, (n.z+1)*127.5);
+		n.x = attributeBuffers[1][i].x;
+		n.y = attributeBuffers[1][i].y;
+		n.z = attributeBuffers[1][i].z;
+		colorBuffer.data[i] = RGBA((n.x+1)*127.5, (n.y+1)*127.5, (n.z+1)*127.5);
 	}
 }
 
-void drawTriangleModel(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	if(model.material == nullptr) textureShader(window, defaultTexture);
-	else textureShader(window, model.material->textures[0]);
+void drawTriangleModel(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers, BYTE attributeBuffersCount, BYTE* fragmentFlags, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(colorBuffer, depthBuffer, attributeBuffers, attributeBuffersCount, fragmentFlags, model.triangles, 0, model.triangleCount, cam, vertexShader);
+	if(model.material == nullptr) textureShader(colorBuffer, attributeBuffers, fragmentFlags, defaultTexture);
+	else textureShader(colorBuffer, attributeBuffers, fragmentFlags, model.material->textures[0]);
 }
 
-void drawTriangleModelOutline(Window& window, TriangleModel& model)noexcept{
-	rasterizeOutline(window, model.triangles, 0, model.triangleCount, cam);
+void drawTriangleModelOutline(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers, BYTE attributeBuffersCount, BYTE* fragmentFlags, TriangleModel& model)noexcept{
+	rasterizeOutline(colorBuffer, depthBuffer, attributeBuffers, attributeBuffersCount, fragmentFlags, model.triangles, 0, model.triangleCount, cam);
 }
 
-void drawDepthBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	depthBufferShader(window);
+void drawDepthBuffer(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers, BYTE attributeBuffersCount, BYTE* fragmentFlags, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(colorBuffer, depthBuffer, attributeBuffers, attributeBuffersCount, fragmentFlags, model.triangles, 0, model.triangleCount, cam, vertexShader);
+	depthBufferShader(colorBuffer, depthBuffer);
 }
 
-void drawNormalBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	normalBufferShader(window);
+void drawNormalBuffer(Colorbuffer& colorBuffer, Depthbuffer& depthBuffer, fvec4** attributeBuffers, BYTE attributeBuffersCount, BYTE* fragmentFlags, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(colorBuffer, depthBuffer, attributeBuffers, attributeBuffersCount, fragmentFlags, model.triangles, 0, model.triangleCount, cam, vertexShader);
+	normalBufferShader(colorBuffer, attributeBuffers);
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
@@ -293,10 +285,12 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, PIXELSIZE, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
 	if(ErrCheck(assignAttributeBuffers(window, 3), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
-	if(ErrCheck(addBuffers(window, 2), "Buffer hinzufügen") != SUCCESS) return -1;
+	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
+		if(ErrCheck(createColorbuffer(colorBuffers[i], window.windowWidth, window.windowHeight), "Colorbuffer erstellen") != SUCCESS) return -1;
+	}
 
 	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
-	font.font_size = 42/window.pixelSize;
+	font.font_size = 40/window.pixelSize;
 
 	//TODO dynamisch
 	TriangleModel* models = new(std::nothrow) TriangleModel[40];
@@ -370,11 +364,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[4].size = buttonSize;
 	settingsMenu.buttons[4].pos = buttonPos;
 	settingsMenu.buttons[4].event = setRenderMode;
-	settingsMenu.buttons[4].text = "BUFFER0";
-	const RENDERMODE buffer0Mode = BUFFER0_MODE;
-	settingsMenu.buttons[4].data = (void*)&buffer0Mode;
+	settingsMenu.buttons[4].text = "SSAO";
+	const RENDERMODE button4Mode = SSAO_MODE;
+	settingsMenu.buttons[4].data = (void*)&button4Mode;
 	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
 	settingsMenu.buttonCount = 5;
+
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	settingsMenu.buttons[5].size = buttonSize;
+	settingsMenu.buttons[5].pos = buttonPos;
+	settingsMenu.buttons[5].event = setRenderMode;
+	settingsMenu.buttons[5].text = "SSR";
+	const RENDERMODE button5Mode = SSR_MODE;
+	settingsMenu.buttons[5].data = (void*)&button5Mode;
+	settingsMenu.buttons[5].textsize = 36/window.pixelSize;
+	settingsMenu.buttonCount = 6;
 
 	debugSlider[0].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[0].sliderRadius+10/window.pixelSize};
 	debugSlider[0].sliderPos = 10;
@@ -402,36 +406,34 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		resetTimer(_perfAnalyzer.timer[0]);
 		resetTimer(_perfAnalyzer.timer[1]);
 		float performancePreFilter;
-		clearWindow(window);
+		clearWindow(window, RGBA(0, 0, 0));
 
 #ifdef THREADING
 
 #else
 		switch(renderMode){
 			case WIREFRAME_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(window, models[i]);
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i]);
 				break;
 			}
 			case SHADED_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
-				pointLightShader(window);
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i], defaultTexture);
+				pointLightShader(window.framebuffer, window.attributeBuffers);
 				break;
 			}
 			case DEPTH_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(window, models[i], defaultTexture);
+				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i], defaultTexture);
 				break;
 			}
 			case NORMAL_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(window, models[i], defaultTexture);
+				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i], defaultTexture);
 				break;
 			}
 			// #define SSAOFILTER
-			case BUFFER0_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
-				ssao();
+			case SSAO_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i], defaultTexture);
+				ssao(window.framebuffer, window.depth, window.attributeBuffers);
 				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
-				DWORD bufferWidth = window.windowWidth/window.pixelSize;
-				DWORD bufferHeight = window.windowHeight/window.pixelSize;
 				#ifdef SSAOFILTER
 				for(DWORD y=0; y < bufferHeight; ++y){
 					for(DWORD x=0; x < bufferWidth; ++x){
@@ -452,39 +454,46 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#else
-				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-					DWORD color = window.pixels[i];
-					float factor = R(window.buffers[0][i])/255.f;
-					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+				for(DWORD i=0; i < window.framebuffer.width*window.framebuffer.height; ++i){
+					DWORD color = window.framebuffer.data[i];
+					float factor = R(colorBuffers[0].data[i])/255.f;
+					window.framebuffer.data[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#endif
+				break;
+			}
+			case SSR_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window.framebuffer, window.depth, window.attributeBuffers, window.attributeBuffersCount, window.fragmentFlag, models[i], defaultTexture);
+				ssr(window.framebuffer, window.depth, window.attributeBuffers, cam);
 				break;
 			}
 		}
 #endif
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])/1000.f) + "ms";
-		drawFontString(window, font, val.c_str(), 5, 2);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, 2);
 		val = floatToString(performancePreFilter) + "ms";
-		drawFontString(window, font, val.c_str(), 5, font.font_size+4);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size+4);
 		val = longToString(_perfAnalyzer.totalTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*2+6);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*2+6);
 		val = longToString(_perfAnalyzer.drawnTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*3+8);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*3+8);
 		val = longToString(_perfAnalyzer.pixelsDrawn);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*4+10);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*4+10);
 		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*5+12);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*5+12);
 		val = longToString(_perfAnalyzer.pointlessTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*6+14);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*6+14);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 
 		drawWindow(window);
+		++frameCounter;
 	}
 
 	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
+	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();
@@ -507,8 +516,8 @@ void update(float dt)noexcept{
 		cam.pos.y -= getButton(keyboard, KEY_SPACE)*SPEED*dt;
 		cam.pos.y += getButton(keyboard, KEY_SHIFT)*SPEED*dt;
 	}else{
-		updateMenu(window, settingsMenu, font);
-		updateFloatSliders(window, font, debugSlider, sliderCount);
+		updateMenu(window.framebuffer, settingsMenu, font);
+		updateFloatSliders(window.framebuffer, font, debugSlider, sliderCount);
 	}
 }
 
@@ -527,6 +536,10 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			if(!width || !height) break;
 			// ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
 			ErrCheck(resizeWindow(*window, width, height, PIXELSIZE), "Fenster skalieren");
+			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
+				destroyColorbuffer(colorBuffers[i]);
+				createColorbuffer(colorBuffers[i], width, height);
+			}
 			break;
 		}
 		case WM_LBUTTONDOWN:{

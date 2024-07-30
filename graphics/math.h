@@ -110,7 +110,7 @@ constexpr fvec3 reflect(const fvec3& vec, const fvec3& normal)noexcept{
 
 #define MULTIPLIER 1664525
 #define INCREMENT 1013904223
-static unsigned long _rand;
+unsigned long _rand;
 unsigned long nextrand()noexcept{
     _rand = (MULTIPLIER*_rand+INCREMENT);
     return _rand;
