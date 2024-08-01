@@ -696,9 +696,9 @@ struct RenderBuffers{
 	WORD width;
 	WORD height;
 	DWORD* frameBuffer;
-	DWORD* depthBuffer;		//TODO Sollten ein Floatbuffer sein
-	BYTE* fragmentFlags;	//TODO Markiert eh nur ob ein Fragment gezeichnet wurde oder nicht, daher bits anstatt bytes
-	float* attributeBuffers[MAXVERTEXATTRIBUTES];
+	DWORD* depthBuffer;			//TODO Sollten ein Floatbuffer sein
+	BYTE* fragmentFlags;		//TODO Markiert eh nur ob ein Fragment gezeichnet wurde oder nicht, daher bits anstatt bytes
+	float* attributeBuffers;
 	BYTE attributeBuffersCount = 0;
 };
 
@@ -712,10 +712,7 @@ ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
 	renderBuffers.fragmentFlags = new BYTE[width*height];
 	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
-	for(BYTE i=0; i < attributesCount; ++i){
-		renderBuffers.attributeBuffers[i] = new float[width*height];
-		if(renderBuffers.attributeBuffers[i] == nullptr) return BAD_ALLOC;
-	}
+	renderBuffers.attributeBuffers = new float[width*height*attributesCount];
 	return SUCCESS;
 }
 
@@ -723,31 +720,13 @@ void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 	delete[] renderBuffers.frameBuffer;
 	delete[] renderBuffers.depthBuffer;
 	delete[] renderBuffers.fragmentFlags;
-	for(BYTE i=0; i < renderBuffers.attributeBuffersCount; ++i){
-		delete[] renderBuffers.attributeBuffers[i];
-	}
+	delete[] renderBuffers.attributeBuffers;
 }
 
 //TODO vllt weg? Oder zumindest passender benennen wie TriangleVertexPositions oder so
 struct Triangle{
 	fvec3 points[3];
 };
-
-//Attribute sind einzelene float-Werte, kein Gruppierung von 1-4 floats wie in OpenGL
-//Hält die Attribute für 1 Dreieck
-struct TriangleAttributesBuffer{
-	BYTE attributesCount;						//Gibt an wie viele Attribute es per Vertex gibt
-	float* attributesData = nullptr;			//Die Attribute
-	DWORD count = 0;							//Anzahl der Dreiecke
-};
-
-ErrCode createTriangleAttributesBuffer(TriangleAttributesBuffer& tab, BYTE attributesCount, DWORD count)noexcept{
-	tab.attributesCount = attributesCount;
-	tab.attributesData = new(std::nothrow) float[count*attributesCount*3];
-	if(tab.attributesData == nullptr) return BAD_ALLOC;
-	tab.count = count;
-	return SUCCESS;
-}
 
 //Speichert ein Material aus einer .mtl file
 struct Material{
@@ -769,22 +748,31 @@ struct TriangleModel{
 	DWORD triangleCount = 0;
 	DWORD triangleCapacity = 0;
 	Material* material = nullptr;
-	TriangleAttributesBuffer attributesBuffer;
+	float* attributesBuffer = nullptr;
+	BYTE attributesCount;
 };
 
 void destroyTriangleModel(TriangleModel& model)noexcept{
 	delete[] model.triangles;
+	delete[] model.attributesBuffer;
 	// delete model.material;	//TODO hm is doof
 }
 
 void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
 	Triangle* newArray = new Triangle[model.triangleCapacity+additionalCapacity];
+	float* newAttributeArray = new float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
+	}
+	for(DWORD i=0; i < model.triangleCount*model.attributesCount*3; ++i){
+		newAttributeArray[i] = model.attributesBuffer[i];
 	}
 	Triangle* oldArray = model.triangles;
 	model.triangles = newArray;
 	delete[] oldArray;
+	float* oldAttributeArray = model.attributesBuffer;
+	model.attributesBuffer = newAttributeArray;
+	delete[] oldAttributeArray;
 	model.triangleCapacity += additionalCapacity;
 }
 
@@ -838,7 +826,7 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 		#ifdef PERFORMANCE_ANALYZER
 		_perfAnalyzer.pointlessTriangles++;
 		#endif
-		return;
+		return;	//TODO sollte es nicht trotzdem gezeichnet werden, halt als Punkt?
 	}
 	DWORD xmin = min(pt0.x, min(pt1.x, pt2.x));
 	DWORD xmax = max(pt0.x, max(pt1.x, pt2.x));
@@ -881,11 +869,11 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 					#endif
 					renderBuffers.depthBuffer[idx] = inc_depth;
 					renderBuffers.fragmentFlags[idx] = 1;
-					DWORD attribIdx1 = 0;
-					DWORD attribIdx2 = attributesCount;
-					DWORD attribIdx3 = attributesCount*2;
+					WORD attribIdx1 = 0;
+					WORD attribIdx2 = attributesCount;
+					WORD attribIdx3 = attributesCount*2;
 					for(BYTE i=0; i < attributesCount; ++i){
-						renderBuffers.attributeBuffers[i][idx] = (w*attr[attribIdx1] + u*attr[attribIdx2] + v*attr[attribIdx3])*depth;
+						renderBuffers.attributeBuffers[idx+renderBuffers.width*renderBuffers.height*i] = (w*attr[attribIdx1] + u*attr[attribIdx2] + v*attr[attribIdx3])*depth;
 						attribIdx1++;
 						attribIdx2++;
 						attribIdx3++;
@@ -1055,10 +1043,6 @@ float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3& cp)noe
 	return t;
 }
 
-void removeTriangleFromBuffer(Triangle* buffer, float* attributesBuffer, BYTE temp_count, BYTE idx)noexcept{
-	buffer[idx] = buffer[temp_count-1];
-}
-
 //TODO kann man bestimmt auch noch weiter optimieren, indexe zu speichern hat nichts gebracht...
 void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attributesCount, BYTE& count)noexcept{
 	BYTE tmp_off = count;			//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
@@ -1081,18 +1065,22 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 			float dist = dot(vec, p.normal);
 			if(dist < 0){
 				out_v[out] = buffer[i].points[j];
-				for(BYTE k=0; k < attributesCount; ++k) out_attr[k][out] = attributesBuffer[attributesCount+k];
+				for(BYTE k=0; k < attributesCount; ++k) out_attr[k][out] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
 				++out;
 			}else{
 				in_v[in] = buffer[i].points[j];
-				for(BYTE k=0; k < attributesCount; ++k) in_attr[k][in] = attributesBuffer[attributesCount+k];
+				for(BYTE k=0; k < attributesCount; ++k) in_attr[k][in] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
 				++in;
 			}
 			attributeOffset += attributesCount;
 		}
 		switch(in){
 			case 0:{	//Dreieck liegt komplett ausserhalb, es muss entfernt werden
-				removeTriangleFromBuffer(buffer, attributesBuffer, temp_count, i);
+				buffer[i] = buffer[temp_count-1];
+				for(BYTE j=0; j < attributesCount*3; ++j){
+					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				}
+				--temp_count;
 				--i;
 				--count;
 				break;
@@ -1100,6 +1088,7 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[i].points[1]);
 				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[i*attributesCount*3+attributesCount+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
 					// buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
 					// buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
 					// buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
@@ -1107,25 +1096,34 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 				}
 				t = rayPlaneIntersectionFast(p, in_v[0], out_v[1], buffer[i].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[i*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][1]*t;
 					// buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
 					// buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
 					// buffer[i].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][1].z*t;
 					// buffer[i].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][1].w*t;
+					attributesBuffer[i*attributesCount*3+k] = in_attr[k][0];
 					// buffer[i].attribute[k][0] = in_attr[k][0];
 				}
 				buffer[i].points[0] = in_v[0];
 				break;
 			}
 			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
-				removeTriangleFromBuffer(buffer, attributesBuffer, temp_count, i);
+				buffer[i] = buffer[temp_count-1];
+				for(BYTE j=0; j < attributesCount*3; ++j){
+					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				}
+				--temp_count;
 				--i;
 				--count;
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[tmp_off].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
 					// buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
 					// buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
 					// buffer[tmp_off].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
 					// buffer[tmp_off].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+					attributesBuffer[tmp_off*attributesCount*3+k] = in_attr[k][0];
+					attributesBuffer[tmp_off*attributesCount*3+attributesCount+k] = in_attr[k][1];
 					// buffer[tmp_off].attribute[k][0] = in_attr[k][0];
 					// buffer[tmp_off].attribute[k][1] = in_attr[k][1];
 				}
@@ -1133,10 +1131,13 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 				buffer[tmp_off].points[1] = in_v[1];
 				t = rayPlaneIntersectionFast(p, in_v[1], out_v[0], buffer[tmp_off+1].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount*2+k] = in_attr[k][1]*(1-t)+out_attr[k][0]*t;
 					// buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
 					// buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
 					// buffer[tmp_off+1].attribute[k][2].z = in_attr[k][1].z*(1-t)+out_attr[k][0].z*t;
 					// buffer[tmp_off+1].attribute[k][2].w = in_attr[k][1].w*(1-t)+out_attr[k][0].w*t;
+					attributesBuffer[(tmp_off+1)*attributesCount*3+k] = attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k];
+					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount+k] = in_attr[k][1];
 					// buffer[tmp_off+1].attribute[k][0] = buffer[tmp_off].attribute[k][2];
 					// buffer[tmp_off+1].attribute[k][1] = in_attr[k][1];
 				}
@@ -1150,6 +1151,9 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 	}
 	for(BYTE i=0; i < count-temp_count; ++i){
 		buffer[temp_count+i] = buffer[offset+i];
+		for(BYTE j=0; j < attributesCount*3; ++j){
+			attributesBuffer[(temp_count+i)*attributesCount*3+j] = attributesBuffer[(offset+i)*attributesCount*3+j];
+		}
 	}
 	return;
 }
@@ -1196,7 +1200,7 @@ struct Camera{
 typedef fvec3 (*vertexShaderFunction)(fvec3&)noexcept;
 
 //TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
-void rasterize(RenderBuffers& renderBuffers, Triangle* tris, TriangleAttributesBuffer& attributes, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
+void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1210,7 +1214,7 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, TriangleAttributesB
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	Triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen könnten
-	float attributesBuffer[32*attributes.attributesCount*3];
+	float attributesBuffer[32*attributesCount*3];
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
@@ -1234,8 +1238,8 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, TriangleAttributesB
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) <= 0) continue;
 #endif
-		for(int j=0; j < attributes.attributesCount*3; ++j) attributesBuffer[j] = attributes.attributesData[i*attributes.attributesCount*3+j];
-    	BYTE count = clipping(renderBuffers, attributesBuffer, attributes.attributesCount, buffer);
+		for(int j=0; j < attributesCount*3; ++j) attributesBuffer[j] = attributes[i*attributesCount*3+j];
+    	BYTE count = clipping(renderBuffers, attributesBuffer, attributesCount, buffer);
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0];
 			fvec3 pt2 = buffer[j].points[1];
@@ -1252,7 +1256,7 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, TriangleAttributesB
 			#ifdef NEWTRIANGLEDRAWINGALGORITHM
 			drawTriangleFilledNew(window, buffer[j]);
 			#else
-			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*attributes.attributesCount*3, attributes.attributesCount, buffer[j]);
+			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
 			#endif
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
@@ -1319,8 +1323,8 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, DWORD startI
     return;
 }
 
-void rasterizeTriangleModel(RenderBuffers& renderBuffers, TriangleAttributesBuffer& attributes, TriangleModel& model, Camera& cam, vertexShaderFunction vertexShader)noexcept{
-	rasterize(renderBuffers, model.triangles, attributes, 0, model.triangleCount, cam, vertexShader);
+void rasterizeTriangleModel(RenderBuffers& renderBuffers, float* attributes, BYTE attributesCount, TriangleModel& model, Camera& cam, vertexShaderFunction vertexShader)noexcept{
+	rasterize(renderBuffers, model.triangles, attributes, attributesCount, 0, model.triangleCount, cam, vertexShader);
 }
 
 //TODO alle weiteren Funktionen sollten in eine andere Datei, da diese ja nichts mehr direkt mit dem rendering zu tun haben
@@ -1348,10 +1352,10 @@ ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWO
 
 //TODO unterstützt nur Flächen die aus Dreiecken bestehen
 //TODO man sollte übergeben können in welche location die Attribute gespeichert werden
-ErrCode readObj(const char* filename, Triangle* storage, TriangleAttributesBuffer& attributesBuffer, DWORD* count, float x, float y, float z, float scale=1)noexcept{
+ErrCode readObj(const char* filename, Triangle* storage, float* attributesBuffer, BYTE attributesCount, DWORD* count, float x, float y, float z, float scale=1)noexcept{
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
-	if(attributesBuffer.attributesCount < 6) return MODEL_BAD_FORMAT;	//TODO neue Fehlermeldung
+	if(attributesCount != 6) return MODEL_BAD_FORMAT;	//TODO neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1409,27 +1413,26 @@ ErrCode readObj(const char* filename, Triangle* storage, TriangleAttributesBuffe
 			storage[current_count+tri_count].points[1] = points[pt_order[1]];
 			storage[current_count+tri_count].points[2] = points[pt_order[2]];
 
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3] = uvs[uv_order[0]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+1] = uvs[uv_order[0]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+2] = normals[normal_order[0]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+3] = normals[normal_order[0]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+4] = normals[normal_order[0]].z;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+5] = uvs[uv_order[1]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+6] = uvs[uv_order[1]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+7] = normals[normal_order[1]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+8] = normals[normal_order[1]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+9] = normals[normal_order[1]].z;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+10] = uvs[uv_order[2]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+11] = uvs[uv_order[2]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+12] = normals[normal_order[2]].x;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+13] = normals[normal_order[2]].y;
-			attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+14] = normals[normal_order[2]].z;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3] = uvs[uv_order[0]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+1] = uvs[uv_order[0]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+2] = normals[normal_order[0]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+3] = normals[normal_order[0]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+4] = normals[normal_order[0]].z;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+5] = uvs[uv_order[1]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+6] = uvs[uv_order[1]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+7] = normals[normal_order[1]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+8] = normals[normal_order[1]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+9] = normals[normal_order[1]].z;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+10] = uvs[uv_order[2]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+11] = uvs[uv_order[2]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+12] = normals[normal_order[2]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+13] = normals[normal_order[2]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+14] = normals[normal_order[2]].z;
 
 			++tri_count;
 		}
 	}
 	*count += tri_count;
-	attributesBuffer.count += tri_count;
 	std::cout << "Punkte gelesen:         " << points.size() << std::endl;
 	std::cout << "UV-Koordinaten gelesen: " << uvs.size() << std::endl;
 	std::cout << "Dreiecke gelesen:       " << tri_count << std::endl;
@@ -1703,6 +1706,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 	std::fstream file;
 	file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
+	if(models[0].attributesCount < 5) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1753,41 +1757,25 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[0]];
 				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[1]];
 				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[2]];
-				if(attributeCount > 0){
-					models[modelIdx].triangles[triangleIdx].attribute[0][0].x = uvs[uv_order[0]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][0].y = uvs[uv_order[0]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[0][1].x = uvs[uv_order[1]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][1].y = uvs[uv_order[1]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[0][2].x = uvs[uv_order[2]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][2].y = uvs[uv_order[2]].y;
-				}
-				if(attributeCount > 1){
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].x = normals[normal_order[0]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].y = normals[normal_order[0]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].z = normals[normal_order[0]].z;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].x = normals[normal_order[1]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].y = normals[normal_order[1]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].z = normals[normal_order[1]].z;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].x = normals[normal_order[2]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].y = normals[normal_order[2]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].z = normals[normal_order[2]].z;
-				}
 
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3] = uvs[uv_order[0]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+1] = uvs[uv_order[0]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+2] = normals[normal_order[0]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+3] = normals[normal_order[0]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+4] = normals[normal_order[0]].z;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+5] = uvs[uv_order[1]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+6] = uvs[uv_order[1]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+7] = normals[normal_order[1]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+8] = normals[normal_order[1]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+9] = normals[normal_order[1]].z;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+10] = uvs[uv_order[2]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+11] = uvs[uv_order[2]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+12] = normals[normal_order[2]].x;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+13] = normals[normal_order[2]].y;
-				attributesBuffer.attributesData[(current_count+tri_count)*attributesBuffer.attributesCount*3+14] = normals[normal_order[2]].z;
+				DWORD attributeBaseIdx = triangleIdx*models[modelIdx].attributesCount*3;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[0]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[0]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[0]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[0]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[0]].z;
+				attributeBaseIdx += models[modelIdx].attributesCount;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[1]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[1]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[1]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[1]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[1]].z;
+				attributeBaseIdx += models[modelIdx].attributesCount;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[2]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[2]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[2]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[2]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[2]].z;
 
 				models[modelIdx].triangleCount++;
 				break;
