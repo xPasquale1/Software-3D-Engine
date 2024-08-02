@@ -819,6 +819,10 @@ ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)
 	return SUCCESS;
 }
 
+constexpr float* getAttrLoc(TriangleModel& model, DWORD triangleIdx, BYTE pointIdx, BYTE location){
+	return &model.attributesBuffer[triangleIdx*model.attributesCount*3+model.attributesCount*pointIdx+location];
+}
+
 //TODO aktuell noch falsch, da 1 auf 0 abgebildet wird
 constexpr DWORD textureRepeated(Image& image, float u, float v)noexcept{
 	u = u - floor(u);

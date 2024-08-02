@@ -286,7 +286,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != SUCCESS) return -1;
 	}
 
-	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	if(ErrCheck(loadFont("fonts/ascii.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
 	font.font_size = 40/window.pixelSize;
 
 	//TODO dynamisch
@@ -306,17 +306,18 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Image defaultTexture;
 	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
-	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
-	if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -80, -80, 80), "Modell laden") != SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
 		DWORD idx = 0;
 		for(DWORD j=0; j < model.triangleCount; ++j, ++idx){
 			for(BYTE k=0; k < 3; ++k){
-				model.attributesBuffer[j*model.attributesCount*3+model.attributesCount*k+POSITIONATTRIBUTEOFFSET] = model.triangles[j].points[k].x;
-				model.attributesBuffer[j*model.attributesCount*3+model.attributesCount*k+POSITIONATTRIBUTEOFFSET+1] = model.triangles[j].points[k].y;
-				model.attributesBuffer[j*model.attributesCount*3+model.attributesCount*k+POSITIONATTRIBUTEOFFSET+2] = model.triangles[j].points[k].z;
+				float* positionLocation = getAttrLoc(model, j, k, POSITIONATTRIBUTEOFFSET);
+				positionLocation[0] = model.triangles[j].points[k].x;
+				positionLocation[1] = model.triangles[j].points[k].y;
+				positionLocation[2] = model.triangles[j].points[k].z;
 			}
 		}
 	}
@@ -443,34 +444,35 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
-			// #define SSAOFILTER
+			#define SSAOFILTER
 			case SSAO_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				ssao(renderBuffers);
 				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
 				#ifdef SSAOFILTER
-				for(DWORD y=0; y < bufferHeight; ++y){
-					for(DWORD x=0; x < bufferWidth; ++x){
-						DWORD idx = y*bufferWidth+x;
-						window.buffers[1][idx] = 0;
+				for(DWORD y=0; y < renderBuffers.height; ++y){
+					for(DWORD x=0; x < renderBuffers.width; ++x){
+						DWORD idx = y*renderBuffers.width+x;
+						colorBuffers[1].data[idx] = 0;
 						for(int dy=-2; dy < 2; ++dy){
 							for(int dx=-2; dx < 2; ++dx){
-								DWORD sampleIdx = ((y+dy)*bufferWidth+dx+x)%(bufferWidth*bufferHeight);
-								window.buffers[1][idx] += R(window.buffers[0][sampleIdx]);
+								DWORD sampleIdx = ((y+dy)*renderBuffers.width+dx+x)%(renderBuffers.width*renderBuffers.height);
+								colorBuffers[1].data[idx] += R(colorBuffers[0].data[sampleIdx]);
 							}
 						}
-						window.buffers[0][idx] = G(window.buffers[0][idx], window.buffers[1][idx]/16);
+						colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], colorBuffers[1].data[idx]/16);
 					}
 				}
-				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-					DWORD color = window.pixels[i];
-					float factor = G(window.buffers[0][i])/255.f;
-					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+					DWORD color = renderBuffers.frameBuffer[i];
+					float factor = R(colorBuffers[0].data[i])/255.f;
+					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#else
 				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
 					DWORD color = renderBuffers.frameBuffer[i];
-					float factor = R(colorBuffers[0].data[i])/255.f;
+					float factor = (R(colorBuffers[0].data[i])+R(colorBuffers[1].data[i]))/510.f;
+					colorBuffers[1].data[i] = colorBuffers[0].data[i];
 					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#endif
