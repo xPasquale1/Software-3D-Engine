@@ -50,6 +50,7 @@ struct Window{
 	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
 	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
+	void* data;										//Generischer Datenpointer der Überschrieben werden darf
 };
 
 #define APPLICATIONFLAGSTYPE BYTE
@@ -351,6 +352,14 @@ ErrCode loadImage(const char* name, Image& image)noexcept{
 		image.data[i] = RGBA(val[0], val[1], val[2], val[3]);
 	}
 	file.close();
+	return SUCCESS;
+}
+
+ErrCode createBlankImage(Image& image, WORD width, WORD height, DWORD color)noexcept{
+	ErrCode code;
+	code = createImage(image, width, height);
+	if(code != SUCCESS) return code;
+	for(DWORD i=0; i < width*height; ++i) image.data[i] = color;
 	return SUCCESS;
 }
 
@@ -667,6 +676,10 @@ struct FloatSlider{
 	float value = 0;
 };
 
+WORD getFloatSliderPosFromValue(FloatSlider& slider){
+	return (slider.value-slider.minValue)/(slider.maxValue-slider.minValue)*slider.size.x; 
+}
+
 void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
 	for(WORD i=0; i < sliderCount; ++i){
 		if(getButton(mouse, MOUSE_LMB)){
@@ -685,12 +698,8 @@ void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, W
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
 
-#define CULLBACKFACES
 // #define EARLYZCULLING
 #define DEPTH_DIVISOR 10000.f
-#define MATERIALMAXTEXTURECOUNT 3
-
-#define MAXVERTEXATTRIBUTES 24
 
 struct RenderBuffers{
 	WORD width;
@@ -713,6 +722,7 @@ ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 	renderBuffers.fragmentFlags = new BYTE[width*height];
 	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
 	renderBuffers.attributeBuffers = new float[width*height*attributesCount];
+	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
 	return SUCCESS;
 }
 
@@ -723,6 +733,37 @@ void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 	delete[] renderBuffers.attributeBuffers;
 }
 
+ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height)noexcept{
+	delete[] renderBuffers.frameBuffer;
+	renderBuffers.frameBuffer = new(std::nothrow) DWORD[width*height];
+	if(renderBuffers.frameBuffer == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.depthBuffer;
+	renderBuffers.depthBuffer = new(std::nothrow) DWORD[width*height];
+	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.fragmentFlags;
+	renderBuffers.fragmentFlags = new(std::nothrow) BYTE[width*height];
+	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.attributeBuffers;
+	renderBuffers.attributeBuffers = new(std::nothrow) float[width*height*renderBuffers.attributeBuffersCount];
+	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
+	renderBuffers.width = width;
+	renderBuffers.height = height;
+	return SUCCESS;
+}
+
+void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+		renderBuffers.frameBuffer[i] = RGBA(0, 0, 0);
+		renderBuffers.depthBuffer[i] = 0xFF'FF'FF'FF;
+		renderBuffers.fragmentFlags[i] = 0;
+	}
+}
+
+//TODO Attribute für always_inline?
+inline DWORD getAttrLoc(RenderBuffers& renderBuffers, BYTE location)noexcept{
+	return renderBuffers.width*renderBuffers.height*location;
+}
+
 //TODO vllt weg? Oder zumindest passender benennen wie TriangleVertexPositions oder so
 struct Triangle{
 	fvec3 points[3];
@@ -731,7 +772,7 @@ struct Triangle{
 //Speichert ein Material aus einer .mtl file
 struct Material{
 	std::string name;
-	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
+	Image textures[1];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
 	BYTE textureCount = 0;
 };
 
@@ -758,9 +799,10 @@ void destroyTriangleModel(TriangleModel& model)noexcept{
 	// delete model.material;	//TODO hm is doof
 }
 
-void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
-	Triangle* newArray = new Triangle[model.triangleCapacity+additionalCapacity];
-	float* newAttributeArray = new float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
+ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
+	Triangle* newArray = new(std::nothrow) Triangle[model.triangleCapacity+additionalCapacity];
+	float* newAttributeArray = new(std::nothrow) float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
+	if(newArray == nullptr || newAttributeArray == nullptr) return BAD_ALLOC;
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
 	}
@@ -774,6 +816,7 @@ void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noe
 	model.attributesBuffer = newAttributeArray;
 	delete[] oldAttributeArray;
 	model.triangleCapacity += additionalCapacity;
+	return SUCCESS;
 }
 
 //TODO aktuell noch falsch, da 1 auf 0 abgebildet wird
@@ -1238,6 +1281,9 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) <= 0) continue;
 #endif
+#ifdef CULLFRONTFACES
+    	if(dot(tri.points[0], normal) >= 0) continue;
+#endif
 		for(int j=0; j < attributesCount*3; ++j) attributesBuffer[j] = attributes[i*attributesCount*3+j];
     	BYTE count = clipping(renderBuffers, attributesBuffer, attributesCount, buffer);
     	for(BYTE j=0; j < count; ++j){
@@ -1299,6 +1345,9 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, DWORD startI
 #endif
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) <= 0) continue;
+#endif
+#ifdef CULLFRONTFACES
+    	if(dot(tri.points[0], normal) >= 0) continue;
 #endif
     	BYTE count = clipping(renderBuffers, nullptr, 0, buffer);
     	for(BYTE j=0; j < count; ++j){
@@ -1462,7 +1511,8 @@ enum OBJKEYWORD{
 	OBJ_G = hashKeywords("g"),
 	OBJ_MTLLIB = hashKeywords("mtllib"),
 	OBJ_USEMTL = hashKeywords("usemtl"),
-	OBJ_COMMENT = hashKeywords("#")
+	OBJ_COMMENT = hashKeywords("#"),
+	OBJ_L = hashKeywords("l")
 };
 
 enum MTLKEYWORD{	//TODO hier fehlen noch ein paar
@@ -1573,6 +1623,7 @@ ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 			data[buffer.size()] = '\0';
 			break;
 		}
+		case OBJ_L:		//TODO muss noch implementiert werden
 		case OBJ_COMMENT:{
 			std::string buffer;
 			BYTE* data = (BYTE*)outData;
@@ -1631,6 +1682,7 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 			while(!readWord(file, buffer)){
 				for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
 				data[idx++] = ' ';	//TODO EINFACH NUR FALSCH, DAS IST NUR HIER WEIL ICH ZU FAUL WAR MIR EINE BESSERE LÖSUNG FÜR DAS PFAD PROBLEM ZU ÜBERLEGEN
+				//Problem ist ein Pfad mit einem Leerzeichen, statt readWord sollte man eine Funktion schreiben die alles bis zum \n einliest, duh
 			}
 			for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
 			data[idx] = '\0';
@@ -1675,14 +1727,22 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 					index += 2;
 				}
 				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
+				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
 				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
-				materials[materialCount-1].textureCount++;
+				materials[materialCount-1].textureCount = 1;
+				break;
+			}
+			case MTL_KD:{	//TODO wie das TODO oben drüber und auch das unten drunter (:
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				float* values = (float*)data;
+				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
+				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				materials[materialCount-1].textureCount = 1;
 				break;
 			}
 			case MTL_NS:	//TODO müssen alle noch implementiert werden
 			case MTL_KA:
-			case MTL_KD:
 			case MTL_KS:
 			case MTL_KE:
 			case MTL_NI:
@@ -1702,7 +1762,7 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 //TODO man sollte übergeben können in welche location die Attribute gespeichert werden
 //TODO unterstützt nur Flächen die aus Dreiecken bestehen
 //TODO Theoretisch noch nicht optimal implementiert, da jede Zeile erst in einen Buffer gelesen wird und dieser dann erst geparsed
-ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scale=1)noexcept{
+ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scaleX=1, float scaleY=1, float scaleZ=1)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
@@ -1714,6 +1774,11 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 	void* data[80];
 	bool hasMaterial = false;
 	DWORD lineNumber = 0;
+	BYTE windingOrder[] = {0, 1, 2};
+	if(((sign(scaleX)+sign(scaleY)+sign(scaleZ))%2) == 0){
+		windingOrder[0] = 2;
+		windingOrder[2] = 0;
+	}
 	while(file >> word){
 		lineNumber++;
 		OBJKEYWORD key = (OBJKEYWORD)hashKeywords(word.c_str());
@@ -1724,7 +1789,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 			}
 			case OBJ_V:{
 				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
-				points.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
+				points.push_back({((float*)data)[0]*scaleX, ((float*)data)[1]*scaleY, ((float*)data)[2]*scaleZ});
 				break;
 			}
 			case OBJ_VN:{
@@ -1754,28 +1819,28 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				DWORD modelIdx = modelCount-1;
 				DWORD triangleIdx = models[modelIdx].triangleCount;
 
-				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[0]];
-				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[1]];
-				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[2]];
+				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[windingOrder[0]]];
+				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[windingOrder[1]]];
+				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[windingOrder[2]]];
 
 				DWORD attributeBaseIdx = triangleIdx*models[modelIdx].attributesCount*3;
-				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[0]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[0]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[0]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[0]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[0]].z;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[0]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[0]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[0]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[0]]].y*-negSign(scaleY);	//TODO Warum müssen die negativ sein?
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[0]]].z*-negSign(scaleZ);
 				attributeBaseIdx += models[modelIdx].attributesCount;
-				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[1]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[1]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[1]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[1]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[1]].z;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[1]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[1]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[1]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[1]]].y*-negSign(scaleY);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[1]]].z*-negSign(scaleZ);
 				attributeBaseIdx += models[modelIdx].attributesCount;
-				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[2]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[2]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[2]].x;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[2]].y;
-				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[2]].z;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[2]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[2]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[2]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[2]]].y*-negSign(scaleY);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[2]]].z*-negSign(scaleZ);
 
 				models[modelIdx].triangleCount++;
 				break;
@@ -1814,6 +1879,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 			}
 			case OBJ_G:			//TODO müssen alle noch implementiert werden
 			case OBJ_S:
+			case OBJ_L:
 			case OBJ_COMMENT:{
 				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;

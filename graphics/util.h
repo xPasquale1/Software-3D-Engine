@@ -250,9 +250,6 @@ void resetData(PerfAnalyzer& pa)noexcept{
 
 //TODO Kompression
 
-DWORD searchInWindow(){
-	return 0;
-}
 DWORD compress(BYTE* input, DWORD size, BYTE* output){
 	return 0;
 }
