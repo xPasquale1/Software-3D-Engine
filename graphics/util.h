@@ -81,8 +81,10 @@ ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=ERR_NO_F
 }
 
 enum MOUSEBUTTON{
-	MOUSE_LMB = 1,
-	MOUSE_RMB = 2
+	MOUSE_LMB=1,
+	MOUSE_RMB=2,
+	MOUSE_PREV_LMB=4,
+	MOUSE_PREV_RMB=8
 };
 struct Mouse{
 	ivec2 pos = {};

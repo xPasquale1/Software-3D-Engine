@@ -42,7 +42,7 @@ ErrCode setRenderMode(void* mode)noexcept{
 }
 
 //Sliders
-FloatSlider debugSlider[3];
+FloatSlider debugSlider[7];
 WORD sliderCount = 0;
 
 #define SPEED 0.25
@@ -115,10 +115,10 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
-	const int ssaoSamples = 16;
-	const float ssaoMaxLength = 12;
-	const SDWORD minDepth = 2*DEPTH_DIVISOR;
-	const SDWORD maxDepth = 12*DEPTH_DIVISOR;
+	const int ssaoSamples = debugSlider[3].value;
+	const float ssaoMaxLength = debugSlider[4].value;
+	const SDWORD minDepth = debugSlider[5].value*DEPTH_DIVISOR;
+	const SDWORD maxDepth = debugSlider[6].value*DEPTH_DIVISOR;
 	
 	DWORD idx = 0;
 	for(WORD y=0; y < renderBuffers.width; ++y){
@@ -189,9 +189,9 @@ void ssr(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 			fvec3 reflDir = reflect(viewDir, worldNormal);
 
             bool hit = false;
-            const float stepSize = debugSlider[0].value;
+            const float stepSize = debugSlider[1].value;
             const int maxSteps = 120;
-			const float maxDepth = debugSlider[1].value*DEPTH_DIVISOR;
+			const float maxDepth = debugSlider[2].value*DEPTH_DIVISOR;
 			const float reflectionAmount = 0.4f;
 			const float albedoAmount = 1.f-reflectionAmount;
 
@@ -313,8 +313,12 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Image defaultTexture;
 	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
-	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
-	if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
+	// char filepath[MAX_PATH]{0};
+	// ErrCheck(openExplorer(filepath, sizeof(filepath), "OBJ Wavefront Format .obj\0*.obj\0"), "Explorer öffnen");
+	// std::cout << filepath << std::endl;
+
+	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
@@ -395,8 +399,12 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[0].pos = {buttonPos.x, buttonPos.y};
 	debugSlider[0].size = {200, 6};
 	debugSlider[0].sliderRadius = 12;
-	debugSlider[0].value = 10;
-	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
+	debugSlider[0].minValue = 0.1;
+	debugSlider[0].maxValue = 2.0;
+	debugSlider[0].value = 0.5;
+	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
+
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[1].pos = {buttonPos.x, buttonPos.y};
 	debugSlider[1].size = {200, 6};
@@ -407,11 +415,43 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[2].pos = {buttonPos.x, buttonPos.y};
 	debugSlider[2].size = {200, 6};
 	debugSlider[2].sliderRadius = 12;
-	debugSlider[2].minValue = 0.1;
-	debugSlider[2].maxValue = 2.0;
-	debugSlider[2].value = 0.5;
-	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
-	sliderCount = 3;
+	debugSlider[2].value = 10;
+	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
+
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[3].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[3].size = {200, 6};
+	debugSlider[3].sliderRadius = 12;
+	debugSlider[3].minValue = 1;
+	debugSlider[3].maxValue = 64;
+	debugSlider[3].value = 16;
+	debugSlider[3].sliderPos = getFloatSliderPosFromValue(debugSlider[3]);
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[4].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[4].size = {200, 6};
+	debugSlider[4].sliderRadius = 12;
+	debugSlider[4].minValue = 2;
+	debugSlider[4].maxValue = 20;
+	debugSlider[4].value = 12;
+	debugSlider[4].sliderPos = getFloatSliderPosFromValue(debugSlider[4]);
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[5].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[5].size = {200, 6};
+	debugSlider[5].sliderRadius = 12;
+	debugSlider[5].minValue = 0;
+	debugSlider[5].maxValue = 10;
+	debugSlider[5].value = 2;
+	debugSlider[5].sliderPos = getFloatSliderPosFromValue(debugSlider[5]);
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[6].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[6].size = {200, 6};
+	debugSlider[6].sliderRadius = 12;
+	debugSlider[6].minValue = 1;
+	debugSlider[6].maxValue = 30;
+	debugSlider[6].value = 12;
+	debugSlider[6].sliderPos = getFloatSliderPosFromValue(debugSlider[6]);
+	sliderCount = 7;
 
 	for(WORD i=0; i < RANDOMNORMALSCOUNT; ++i){
 		while(1){
@@ -547,7 +587,7 @@ void update(float dt)noexcept{
 		updateMenu(window.framebuffer, settingsMenu, font);
 		float preResolutionScale = resolutionScale;
 		updateFloatSliders(window.framebuffer, font, debugSlider, sliderCount);
-		resolutionScale = debugSlider[2].value;
+		resolutionScale = debugSlider[0].value;
 		if(resolutionScale != preResolutionScale){
 			resizeRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
 			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
@@ -556,6 +596,10 @@ void update(float dt)noexcept{
 			}
 		}
 	}
+	if(getButton(mouse, MOUSE_LMB)) setButton(mouse, MOUSE_PREV_LMB);
+	if(getButton(mouse, MOUSE_RMB)) setButton(mouse, MOUSE_PREV_RMB);
+	if(!getButton(mouse, MOUSE_LMB)) resetButton(mouse, MOUSE_PREV_LMB);
+	if(!getButton(mouse, MOUSE_RMB)) resetButton(mouse, MOUSE_PREV_RMB);
 }
 
 LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -581,9 +625,6 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			break;
 		}
 		case WM_LBUTTONDOWN:{
-			if(!getButton(mouse, MOUSE_LMB)){
-
-			};
 			setButton(mouse, MOUSE_LMB);
 			break;
 		}
@@ -592,9 +633,6 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			break;
 		}
 		case WM_RBUTTONDOWN:{
-			if(!getButton(mouse, MOUSE_RMB)){
-
-			};
 			setButton(mouse, MOUSE_RMB);
 			break;
 		}

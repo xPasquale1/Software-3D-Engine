@@ -665,16 +665,25 @@ void updateMenu(Colorbuffer& buffer, Menu& menu, Font& font)noexcept{
 	}
 }
 
+enum FLOATSLIDERFLAGS{
+	CAPTURED=1
+};
+
 struct FloatSlider{
 	ivec2 pos = {0, 0};
 	ivec2 size = {100, 3};
 	WORD sliderRadius = 6;
 	WORD sliderPos = 0;
 	DWORD color = RGBA(180, 180, 180);
+	BYTE flags = 0;
 	float minValue = 0;
 	float maxValue = 100;
 	float value = 0;
 };
+
+constexpr void setSliderFlag(FloatSlider& slider, FLOATSLIDERFLAGS flag)noexcept{slider.flags |= flag;}
+constexpr void resetSliderFlag(FloatSlider& slider, FLOATSLIDERFLAGS flag)noexcept{slider.flags &= ~flag;}
+constexpr bool getSliderFlag(FloatSlider& slider, FLOATSLIDERFLAGS flag)noexcept{return (slider.flags&flag);}
 
 WORD getFloatSliderPosFromValue(FloatSlider& slider){
 	return (slider.value-slider.minValue)/(slider.maxValue-slider.minValue)*slider.size.x; 
@@ -682,18 +691,40 @@ WORD getFloatSliderPosFromValue(FloatSlider& slider){
 
 void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
 	for(WORD i=0; i < sliderCount; ++i){
-		if(getButton(mouse, MOUSE_LMB)){
+		if(getButton(mouse, MOUSE_LMB) && !getButton(mouse, MOUSE_PREV_LMB)){
 			WORD x = mouse.pos.x-sliders[i].pos.x-sliders[i].sliderPos+sliders[i].sliderRadius;
 			WORD y = mouse.pos.y-sliders[i].pos.y+sliders[i].sliderRadius;
-			if(x <= sliders[i].sliderRadius*2 && y <= sliders[i].sliderRadius*2){
-				sliders[i].sliderPos = clamp(mouse.pos.x-sliders[i].pos.x, 0, sliders[i].size.x);
-				sliders[i].value = (sliders[i].sliderPos*(sliders[i].maxValue-sliders[i].minValue))/sliders[i].size.x+sliders[i].minValue;
-			}
+			if(x <= sliders[i].sliderRadius*2 && y <= sliders[i].sliderRadius*2) setSliderFlag(sliders[i], CAPTURED);
+		}
+		if(!getButton(mouse, MOUSE_LMB)) resetSliderFlag(sliders[i], CAPTURED);
+		if(getSliderFlag(sliders[i], CAPTURED)){
+			sliders[i].sliderPos = clamp(mouse.pos.x-sliders[i].pos.x, 0, sliders[i].size.x);
+			sliders[i].value = (sliders[i].sliderPos*(sliders[i].maxValue-sliders[i].minValue))/sliders[i].size.x+sliders[i].minValue;
 		}
 		drawRectangle(buffer, sliders[i].pos.x, sliders[i].pos.y, sliders[i].size.x, sliders[i].size.y, sliders[i].color);
 		drawCircle(buffer, sliders[i].pos.x+sliders[i].sliderPos, sliders[i].pos.y+sliders[i].size.y/2, sliders[i].sliderRadius, sliders[i].color);
 		drawFontString(buffer, font, floatToString(sliders[i].value).c_str(), sliders[i].pos.x+sliders[i].size.x+sliders[i].sliderRadius, sliders[i].pos.y+sliders[i].size.y/2-font.font_size/2);
 	}
+}
+
+//Öffnet den System Explorer um eine Datei zu öffnen, schreibt bei Erfolg den Dateipfad in filepath
+//Filepath muss allokiert sein, Empfehlung: char filepath[MAX_PATH]{0};
+ErrCode openExplorer(char* filepath, DWORD maxPathLength, const char filterStr[] = "Any .*\0*.*\0"){
+	OPENFILENAME ofn = {};
+    ofn.lStructSize = sizeof(OPENFILENAME);
+    ofn.lpstrFile = (LPSTR)filepath;
+    ofn.nMaxFile = maxPathLength;
+    ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
+    char currentDir[MAX_PATH]{0};
+    DWORD directoryLength = GetCurrentDirectoryA(MAX_PATH, currentDir);
+    if(directoryLength == 0) return GENERIC_ERROR;				//TODO sollte ein eigener Fehler sein
+    currentDir[directoryLength] = '\\';
+    ofn.lpstrInitialDir = currentDir;
+    ofn.lpstrFilter = filterStr;
+    ofn.nFilterIndex = 1;
+    if(GetOpenFileName(&ofn) != TRUE) return SUCCESS;	//TODO ehhh... es ist nicht zwangsweiße kein Fehler...
+	strcpy(filepath, (char*)ofn.lpstrFile);
+	return SUCCESS;
 }
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
