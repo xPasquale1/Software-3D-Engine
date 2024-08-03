@@ -10,6 +10,7 @@
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle verticies die zu groß sind? aufwand größer?)
 	TODO Shadow mapping oder ähnliches
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
+	TODO eigene alloc Funktion machen, die ErrCode zurück gibt
 */
 
 // #define NEWTRIANGLEDRAWINGALGORITHM
@@ -55,7 +56,13 @@ float resolutionScale = 0.5;
 
 DWORD frameCounter = 0;
 
-fvec3 vertexShader(fvec3& point)noexcept{
+fvec3 waterVertexShader(fvec3& point, float* attributes)noexcept{
+	point.x += cos(attributes[5]*5+frameCounter*0.2)*20;
+	point.y += sin(attributes[5]*5+frameCounter*0.2)*20;
+	return point;
+}
+
+fvec3 vertexShader(fvec3& point, float* attributes)noexcept{
 	return point;
 }
 
@@ -109,7 +116,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
 	const int ssaoSamples = 16;
-	const float ssaoMaxLength = 10;
+	const float ssaoMaxLength = 12;
 	const SDWORD minDepth = 2*DEPTH_DIVISOR;
 	const SDWORD maxDepth = 12*DEPTH_DIVISOR;
 	
@@ -129,7 +136,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
 			float strength = 0;
 			for(int i=0; i < ssaoSamples; ++i){
 				fvec3 dir = generateRandomNormalInHemisphere(worldNormal);
-				float length = nextrand()/4294967294.f;
+				float length = (float)i/ssaoSamples;
 				length = -lerp(0.1f, 1.f, length*length);
 				dir.x *= length*ssaoMaxLength;
 				dir.y *= length*ssaoMaxLength;
@@ -259,12 +266,12 @@ void normalBufferShader(RenderBuffers& renderBuffers)noexcept{
 
 void drawTriangleModel(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
 	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
-	if(model.material == nullptr || model.material->textureCount == 0) textureShader(renderBuffers, defaultTexture);
+	if(model.material == nullptr) textureShader(renderBuffers, defaultTexture);
 	else textureShader(renderBuffers, model.material->textures[0]);
 }
 
 void drawTriangleModelOutline(RenderBuffers& renderBuffers, TriangleModel& model)noexcept{
-	rasterizeOutline(renderBuffers, model.triangles, 0, model.triangleCount, cam);
+	rasterizeOutline(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
 }
 
 void drawDepthBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
@@ -306,8 +313,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Image defaultTexture;
 	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
-	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
-	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -80, -80, 80), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
@@ -444,7 +451,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
-			#define SSAOFILTER
+			// #define SSAOFILTER
 			case SSAO_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				ssao(renderBuffers);

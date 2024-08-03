@@ -1244,7 +1244,7 @@ struct Camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-typedef fvec3 (*vertexShaderFunction)(fvec3&)noexcept;
+typedef fvec3 (*vertexShaderFunction)(fvec3&, float*)noexcept;
 
 //TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
 void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
@@ -1265,9 +1265,9 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
-		tri.points[0] = vertexShader(tri.points[0]);
-		tri.points[1] = vertexShader(tri.points[1]);
-		tri.points[2] = vertexShader(tri.points[2]);
+		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
+		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
+		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
 		float d[3];
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
@@ -1316,7 +1316,7 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
     return;
 }
 
-void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1333,6 +1333,9 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, DWORD startI
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
+		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
+		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
+		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
 		float d[3];
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
