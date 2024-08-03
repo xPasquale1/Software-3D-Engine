@@ -1,0 +1,252 @@
+# Blender MTL File: 'test.blend'
+# Material Count: 23
+
+newmtl baseBrownWood
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.386430 0.371238 0.318547
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_brownWood.tex
+
+newmtl baseDarkWood
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_darkWood.tex
+
+newmtl basePaintedPlaster
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.396755 0.376262 0.283149
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_paintedPlasterWall.tex
+
+newmtl beigeWall
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.267068 0.267068 0.267068
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_wallPaint.tex
+
+newmtl black
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.023144 0.023144 0.023144
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl blackBoard.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\blackBoard.tex
+
+newmtl ceilingAirVent.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.291771 0.274677 0.208637
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\ceilingAirVent_AO.tex
+
+newmtl cork.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.095307 0.066626 0.038204
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\cork.tex
+
+newmtl drawing.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.636353 0.636353 0.636353
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\childDrawing_01.tex
+
+newmtl drawing.006
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.636353 0.636353 0.636353
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\childDrawing_05.tex
+
+newmtl drawing.007
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\childDrawing_06.tex
+
+newmtl drawing.008
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\childDrawing_08.tex
+
+newmtl drawing.009
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.636353 0.636353 0.636353
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\childDrawing_07.tex
+
+newmtl leather
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.149960 0.068478 0.035601
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_leather.tex
+
+newmtl metal
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.102231 0.083606 0.082567
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_bareMetal.tex
+
+newmtl orange
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 1.000000 0.200000 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl paper.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_paper_01.tex
+
+newmtl schoolDesk_wood
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.486896 0.269659 0.107184
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_brightWood.tex
+
+newmtl white
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+
+newmtl woodFloor.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.214041 0.214041 0.214041
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\base_woodFloor.tex
+
+newmtl woodPlanks.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.318547 0.297928 0.188715
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\woodPlanks.tex
+
+newmtl worldMap.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.800000 0.800000 0.800000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\europeMap.tex
+
+newmtl zapBook_color.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.693872 0.693872 0.679543
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.000000
+d 1.000000
+illum 2
+map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\classroom\\zapBook.tex

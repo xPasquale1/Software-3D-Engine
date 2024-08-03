@@ -16,8 +16,23 @@
 	was für einen State die Applikation hat
 */
 
-#define MAXVERTEXATTRIBUTES 3
-#define MAXBUFFERS 8
+struct Colorbuffer{
+	WORD width = 0;
+	WORD height = 0;
+	DWORD* data = nullptr;
+};
+
+ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height){
+	buffer.width = width;
+	buffer.height = height;
+	buffer.data = new(std::nothrow) DWORD[width*height];
+	if(buffer.data == nullptr) return BAD_ALLOC;
+	return SUCCESS; 
+}
+
+void destroyColorbuffer(Colorbuffer& buffer){
+	delete[] buffer.data;
+}
 
 #define WINDOWFLAGSTYPE BYTE
 enum WINDOWFLAG : WINDOWFLAGSTYPE{
@@ -30,18 +45,12 @@ struct Window{
 	HWND handle = NULL;								//Fensterhandle
 	WORD windowWidth = 800;							//Fensterbreite
 	WORD windowHeight = 800;						//Fensterhöhe
-	DWORD* pixels;									//Pixelarray
-	DWORD* depth;									//Depthbuffer
-	BYTE* fragmentFlag;								//Buffer, welche Fragmente gezeichnet werden sollen TODO sollte 64bit sein und bitmasken nutzen statt Bytes...
+	Colorbuffer framebuffer;						//Farbbuffer für das Fenster
 	WORD pixelSize = 1;								//Größe der Pixel in Bildschirmpixeln
 	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
 	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
-	BYTE attributeBuffersCount = 0;					//Anzahl der Vertex-Attribute Buffer
-	//TODO float dafür zu verwenden ist ja eigentlich doof, da die Zahlen eh nur zwischen 0-1 sind...
-	fvec4* attributeBuffers[MAXVERTEXATTRIBUTES];	//Buffer für die interpolierten Vertex-Attribute
-	DWORD* buffers[MAXBUFFERS];						//Allgemeine Farbbuffer, die mit dem Fenster mit skalieren
-	BYTE bufferCount = 0;							//Die Anzahl der allgemeinen Buffer
+	void* data;										//Generischer Datenpointer der Überschrieben werden darf
 };
 
 #define APPLICATIONFLAGSTYPE BYTE
@@ -52,7 +61,7 @@ enum APPLICATIONFLAG : APPLICATIONFLAGSTYPE{
 struct Application{
 	APPLICATIONFLAG flags = APP_RUNNING;		//Applikationsflags
 	ID2D1Factory* factory = nullptr;			//Direct2D Factory
-}; static Application app;
+}; Application app;
 
 bool getAppFlag(APPLICATIONFLAG flag)noexcept{return(app.flags & flag);}
 void setAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags | flag);}
@@ -133,42 +142,20 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	WORD buffer_width = windowWidth/pixelSize;
 	WORD buffer_height = windowHeight/pixelSize;
 	window.pixelSize = pixelSize;
-	window.pixels = new DWORD[buffer_width*buffer_height];
-	window.depth = new DWORD[buffer_width*buffer_height];
-	window.fragmentFlag = new BYTE[buffer_width*buffer_height];
+	createColorbuffer(window.framebuffer, buffer_width, buffer_height);
 	window.windowWidth = windowWidth;
 	window.windowHeight = windowHeight;
 	return SUCCESS;
 }
 
-ErrCode addBuffers(Window& window, BYTE count=1)noexcept{
-	for(BYTE i=0; i < count; ++i){
-		if(window.bufferCount == MAXBUFFERS) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
-		window.buffers[window.bufferCount] = new(std::nothrow) DWORD[window.windowWidth*window.windowHeight];
-		if(!window.buffers[window.bufferCount]) return BAD_ALLOC;
-		window.bufferCount++;
-	}
-	return SUCCESS;
-}
-
-ErrCode removeBuffer(Window& window)noexcept{
-	delete[] window.buffers[window.bufferCount-1];
-	window.bufferCount--;
-	return SUCCESS;
-}
-
 //Zerstört das Fenster und alle allokierten Ressourcen mit diesem
 ErrCode destroyWindow(Window& window)noexcept{
-	while(window.bufferCount > 0) removeBuffer(window);
-	for(BYTE i=0; i < window.attributeBuffersCount; ++i) delete[] window.attributeBuffers[i];
 	if(!UnregisterClassA(window.windowClassName.c_str(), NULL)){
 		std::cerr << GetLastError() << std::endl;
 		return GENERIC_ERROR;
 	}
 	DestroyWindow(window.handle);
-	delete[] window.pixels;
-	delete[] window.depth;
-	delete[] window.fragmentFlag;
+	destroyColorbuffer(window.framebuffer);
 	return SUCCESS;
 }
 
@@ -196,42 +183,12 @@ ErrCode resizeWindow(Window& window, WORD width, WORD height, WORD pixel_size)no
 	window.windowWidth = width;
 	window.windowHeight = height;
 	window.pixelSize = pixel_size;
-	delete[] window.pixels;
-	delete[] window.depth;
-	delete[] window.fragmentFlag;
+	destroyColorbuffer(window.framebuffer);
 	WORD bufferWidth = width/pixel_size;
 	WORD bufferHeight = height/pixel_size;
-	window.pixels = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-	if(!window.pixels) return BAD_ALLOC;
-	window.depth = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-	if(!window.depth) return BAD_ALLOC;
-	window.fragmentFlag = new(std::nothrow) BYTE[bufferWidth*bufferHeight];
-	if(!window.fragmentFlag) return BAD_ALLOC;
+	ErrCode code;
+	if((code = createColorbuffer(window.framebuffer, bufferWidth, bufferHeight)) != SUCCESS) return code;
 	window.renderTarget->Resize({width, height});
-	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-		delete[] window.attributeBuffers[i];
-		window.attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
-		if(!window.attributeBuffers[i]) return BAD_ALLOC;
-	}
-	for(BYTE i=0; i < window.bufferCount; ++i){
-		delete[] window.buffers[i];
-		window.buffers[i] = new(std::nothrow) DWORD[bufferWidth*bufferHeight];
-		if(!window.buffers[i]) return BAD_ALLOC;
-	}
-	return SUCCESS;
-}
-
-//Weißt dem Fenster bufferCount viele Vertex-Attribute-Buffer zu und löscht bestehende
-ErrCode assignAttributeBuffers(Window& window, BYTE bufferCount)noexcept{
-	if(bufferCount > MAXVERTEXATTRIBUTES) return BAD_ALLOC;	//TODO neuer Fehlercode
-	for(BYTE i=0; i < window.attributeBuffersCount; ++i) delete[] window.attributeBuffers[i];
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(BYTE i=0; i < bufferCount; ++i){
-		window.attributeBuffers[i] = new(std::nothrow) fvec4[bufferWidth*bufferHeight];
-		if(!window.attributeBuffers[i]) return BAD_ALLOC;
-	}
-	window.attributeBuffersCount = bufferCount;
 	return SUCCESS;
 }
 
@@ -303,25 +260,15 @@ constexpr DWORD R(DWORD color, DWORD r)noexcept{return (color&0xFF00FFFF)|r<<16;
 constexpr DWORD G(DWORD color, DWORD g)noexcept{return (color&0xFFFF00FF)|g<<8;}
 constexpr DWORD B(DWORD color, DWORD b)noexcept{return (color&0xFFFFFF00)|b;}
 
-ErrCode clearWindow(Window& window)noexcept{
+ErrCode clearWindow(Window& window, DWORD color)noexcept{
 	WORD buffer_width = window.windowWidth/window.pixelSize;
 	WORD buffer_height = window.windowHeight/window.pixelSize;
-	for(WORD y=0; y < buffer_height; ++y){
-		for(WORD x=0; x < buffer_width; ++x){
-			window.pixels[y*buffer_width+x] = RGBA(0, 0, 0);
-			window.depth[y*buffer_width+x] = 0xFF'FF'FF'FF;
-			window.fragmentFlag[y*buffer_width+x] = 0;
-		}
-	}
+	for(DWORD i=0; i < window.framebuffer.width*window.framebuffer.height; ++i) window.framebuffer.data[i] = color;
 	return SUCCESS;
 }
 
-//TODO bitmap kann man bestimmt auch im Window speichern und auf dieser dann rummalen. anstatt diese immer neu zu erzeugen
-//Muss dann halt auch immer geupdated werden, wenn das Window skaliert wird,...
 ErrCode drawWindow(Window& window)noexcept{
 	if(window.windowWidth == 0 || window.windowHeight == 0) return GENERIC_ERROR;
-	WORD buffer_width = window.windowWidth/window.pixelSize;
-	WORD buffer_height = window.windowHeight/window.pixelSize;
 	ID2D1Bitmap* bitmap;
 	D2D1_BITMAP_PROPERTIES properties = {};
 	properties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
@@ -329,29 +276,27 @@ ErrCode drawWindow(Window& window)noexcept{
 	properties.dpiX = 96;
 	properties.dpiY = 96;
 	window.renderTarget->BeginDraw();
-	HRESULT hr = window.renderTarget->CreateBitmap({buffer_width, buffer_height}, window.pixels, buffer_width*4, properties, &bitmap);
+	HRESULT hr = window.renderTarget->CreateBitmap({window.framebuffer.width, window.framebuffer.height}, window.framebuffer.data, window.framebuffer.width*4, properties, &bitmap);
 	if(hr){
 		std::cerr << hr << std::endl;
-		exit(-2);
+		exit(-2);	//TODO uhhh hallo was?
 	}
-	window.renderTarget->DrawBitmap(bitmap, D2D1::RectF(0, 0, window.windowWidth, window.windowHeight), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1::RectF(0, 0, buffer_width, buffer_height));
+	window.renderTarget->DrawBitmap(bitmap, D2D1::RectF(0, 0, window.windowWidth, window.windowHeight), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1::RectF(0, 0, window.framebuffer.width, window.framebuffer.height));
 	bitmap->Release();
 	window.renderTarget->EndDraw();
 	return SUCCESS;
 }
 
-ErrCode drawRectangle(Window& window, WORD x, WORD y, WORD dx, WORD dy, DWORD color)noexcept{
-	WORD buffer_width = window.windowWidth/window.pixelSize;
+ErrCode drawRectangle(Colorbuffer& buffer, WORD x, WORD y, WORD dx, WORD dy, DWORD color)noexcept{
 	for(WORD i=y; i < y+dy; ++i){
 		for(WORD j=x; j < x+dx; ++j){
-			window.pixels[i*buffer_width+j] = color;
+			buffer.data[i*buffer.width+j] = color;
 		}
 	}
 	return SUCCESS;
 }
 
-ErrCode drawLine(Window& window, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
-	WORD bufferWidth = window.windowWidth/window.pixelSize;
+ErrCode drawLine(Colorbuffer& buffer, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
 	int dx = end_x-start_x;
 	int dy = end_y-start_y;
 	int steps = abs(dx) > abs(dy) ? abs(dx) : abs(dy);
@@ -360,19 +305,17 @@ ErrCode drawLine(Window& window, WORD start_x, WORD start_y, WORD end_x, WORD en
 	float x = start_x+0.5f;
 	float y = start_y+0.5f;
 	for(int i = 0; i <= steps; ++i){
-		DWORD idx = (int)y*bufferWidth+(int)x;
-		window.pixels[(int)y*bufferWidth+(int)x] = color;
+		buffer.data[(int)y*buffer.width+(int)x] = color;
 		x += xinc;
 		y += yinc;
 	}
 	return SUCCESS;
 }
 
-ErrCode drawCircle(Window& window, WORD x, WORD y, WORD radius, DWORD color)noexcept{
-	WORD bufferWidth = window.windowWidth/window.pixelSize;
+ErrCode drawCircle(Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD color)noexcept{
 	for(SWORD i=-radius; i < radius; ++i){
 		for(SWORD j=-radius; j < radius; ++j){
-			if(j*j+i*i <= radius*radius) window.pixels[(i+y)*bufferWidth+j+x] = color;
+			if(j*j+i*i <= radius*radius) buffer.data[(i+y)*buffer.width+j+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -409,6 +352,14 @@ ErrCode loadImage(const char* name, Image& image)noexcept{
 		image.data[i] = RGBA(val[0], val[1], val[2], val[3]);
 	}
 	file.close();
+	return SUCCESS;
+}
+
+ErrCode createBlankImage(Image& image, WORD width, WORD height, DWORD color)noexcept{
+	ErrCode code;
+	code = createImage(image, width, height);
+	if(code != SUCCESS) return code;
+	for(DWORD i=0; i < width*height; ++i) image.data[i] = color;
 	return SUCCESS;
 }
 
@@ -457,14 +408,13 @@ void flipImageVertically(Image& image)noexcept{
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
 //TODO up-/downscaling methoden wie nearest, bilinear,...
-ErrCode copyImageToWindow(Window& window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
-	WORD buffer_width = window.windowWidth/window.pixelSize;
+ErrCode copyImageToColorbuffer(Colorbuffer& buffer, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	for(int y=start_y; y < end_y; ++y){
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
 			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
-			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) buffer.data[y*buffer.width+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -472,17 +422,15 @@ ErrCode copyImageToWindow(Window& window, Image& image, WORD start_x, WORD start
 
 //Funktion testet ob jeder pixel im gültigen Fensterbereich liegt! idx ist der window index
 //TODO ist das wirklich nötig eine ganze extra Funktion dafür zu machen?
-ErrCode copyImageToWindowSave(Window& window, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
-	WORD buffer_width = window.windowWidth/window.pixelSize;
-	WORD buffer_height = window.windowHeight/window.pixelSize;
+ErrCode copyImageToColorbufferSave(Colorbuffer& buffer, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	for(int y=start_y; y < end_y; ++y){
-		if(y < 0 || y >= (int)buffer_height) continue;
+		if(y < 0 || y >= (int)buffer.height) continue;
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
-			if(x < 0 || x >= (int)buffer_width) continue;
+			if(x < 0 || x >= (int)buffer.width) continue;
 			WORD rx = (float)(x-start_x)/(end_x-start_x)*image.width;
 			DWORD color = image.data[ry*image.width+rx];
-			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) buffer.data[y*buffer.width+x] = color;
 		}
 	}
 	return SUCCESS;
@@ -536,21 +484,20 @@ WORD getStringFontSize(Font& font, std::string& text)noexcept{
 
 //Gibt zurück wie breit das Symbol war das gezeichnet wurde
 //TODO Errors? übergebe symbol größe als Referenz Parameter
-DWORD drawFontChar(Window& window, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
+DWORD drawFontChar(Colorbuffer& buffer, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
 	DWORD idx = (symbol-32);
 	float div = (float)font.char_size.y/font.font_size;
 	DWORD end_x = start_x+font.char_sizes[idx]/div;
 	DWORD end_y = start_y+font.font_size;
 	DWORD x_offset = (idx%16)*font.char_size.x;
 	DWORD y_offset = (idx/16)*font.char_size.y;
-	DWORD buffer_width = window.windowWidth/window.pixelSize;
 	for(DWORD y=start_y; y < end_y; ++y){
 		float scaled_y = (float)(y-start_y)/(end_y-start_y);
 		for(DWORD x=start_x; x < end_x; ++x){
 			DWORD ry = scaled_y*font.char_size.y;
 			DWORD rx = (float)(x-start_x)/(end_x-start_x)*(font.char_sizes[idx]-1);
 			DWORD color = font.image.data[(ry+y_offset)*font.image.width+rx+x_offset];
-			if(A(color) > 0) window.pixels[y*buffer_width+x] = color;
+			if(A(color) > 0) buffer.data[y*buffer.width+x] = color;
 		}
 	}
 	return end_x-start_x;
@@ -558,11 +505,11 @@ DWORD drawFontChar(Window& window, Font& font, char symbol, DWORD start_x, DWORD
 
 //Gibt zurück, wie breit der String zu zeichnen war, String muss \0 terminiert sein!
 //TODO Errors? meh, if window wird evtl bei jedem Aufruf von drawFontChar gemacht
-DWORD drawFontString(Window& window, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
+DWORD drawFontString(Colorbuffer& buffer, Font& font, const char* string, DWORD start_x, DWORD start_y)noexcept{
 	DWORD offset = 0;
 	DWORD idx = 0;
 	while(string[idx] != '\0'){
-		offset += drawFontChar(window, font, string[idx++], start_x+offset, start_y);
+		offset += drawFontChar(buffer, font, string[idx++], start_x+offset, start_y);
 	}
 	return offset;
 }
@@ -620,26 +567,25 @@ void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 	}
 }
 
-//TODO meh, if window wird in jedem draw gemacht
-void drawButtons(Window& window, Font& font, Button* buttons, WORD button_count)noexcept{
+void drawButtons(Colorbuffer& buffer, Font& font, Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
 		if(!getButtonFlag(b, BUTTON_VISIBLE)) continue;
 		if(getButtonFlag(b, BUTTON_DISABLED)){
 			if(b.disabledImage == nullptr)
-				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.disabledColor);
+				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.disabledColor);
 			else
-				copyImageToWindow(window, *b.disabledImage, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
+				copyImageToColorbuffer(buffer, *b.disabledImage, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
 		}else if(b.image == nullptr){
 			if(getButtonFlag(b, BUTTON_CAN_HOVER) && getButtonFlag(b, BUTTON_HOVER))
-				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.hover_color);
+				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.hover_color);
 			else
-				drawRectangle(window, b.pos.x, b.pos.y, b.size.x, b.size.y, b.color);
+				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.color);
 		}else{
 			if(getButtonFlag(b, BUTTON_CAN_HOVER) && getButtonFlag(b, BUTTON_HOVER))
-				copyImageToWindow(window, *b.image, b.repos.x, b.repos.y, b.repos.x+b.resize.x, b.repos.y+b.resize.y);
+				copyImageToColorbuffer(buffer, *b.image, b.repos.x, b.repos.y, b.repos.x+b.resize.x, b.repos.y+b.resize.y);
 			else
-				copyImageToWindow(window, *b.image, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
+				copyImageToColorbuffer(buffer, *b.image, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
 		}
 		if(getButtonFlag(b, BUTTON_TEXT_CENTER)){
 			DWORD offset = 0;
@@ -647,7 +593,7 @@ void drawButtons(Window& window, Font& font, Button* buttons, WORD button_count)
 			font.font_size = b.textsize;
 			WORD str_size = getStringFontSize(font, b.text);
 			for(size_t i=0; i < b.text.size(); ++i){
-				offset += drawFontChar(window, font, b.text[i], b.pos.x+offset+b.size.x/2-str_size/2, b.pos.y+b.size.y/2-b.textsize/2);
+				offset += drawFontChar(buffer, font, b.text[i], b.pos.x+offset+b.size.x/2-str_size/2, b.pos.y+b.size.y/2-b.textsize/2);
 			}
 			font.font_size = tmp_font_size;
 		}else{
@@ -655,16 +601,16 @@ void drawButtons(Window& window, Font& font, Button* buttons, WORD button_count)
 			WORD tmp_font_size = font.font_size;
 			font.font_size = b.textsize;
 			for(size_t i=0; i < b.text.size(); ++i){
-				offset += drawFontChar(window, font, b.text[i], b.pos.x+offset, b.pos.y+b.size.y/2-b.textsize/2);
+				offset += drawFontChar(buffer, font, b.text[i], b.pos.x+offset, b.pos.y+b.size.y/2-b.textsize/2);
 			}
 			font.font_size = tmp_font_size;
 		}
 	}
 }
 
-void updateButtons(Window& window, Font& font, Button* buttons, WORD button_count)noexcept{
+void updateButtons(Colorbuffer& buffer, Font& font, Button* buttons, WORD button_count)noexcept{
 	buttonsClicked(buttons, button_count);
-	drawButtons(window, font, buttons, button_count);
+	drawButtons(buffer, font, buttons, button_count);
 }
 
 struct Label{
@@ -703,16 +649,16 @@ constexpr void setMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags |= fla
 constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~flag;}
 constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
 
-void updateMenu(Window& window, Menu& menu, Font& font)noexcept{
+void updateMenu(Colorbuffer& buffer, Menu& menu, Font& font)noexcept{
 	if(getMenuFlag(menu, MENU_OPEN)){
-		updateButtons(window, font, menu.buttons, menu.buttonCount);
+		updateButtons(buffer, font, menu.buttons, menu.buttonCount);
 		for(WORD i=0; i < menu.labelCount; ++i){
 			Label& label = menu.labels[i];
 			DWORD offset = 0;
 			for(size_t j=0; j < label.text.size(); ++j){
 				WORD tmp = font.font_size;
 				font.font_size = label.text_size;
-				offset += drawFontChar(window, font, label.text[j], label.pos.x+offset, label.pos.y);
+				offset += drawFontChar(buffer, font, label.text[j], label.pos.x+offset, label.pos.y);
 				font.font_size = tmp;
 			}
 		}
@@ -730,7 +676,11 @@ struct FloatSlider{
 	float value = 0;
 };
 
-void updateFloatSliders(Window& window, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
+WORD getFloatSliderPosFromValue(FloatSlider& slider){
+	return (slider.value-slider.minValue)/(slider.maxValue-slider.minValue)*slider.size.x; 
+}
+
+void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
 	for(WORD i=0; i < sliderCount; ++i){
 		if(getButton(mouse, MOUSE_LMB)){
 			WORD x = mouse.pos.x-sliders[i].pos.x-sliders[i].sliderPos+sliders[i].sliderRadius;
@@ -740,35 +690,89 @@ void updateFloatSliders(Window& window, Font& font, FloatSlider* sliders, WORD s
 				sliders[i].value = (sliders[i].sliderPos*(sliders[i].maxValue-sliders[i].minValue))/sliders[i].size.x+sliders[i].minValue;
 			}
 		}
-		drawRectangle(window, sliders[i].pos.x, sliders[i].pos.y, sliders[i].size.x, sliders[i].size.y, sliders[i].color);
-		drawCircle(window, sliders[i].pos.x+sliders[i].sliderPos, sliders[i].pos.y+sliders[i].size.y/2, sliders[i].sliderRadius, sliders[i].color);
-		drawFontString(window, font, floatToString(sliders[i].value).c_str(), sliders[i].pos.x+sliders[i].size.x+sliders[i].sliderRadius, sliders[i].pos.y+sliders[i].size.y/2-font.font_size/2);
+		drawRectangle(buffer, sliders[i].pos.x, sliders[i].pos.y, sliders[i].size.x, sliders[i].size.y, sliders[i].color);
+		drawCircle(buffer, sliders[i].pos.x+sliders[i].sliderPos, sliders[i].pos.y+sliders[i].size.y/2, sliders[i].sliderRadius, sliders[i].color);
+		drawFontString(buffer, font, floatToString(sliders[i].value).c_str(), sliders[i].pos.x+sliders[i].size.x+sliders[i].sliderRadius, sliders[i].pos.y+sliders[i].size.y/2-font.font_size/2);
 	}
 }
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
 
-#define CULLBACKFACES
 // #define EARLYZCULLING
 #define DEPTH_DIVISOR 10000.f
-#define MATERIALMAXTEXTURECOUNT 3
 
-//TODO sollte auch weg und alles über VertexAttributePointer umgesetzt werden
-struct Triangle{
-	fvec3 points[3];
-	fvec4 attribute[MAXVERTEXATTRIBUTES][3];	//TODO vllt kann man die max. attribute per runtime setzen?, aber bitte lieber das unten implementieren...
+struct RenderBuffers{
+	WORD width;
+	WORD height;
+	DWORD* frameBuffer;
+	DWORD* depthBuffer;			//TODO Sollten ein Floatbuffer sein
+	BYTE* fragmentFlags;		//TODO Markiert eh nur ob ein Fragment gezeichnet wurde oder nicht, daher bits anstatt bytes
+	float* attributeBuffers;
+	BYTE attributeBuffersCount = 0;
 };
 
-//TODO das untere alles mal implementieren, da es besser sein sollte wie das aktuelle
-struct VertexAttributePointer{
-	void* attributes = nullptr;		//Die Attribute als generischer void*, entsprechend muss gecastet werden
-	BYTE componentsCount;			//Gibt an, wie viele Komponenten das Attribute hat
+ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height, BYTE attributesCount)noexcept{
+	renderBuffers.width = width;
+	renderBuffers.height = height;
+	renderBuffers.attributeBuffersCount = attributesCount;
+	renderBuffers.frameBuffer = new DWORD[width*height];
+	if(renderBuffers.frameBuffer == nullptr) return BAD_ALLOC;
+	renderBuffers.depthBuffer = new DWORD[width*height];
+	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
+	renderBuffers.fragmentFlags = new BYTE[width*height];
+	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
+	renderBuffers.attributeBuffers = new float[width*height*attributesCount];
+	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
+	return SUCCESS;
+}
+
+void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
+	delete[] renderBuffers.frameBuffer;
+	delete[] renderBuffers.depthBuffer;
+	delete[] renderBuffers.fragmentFlags;
+	delete[] renderBuffers.attributeBuffers;
+}
+
+ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height)noexcept{
+	delete[] renderBuffers.frameBuffer;
+	renderBuffers.frameBuffer = new(std::nothrow) DWORD[width*height];
+	if(renderBuffers.frameBuffer == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.depthBuffer;
+	renderBuffers.depthBuffer = new(std::nothrow) DWORD[width*height];
+	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.fragmentFlags;
+	renderBuffers.fragmentFlags = new(std::nothrow) BYTE[width*height];
+	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
+	delete[] renderBuffers.attributeBuffers;
+	renderBuffers.attributeBuffers = new(std::nothrow) float[width*height*renderBuffers.attributeBuffersCount];
+	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
+	renderBuffers.width = width;
+	renderBuffers.height = height;
+	return SUCCESS;
+}
+
+void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+		renderBuffers.frameBuffer[i] = RGBA(0, 0, 0);
+		renderBuffers.depthBuffer[i] = 0xFF'FF'FF'FF;
+		renderBuffers.fragmentFlags[i] = 0;
+	}
+}
+
+//TODO Attribute für always_inline?
+inline DWORD getAttrLoc(RenderBuffers& renderBuffers, BYTE location)noexcept{
+	return renderBuffers.width*renderBuffers.height*location;
+}
+
+//TODO vllt weg? Oder zumindest passender benennen wie TriangleVertexPositions oder so
+struct Triangle{
+	fvec3 points[3];
 };
 
 //Speichert ein Material aus einer .mtl file
 struct Material{
 	std::string name;
-	Image textures[MATERIALMAXTEXTURECOUNT];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
+	Image textures[1];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
 	BYTE textureCount = 0;
 };
 
@@ -785,27 +789,42 @@ struct TriangleModel{
 	DWORD triangleCount = 0;
 	DWORD triangleCapacity = 0;
 	Material* material = nullptr;
+	float* attributesBuffer = nullptr;
+	BYTE attributesCount;
 };
 
 void destroyTriangleModel(TriangleModel& model)noexcept{
 	delete[] model.triangles;
+	delete[] model.attributesBuffer;
 	// delete model.material;	//TODO hm is doof
 }
 
-void increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
-	Triangle* newArray = new Triangle[model.triangleCapacity+additionalCapacity];
+ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
+	Triangle* newArray = new(std::nothrow) Triangle[model.triangleCapacity+additionalCapacity];
+	float* newAttributeArray = new(std::nothrow) float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
+	if(newArray == nullptr || newAttributeArray == nullptr) return BAD_ALLOC;
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
+	}
+	for(DWORD i=0; i < model.triangleCount*model.attributesCount*3; ++i){
+		newAttributeArray[i] = model.attributesBuffer[i];
 	}
 	Triangle* oldArray = model.triangles;
 	model.triangles = newArray;
 	delete[] oldArray;
+	float* oldAttributeArray = model.attributesBuffer;
+	model.attributesBuffer = newAttributeArray;
+	delete[] oldAttributeArray;
 	model.triangleCapacity += additionalCapacity;
+	return SUCCESS;
 }
 
-//Einfacher Texture lookup
+constexpr float* getAttrLoc(TriangleModel& model, DWORD triangleIdx, BYTE pointIdx, BYTE location){
+	return &model.attributesBuffer[triangleIdx*model.attributesCount*3+model.attributesCount*pointIdx+location];
+}
+
 //TODO aktuell noch falsch, da 1 auf 0 abgebildet wird
-constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
+constexpr DWORD textureRepeated(Image& image, float u, float v)noexcept{
 	u = u - floor(u);
 	v = v - floor(v);
 	WORD u1 = u*(image.width-1);
@@ -813,27 +832,40 @@ constexpr DWORD texture2D(Image& image, float u, float v)noexcept{
 	return image.data[v1*image.width+u1];
 }
 
-//Zeichnet nur die Umrandung eines Dreiecks
-void drawTriangleOutline(Window& window, Triangle& tri)noexcept{
-	DWORD buffer_width = window.windowWidth/window.pixelSize;
-	DWORD buffer_height = window.windowHeight/window.pixelSize;
-	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
-	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
-	drawLine(window, pt0.x, pt0.y, pt1.x, pt1.y, RGBA(255, 255, 255, 255));
-	drawLine(window, pt0.x, pt0.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
-	drawLine(window, pt1.x, pt1.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
+constexpr DWORD textureClipped(Image& image, float u, float v)noexcept{
+	u = clamp(u, 0.f, 1.f);
+	v = clamp(v, 0.f, 1.f);
+	WORD u1 = u*(image.width-1);
+	WORD v1 = v*(image.height-1);
+	return image.data[v1*image.width+u1];
 }
 
-//TODO man kann den Anfang der "scanline" berechnen anstatt einer bounding box
+constexpr DWORD textureUnsafe(Image& image, float u, float v)noexcept{
+	WORD u1 = u*(image.width-1);
+	WORD v1 = v*(image.height-1);
+	return image.data[v1*image.width+u1];
+}
+
+//Zeichnet nur die Umrandung eines Dreiecks
+void drawTriangleOutline(RenderBuffers& buffer, Triangle& tri)noexcept{
+	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
+	pt0.x = ((pt0.x*0.5)+0.5)*buffer.width; pt1.x = ((pt1.x*0.5)+0.5)*buffer.width; pt2.x = ((pt2.x*0.5)+0.5)*buffer.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*buffer.height; pt1.y = ((pt1.y*0.5)+0.5)*buffer.height; pt2.y = ((pt2.y*0.5)+0.5)*buffer.height;
+	Colorbuffer dummyBuffer;
+	dummyBuffer.width = buffer.width;
+	dummyBuffer.height = buffer.height;
+	dummyBuffer.data = buffer.frameBuffer;
+	drawLine(dummyBuffer, pt0.x, pt0.y, pt1.x, pt1.y, RGBA(255, 255, 255, 255));
+	drawLine(dummyBuffer, pt0.x, pt0.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
+	drawLine(dummyBuffer, pt1.x, pt1.y, pt2.x, pt2.y, RGBA(255, 255, 255, 255));
+}
+
 //TODO man könnte nur pointer in einem Buffer speichern und einmal zum ende dann über alle Attribute,... loopen, spart eine Menge Kopieren und so
 //Also im Sinne von man kopiert die finalen Attribute erst, nachdem der depthBuffer alles getestet hat
-void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
-	DWORD buffer_width = window.windowWidth/window.pixelSize;
-	DWORD buffer_height = window.windowHeight/window.pixelSize;
+void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attributesCount, Triangle& tri)noexcept{
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5)+0.5)*buffer_width; pt1.x = ((pt1.x*0.5f)+0.5)*buffer_width; pt2.x = ((pt2.x*0.5)+0.5)*buffer_width;
-	pt0.y = ((pt0.y*0.5)+0.5)*buffer_height; pt1.y = ((pt1.y*0.5f)+0.5)*buffer_height; pt2.y = ((pt2.y*0.5)+0.5)*buffer_height;
+	pt0.x = ((pt0.x*0.5)+0.5)*renderBuffers.width; pt1.x = ((pt1.x*0.5f)+0.5)*renderBuffers.width; pt2.x = ((pt2.x*0.5)+0.5)*renderBuffers.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*renderBuffers.height; pt1.y = ((pt1.y*0.5f)+0.5)*renderBuffers.height; pt2.y = ((pt2.y*0.5)+0.5)*renderBuffers.height;
 
 	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
 	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
@@ -841,7 +873,7 @@ void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
 		#ifdef PERFORMANCE_ANALYZER
 		_perfAnalyzer.pointlessTriangles++;
 		#endif
-		return;
+		return;	//TODO sollte es nicht trotzdem gezeichnet werden, halt als Punkt?
 	}
 	DWORD xmin = min(pt0.x, min(pt1.x, pt2.x));
 	DWORD xmax = max(pt0.x, max(pt1.x, pt2.x));
@@ -851,13 +883,12 @@ void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
 	float div = 1/cross(vs1, vs2);
 
 	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
-	fvec4 attr[window.attributeBuffersCount][3];
-	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-		for(BYTE j=0; j < 3; ++j){
-			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
-			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
-			attr[i][j].z = tri.attribute[i][j].z*invZ[j];
-			attr[i][j].w = tri.attribute[i][j].w*invZ[j];
+	float attr[attributesCount*3];
+	DWORD attribIdx = 0;
+	for(BYTE i=0; i < 3; ++i){
+		for(BYTE j=0; j < attributesCount; ++j){
+			attr[attribIdx] = attributesBuffer[attribIdx]*invZ[i];
+			attribIdx++;
 		}
 	}
 
@@ -875,21 +906,24 @@ void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
 			float w = 1-u-v;
 			if((v >= 0)&&(u >= 0)&&(w >= 0)){
 				wasIn = true;
-				DWORD idx = y*buffer_width+x;
+				DWORD idx = y*renderBuffers.width+x;
 				float depth = 1/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= window.depth[idx]){
+				if(inc_depth <= renderBuffers.depthBuffer[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window.depth[idx] = inc_depth;
-					window.fragmentFlag[idx] = 1;
-					for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-						window.attributeBuffers[i][idx].x = (w*attr[i][0].x + u*attr[i][1].x + v*attr[i][2].x)*depth;
-						window.attributeBuffers[i][idx].y = (w*attr[i][0].y + u*attr[i][1].y + v*attr[i][2].y)*depth;
-						window.attributeBuffers[i][idx].z = (w*attr[i][0].z + u*attr[i][1].z + v*attr[i][2].z)*depth;
-						window.attributeBuffers[i][idx].w = (w*attr[i][0].w + u*attr[i][1].w + v*attr[i][2].w)*depth;
+					renderBuffers.depthBuffer[idx] = inc_depth;
+					renderBuffers.fragmentFlags[idx] = 1;
+					WORD attribIdx1 = 0;
+					WORD attribIdx2 = attributesCount;
+					WORD attribIdx3 = attributesCount*2;
+					for(BYTE i=0; i < attributesCount; ++i){
+						renderBuffers.attributeBuffers[idx+renderBuffers.width*renderBuffers.height*i] = (w*attr[attribIdx1] + u*attr[attribIdx2] + v*attr[attribIdx3])*depth;
+						attribIdx1++;
+						attribIdx2++;
+						attribIdx3++;
 					}
 				}
 				#ifdef PERFORMANCE_ANALYZER
@@ -905,12 +939,11 @@ void drawTriangleFilledOld(Window& window, Triangle& tri)noexcept{
 }
 
 //TODO besser wie der alte, aber die UV-Koordinaten sind an den Rändern von Texturen noch nicht ganz korrekt
+/*
 void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5)+0.5)*bufferWidth; pt1.x = ((pt1.x*0.5f)+0.5)*bufferWidth; pt2.x = ((pt2.x*0.5)+0.5)*bufferWidth;
-	pt0.y = ((pt0.y*0.5)+0.5)*bufferHeight; pt1.y = ((pt1.y*0.5f)+0.5)*bufferHeight; pt2.y = ((pt2.y*0.5)+0.5)*bufferHeight;
+	pt0.x = ((pt0.x*0.5)+0.5)*window.depth.width; pt1.x = ((pt1.x*0.5f)+0.5)*window.depth.width; pt2.x = ((pt2.x*0.5)+0.5)*window.depth.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*window.depth.height; pt1.y = ((pt1.y*0.5f)+0.5)*window.depth.height; pt2.y = ((pt2.y*0.5)+0.5)*window.depth.height;
 
 	int pt0x = pt0.x; int pt0y = pt0.y;
 	int pt1x = pt1.x; int pt1y = pt1.y;
@@ -959,15 +992,15 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 			float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
 			for(;xBeg < xEnd; ++xBeg){
 				float m3 = 1-m2-m1;
-				DWORD idx = y*bufferWidth+xBeg;
+				DWORD idx = y*window.depth.width+xBeg;
 				float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= window.depth[idx]){
+				if(inc_depth <= window.depth.data[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window.depth[idx] = inc_depth;
+					window.depth.data[idx] = inc_depth;
 					window.fragmentFlag[idx] = 1;
 					for(BYTE i=0; i < window.attributeBuffersCount; ++i){
 						window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
@@ -1002,15 +1035,15 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 		float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
 		for(;xBeg < xEnd; ++xBeg){
 			float m3 = 1-m2-m1;
-			DWORD idx = y*bufferWidth+xBeg;
+			DWORD idx = y*window.depth.width+xBeg;
 			float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 			//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 			DWORD inc_depth = depth*DEPTH_DIVISOR;
-			if(inc_depth <= window.depth[idx]){
+			if(inc_depth <= window.depth.data[idx]){
 				#ifdef PERFORMANCE_ANALYZER
 				_perfAnalyzer.pixelsDrawn++;
 				#endif
-				window.depth[idx] = inc_depth;
+				window.depth.data[idx] = inc_depth;
 				window.fragmentFlag[idx] = 1;
 				for(BYTE i=0; i < window.attributeBuffersCount; ++i){
 					window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
@@ -1027,6 +1060,7 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 		}
 	}
 }
+*/
 
 struct plane{
 	fvec3 pos;
@@ -1056,85 +1090,103 @@ float rayPlaneIntersectionFast(plane& p, fvec3& start, fvec3& end, fvec3& cp)noe
 	return t;
 }
 
-BYTE removeTriangleFromBuffer(Triangle* buffer, BYTE count, BYTE& temp_count, BYTE& i)noexcept{
-	buffer[i] = buffer[temp_count-1];
-	--i; --temp_count;
-	return count-1;
-}
-
 //TODO kann man bestimmt auch noch weiter optimieren, indexe zu speichern hat nichts gebracht...
-void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noexcept{
+void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attributesCount, BYTE& count)noexcept{
 	BYTE tmp_off = count;			//Offset wo das aktuelle neue Dreieck hinzugefügt werden soll
 	BYTE offset = count;			//Originaler Offset der neuen Dreiecke
 	BYTE temp_count = count;		//Index des letzten originalen Dreiecks
 	fvec3 in_v[3];
 	fvec3 out_v[3];
-	fvec4 in_attr[attributeCount][3];
-	fvec4 out_attr[attributeCount][3];
+	float in_attr[attributesCount][3];
+	float out_attr[attributesCount][3];
 	fvec3 vec;
+	WORD attributeOffset = 0;
 	for(BYTE i=0; i < temp_count; ++i){
-		BYTE in = 0; BYTE out = 0;
+		BYTE in = 0;
+		BYTE out = 0;
 		for(BYTE j=0; j < 3; ++j){
 			vec = buffer[i].points[j];
 			vec.x -= p.pos.x;
 			vec.y -= p.pos.y;
 			vec.z -= p.pos.z;
 			float dist = dot(vec, p.normal);
-			if(dist < 0.){
+			if(dist < 0){
 				out_v[out] = buffer[i].points[j];
-				for(BYTE k=0; k < attributeCount; ++k) out_attr[k][out] = buffer[i].attribute[k][j];
+				for(BYTE k=0; k < attributesCount; ++k) out_attr[k][out] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
 				++out;
 			}else{
 				in_v[in] = buffer[i].points[j];
-				for(BYTE k=0; k < attributeCount; ++k) in_attr[k][in] = buffer[i].attribute[k][j];
+				for(BYTE k=0; k < attributesCount; ++k) in_attr[k][in] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
 				++in;
 			}
+			attributeOffset += attributesCount;
 		}
 		switch(in){
 			case 0:{	//Dreieck liegt komplett ausserhalb, es muss entfernt werden
-				count = removeTriangleFromBuffer(buffer, count, temp_count, i);
+				buffer[i] = buffer[temp_count-1];
+				for(BYTE j=0; j < attributesCount*3; ++j){
+					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				}
+				--temp_count;
+				--i;
+				--count;
 				break;
 			}
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[i].points[1]);
-				for(BYTE k=0; k < attributeCount; ++k){
-					buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
-					buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
-					buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
-					buffer[i].attribute[k][1].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[i*attributesCount*3+attributesCount+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
+					// buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
+					// buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
+					// buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
+					// buffer[i].attribute[k][1].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
 				}
 				t = rayPlaneIntersectionFast(p, in_v[0], out_v[1], buffer[i].points[2]);
-				for(BYTE k=0; k < attributeCount; ++k){
-					buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
-					buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
-					buffer[i].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][1].z*t;
-					buffer[i].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][1].w*t;
-					buffer[i].attribute[k][0] = in_attr[k][0];
+				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[i*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][1]*t;
+					// buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
+					// buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
+					// buffer[i].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][1].z*t;
+					// buffer[i].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][1].w*t;
+					attributesBuffer[i*attributesCount*3+k] = in_attr[k][0];
+					// buffer[i].attribute[k][0] = in_attr[k][0];
 				}
 				buffer[i].points[0] = in_v[0];
 				break;
 			}
 			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
-				count = removeTriangleFromBuffer(buffer, count, temp_count, i);
+				buffer[i] = buffer[temp_count-1];
+				for(BYTE j=0; j < attributesCount*3; ++j){
+					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				}
+				--temp_count;
+				--i;
+				--count;
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[tmp_off].points[2]);
-				for(BYTE k=0; k < attributeCount; ++k){
-					buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
-					buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
-					buffer[tmp_off].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
-					buffer[tmp_off].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
-					buffer[tmp_off].attribute[k][0] = in_attr[k][0];
-					buffer[tmp_off].attribute[k][1] = in_attr[k][1];
+				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
+					// buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
+					// buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
+					// buffer[tmp_off].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
+					// buffer[tmp_off].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+					attributesBuffer[tmp_off*attributesCount*3+k] = in_attr[k][0];
+					attributesBuffer[tmp_off*attributesCount*3+attributesCount+k] = in_attr[k][1];
+					// buffer[tmp_off].attribute[k][0] = in_attr[k][0];
+					// buffer[tmp_off].attribute[k][1] = in_attr[k][1];
 				}
 				buffer[tmp_off].points[0] = in_v[0];
 				buffer[tmp_off].points[1] = in_v[1];
 				t = rayPlaneIntersectionFast(p, in_v[1], out_v[0], buffer[tmp_off+1].points[2]);
-				for(BYTE k=0; k < attributeCount; ++k){
-					buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
-					buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
-					buffer[tmp_off+1].attribute[k][2].z = in_attr[k][1].z*(1-t)+out_attr[k][0].z*t;
-					buffer[tmp_off+1].attribute[k][2].w = in_attr[k][1].w*(1-t)+out_attr[k][0].w*t;
-					buffer[tmp_off+1].attribute[k][0] = buffer[tmp_off].attribute[k][2];
-					buffer[tmp_off+1].attribute[k][1] = in_attr[k][1];
+				for(BYTE k=0; k < attributesCount; ++k){
+					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount*2+k] = in_attr[k][1]*(1-t)+out_attr[k][0]*t;
+					// buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
+					// buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
+					// buffer[tmp_off+1].attribute[k][2].z = in_attr[k][1].z*(1-t)+out_attr[k][0].z*t;
+					// buffer[tmp_off+1].attribute[k][2].w = in_attr[k][1].w*(1-t)+out_attr[k][0].w*t;
+					attributesBuffer[(tmp_off+1)*attributesCount*3+k] = attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k];
+					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount+k] = in_attr[k][1];
+					// buffer[tmp_off+1].attribute[k][0] = buffer[tmp_off].attribute[k][2];
+					// buffer[tmp_off+1].attribute[k][1] = in_attr[k][1];
 				}
 				buffer[tmp_off+1].points[0] = buffer[tmp_off].points[2];
 				buffer[tmp_off+1].points[1] = in_v[1];
@@ -1146,6 +1198,9 @@ void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noex
 	}
 	for(BYTE i=0; i < count-temp_count; ++i){
 		buffer[temp_count+i] = buffer[offset+i];
+		for(BYTE j=0; j < attributesCount*3; ++j){
+			attributesBuffer[(temp_count+i)*attributesCount*3+j] = attributesBuffer[(offset+i)*attributesCount*3+j];
+		}
 	}
 	return;
 }
@@ -1156,29 +1211,29 @@ void clipPlane(plane& p, Triangle* buffer, BYTE& count, BYTE attributeCount)noex
 #define YMAX 1.001f
 
 //TODO kann bestimmt um einiges optimiert werden
-BYTE clipping(Window& window, Triangle* buffer)noexcept{
+BYTE clipping(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attributesCount, Triangle* buffer)noexcept{
 	BYTE count = 1;
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 
 	plane p = {}; p.normal = {0, 0, 1}; p.pos = {0, 0, 0};
 	// normalize(pz.normal);
-	clipPlane(p, buffer, count, window.attributeBuffersCount);
+	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
 	p.normal = {XMIN*aspect_ratio, 0, 1}; p.pos = {0, 0, 0};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window.attributeBuffersCount);
+	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
 	p.normal = {XMAX*aspect_ratio, 0, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window.attributeBuffersCount);
+	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
 	p.normal = {0, YMIN, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window.attributeBuffersCount);
+	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
 	p.normal = {0, YMAX, 1};
 	p.normal = normalize(p.normal);
-	clipPlane(p, buffer, count, window.attributeBuffersCount);
+	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
 	return count;
 }
@@ -1189,12 +1244,15 @@ struct Camera{
 	fvec2 rot;	//Yaw, pitch. rot.x ist die Rotation um die Y-Achse weil... uhh ja
 };
 
-void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+typedef fvec3 (*vertexShaderFunction)(fvec3&, float*)noexcept;
+
+//TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
+void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1203,9 +1261,13 @@ void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Cam
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	Triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen könnten
+	float attributesBuffer[32*attributesCount*3];
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
+		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
+		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
+		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
 		float d[3];
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
@@ -1223,7 +1285,11 @@ void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Cam
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) <= 0) continue;
 #endif
-    	BYTE count = clipping(window, buffer);
+#ifdef CULLFRONTFACES
+    	if(dot(tri.points[0], normal) >= 0) continue;
+#endif
+		for(int j=0; j < attributesCount*3; ++j) attributesBuffer[j] = attributes[i*attributesCount*3+j];
+    	BYTE count = clipping(renderBuffers, attributesBuffer, attributesCount, buffer);
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0];
 			fvec3 pt2 = buffer[j].points[1];
@@ -1237,10 +1303,10 @@ void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Cam
     		buffer[j].points[0].z = pt1.z;
 			buffer[j].points[1].z = pt2.z;
 			buffer[j].points[2].z = pt3.z;
-			#ifdef OLDTRIANGLEDRAWINGALGORITHM
-			drawTriangleFilledOld(window, buffer[j]);
-			#else
+			#ifdef NEWTRIANGLEDRAWINGALGORITHM
 			drawTriangleFilledNew(window, buffer[j]);
+			#else
+			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
 			#endif
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
@@ -1250,12 +1316,12 @@ void rasterize(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Cam
     return;
 }
 
-void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1267,6 +1333,9 @@ void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endI
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
+		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
+		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
+		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
 		float d[3];
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
@@ -1284,7 +1353,10 @@ void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endI
 #ifdef CULLBACKFACES
     	if(dot(tri.points[0], normal) <= 0) continue;
 #endif
-    	BYTE count = clipping(window, buffer);
+#ifdef CULLFRONTFACES
+    	if(dot(tri.points[0], normal) >= 0) continue;
+#endif
+    	BYTE count = clipping(renderBuffers, nullptr, 0, buffer);
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0];
 			fvec3 pt2 = buffer[j].points[1]; 
@@ -1298,7 +1370,7 @@ void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endI
     		buffer[j].points[0].z = pt1.z;
 			buffer[j].points[1].z = pt2.z;
 			buffer[j].points[2].z = pt3.z;
-			drawTriangleOutline(window, buffer[j]);
+			drawTriangleOutline(renderBuffers, buffer[j]);
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
 #endif
@@ -1307,11 +1379,11 @@ void rasterizeOutline(Window& window, Triangle* tris, DWORD startIdx, DWORD endI
     return;
 }
 
-void rasterizeTriangleModel(Window& window, TriangleModel& model, Camera& cam)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
+void rasterizeTriangleModel(RenderBuffers& renderBuffers, float* attributes, BYTE attributesCount, TriangleModel& model, Camera& cam, vertexShaderFunction vertexShader)noexcept{
+	rasterize(renderBuffers, model.triangles, attributes, attributesCount, 0, model.triangleCount, cam, vertexShader);
 }
 
-//TODO alle weiteren Funktionen sollten in eine andere Datei, da dies ja nichts mehr direkt mit dem rendering zu tun haben
+//TODO alle weiteren Funktionen sollten in eine andere Datei, da diese ja nichts mehr direkt mit dem rendering zu tun haben
 
 ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWORD& value2)noexcept{
 	std::string buffer[3];
@@ -1336,9 +1408,10 @@ ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWO
 
 //TODO unterstützt nur Flächen die aus Dreiecken bestehen
 //TODO man sollte übergeben können in welche location die Attribute gespeichert werden
-ErrCode readObj(const char* filename, Triangle* storage, BYTE attributeCount, DWORD* count, float x, float y, float z, float scale=1)noexcept{
+ErrCode readObj(const char* filename, Triangle* storage, float* attributesBuffer, BYTE attributesCount, DWORD* count, float x, float y, float z, float scale=1)noexcept{
 	std::fstream file; file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
+	if(attributesCount != 6) return MODEL_BAD_FORMAT;	//TODO neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1395,25 +1468,23 @@ ErrCode readObj(const char* filename, Triangle* storage, BYTE attributeCount, DW
 			storage[current_count+tri_count].points[0] = points[pt_order[0]];
 			storage[current_count+tri_count].points[1] = points[pt_order[1]];
 			storage[current_count+tri_count].points[2] = points[pt_order[2]];
-			if(attributeCount > 0){
-				storage[current_count+tri_count].attribute[0][0].x = uvs[uv_order[0]].x;
-				storage[current_count+tri_count].attribute[0][0].y = uvs[uv_order[0]].y;
-				storage[current_count+tri_count].attribute[0][1].x = uvs[uv_order[1]].x;
-				storage[current_count+tri_count].attribute[0][1].y = uvs[uv_order[1]].y;
-				storage[current_count+tri_count].attribute[0][2].x = uvs[uv_order[2]].x;
-				storage[current_count+tri_count].attribute[0][2].y = uvs[uv_order[2]].y;
-			}
-			if(attributeCount > 1){
-				storage[current_count+tri_count].attribute[1][0].x = normals[normal_order[0]].x;
-				storage[current_count+tri_count].attribute[1][0].y = normals[normal_order[0]].y;
-				storage[current_count+tri_count].attribute[1][0].z = normals[normal_order[0]].z;
-				storage[current_count+tri_count].attribute[1][1].x = normals[normal_order[1]].x;
-				storage[current_count+tri_count].attribute[1][1].y = normals[normal_order[1]].y;
-				storage[current_count+tri_count].attribute[1][1].z = normals[normal_order[1]].z;
-				storage[current_count+tri_count].attribute[1][2].x = normals[normal_order[2]].x;
-				storage[current_count+tri_count].attribute[1][2].y = normals[normal_order[2]].y;
-				storage[current_count+tri_count].attribute[1][2].z = normals[normal_order[2]].z;
-			}
+
+			attributesBuffer[(current_count+tri_count)*attributesCount*3] = uvs[uv_order[0]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+1] = uvs[uv_order[0]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+2] = normals[normal_order[0]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+3] = normals[normal_order[0]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+4] = normals[normal_order[0]].z;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+5] = uvs[uv_order[1]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+6] = uvs[uv_order[1]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+7] = normals[normal_order[1]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+8] = normals[normal_order[1]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+9] = normals[normal_order[1]].z;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+10] = uvs[uv_order[2]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+11] = uvs[uv_order[2]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+12] = normals[normal_order[2]].x;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+13] = normals[normal_order[2]].y;
+			attributesBuffer[(current_count+tri_count)*attributesCount*3+14] = normals[normal_order[2]].z;
+
 			++tri_count;
 		}
 	}
@@ -1447,7 +1518,8 @@ enum OBJKEYWORD{
 	OBJ_G = hashKeywords("g"),
 	OBJ_MTLLIB = hashKeywords("mtllib"),
 	OBJ_USEMTL = hashKeywords("usemtl"),
-	OBJ_COMMENT = hashKeywords("#")
+	OBJ_COMMENT = hashKeywords("#"),
+	OBJ_L = hashKeywords("l")
 };
 
 enum MTLKEYWORD{	//TODO hier fehlen noch ein paar
@@ -1504,7 +1576,7 @@ bool readWord(std::fstream& file, std::string& buffer)noexcept{
 	return newline;
 }
 
-//Ließt die obj Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
+//Ließt die obj Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die Daten in den outData buffer
 //und gibt evtl. Fehler zurück
 ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 	switch(key){
@@ -1558,6 +1630,7 @@ ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 			data[buffer.size()] = '\0';
 			break;
 		}
+		case OBJ_L:		//TODO muss noch implementiert werden
 		case OBJ_COMMENT:{
 			std::string buffer;
 			BYTE* data = (BYTE*)outData;
@@ -1616,6 +1689,7 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 			while(!readWord(file, buffer)){
 				for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
 				data[idx++] = ' ';	//TODO EINFACH NUR FALSCH, DAS IST NUR HIER WEIL ICH ZU FAUL WAR MIR EINE BESSERE LÖSUNG FÜR DAS PFAD PROBLEM ZU ÜBERLEGEN
+				//Problem ist ein Pfad mit einem Leerzeichen, statt readWord sollte man eine Funktion schreiben die alles bis zum \n einliest, duh
 			}
 			for(size_t i=0; i < buffer.size(); ++i) data[idx++] = buffer[i];
 			data[idx] = '\0';
@@ -1627,6 +1701,7 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 }
 
 //TODO noch nicht alle Keywords werden beachtet
+//TODO Theoretisch noch nicht optimal implementiert, da jede Zeile erst in einen Buffer gelesen wird und dieser dann erst geparsed
 ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
@@ -1659,14 +1734,22 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 					index += 2;
 				}
 				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
+				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
 				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
-				materials[materialCount-1].textureCount++;
+				materials[materialCount-1].textureCount = 1;
+				break;
+			}
+			case MTL_KD:{	//TODO wie das TODO oben drüber und auch das unten drunter (:
+				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				float* values = (float*)data;
+				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
+				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				materials[materialCount-1].textureCount = 1;
 				break;
 			}
 			case MTL_NS:	//TODO müssen alle noch implementiert werden
 			case MTL_KA:
-			case MTL_KD:
 			case MTL_KS:
 			case MTL_KE:
 			case MTL_NI:
@@ -1682,15 +1765,15 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 	return SUCCESS;
 }
 
-//TODO Idee: das TriangleContainer Zeug ist für den Anfang evtl. unnötig, es ist schon nervig genug die Dreiecke der Modelle zu allokieren, ohne
-//zu wissen, wie viele es werden also einen Art std::vector wäre angebracht
 //Speichert die Modelle der .obj Datei und alle .mtl Materialen falls es diese noch nicht gibt 
 //TODO man sollte übergeben können in welche location die Attribute gespeichert werden
 //TODO unterstützt nur Flächen die aus Dreiecken bestehen
-ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scale=1)noexcept{
+//TODO Theoretisch noch nicht optimal implementiert, da jede Zeile erst in einen Buffer gelesen wird und dieser dann erst geparsed
+ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scaleX=1, float scaleY=1, float scaleZ=1)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
 	if(!file.is_open()) return MODEL_NOT_FOUND;
+	if(models[0].attributesCount < 5) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1698,6 +1781,11 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 	void* data[80];
 	bool hasMaterial = false;
 	DWORD lineNumber = 0;
+	BYTE windingOrder[] = {0, 1, 2};
+	if(((sign(scaleX)+sign(scaleY)+sign(scaleZ))%2) == 0){
+		windingOrder[0] = 2;
+		windingOrder[2] = 0;
+	}
 	while(file >> word){
 		lineNumber++;
 		OBJKEYWORD key = (OBJKEYWORD)hashKeywords(word.c_str());
@@ -1708,7 +1796,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 			}
 			case OBJ_V:{
 				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
-				points.push_back({((float*)data)[0]*scale, ((float*)data)[1]*scale, ((float*)data)[2]*scale});
+				points.push_back({((float*)data)[0]*scaleX, ((float*)data)[1]*scaleY, ((float*)data)[2]*scaleZ});
 				break;
 			}
 			case OBJ_VN:{
@@ -1738,28 +1826,29 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				DWORD modelIdx = modelCount-1;
 				DWORD triangleIdx = models[modelIdx].triangleCount;
 
-				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[0]];
-				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[1]];
-				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[2]];
-				if(attributeCount > 0){
-					models[modelIdx].triangles[triangleIdx].attribute[0][0].x = uvs[uv_order[0]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][0].y = uvs[uv_order[0]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[0][1].x = uvs[uv_order[1]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][1].y = uvs[uv_order[1]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[0][2].x = uvs[uv_order[2]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[0][2].y = uvs[uv_order[2]].y;
-				}
-				if(attributeCount > 1){
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].x = normals[normal_order[0]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].y = normals[normal_order[0]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][0].z = normals[normal_order[0]].z;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].x = normals[normal_order[1]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].y = normals[normal_order[1]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][1].z = normals[normal_order[1]].z;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].x = normals[normal_order[2]].x;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].y = normals[normal_order[2]].y;
-					models[modelIdx].triangles[triangleIdx].attribute[1][2].z = normals[normal_order[2]].z;
-				}
+				models[modelIdx].triangles[triangleIdx].points[0] = points[pt_order[windingOrder[0]]];
+				models[modelIdx].triangles[triangleIdx].points[1] = points[pt_order[windingOrder[1]]];
+				models[modelIdx].triangles[triangleIdx].points[2] = points[pt_order[windingOrder[2]]];
+
+				DWORD attributeBaseIdx = triangleIdx*models[modelIdx].attributesCount*3;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[0]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[0]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[0]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[0]]].y*-negSign(scaleY);	//TODO Warum müssen die negativ sein?
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[0]]].z*-negSign(scaleZ);
+				attributeBaseIdx += models[modelIdx].attributesCount;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[1]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[1]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[1]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[1]]].y*-negSign(scaleY);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[1]]].z*-negSign(scaleZ);
+				attributeBaseIdx += models[modelIdx].attributesCount;
+				models[modelIdx].attributesBuffer[attributeBaseIdx] = uvs[uv_order[windingOrder[2]]].x;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+1] = uvs[uv_order[windingOrder[2]]].y;
+				models[modelIdx].attributesBuffer[attributeBaseIdx+2] = normals[normal_order[windingOrder[2]]].x*-negSign(scaleX);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+3] = normals[normal_order[windingOrder[2]]].y*-negSign(scaleY);
+				models[modelIdx].attributesBuffer[attributeBaseIdx+4] = normals[normal_order[windingOrder[2]]].z*-negSign(scaleZ);
+
 				models[modelIdx].triangleCount++;
 				break;
 			}
@@ -1797,6 +1886,7 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 			}
 			case OBJ_G:			//TODO müssen alle noch implementiert werden
 			case OBJ_S:
+			case OBJ_L:
 			case OBJ_COMMENT:{
 				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;

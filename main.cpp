@@ -10,22 +10,29 @@
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle verticies die zu groß sind? aufwand größer?)
 	TODO Shadow mapping oder ähnliches
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
+	TODO eigene alloc Funktion machen, die ErrCode zurück gibt
 */
 
-#define PIXELSIZE 2
-#define OLDTRIANGLEDRAWINGALGORITHM
+// #define NEWTRIANGLEDRAWINGALGORITHM
+#define CULLBACKFACES
 #include "graphics/window.h"
 
-static bool _running = true;
-static Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
+bool _running = true;
+Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt)noexcept;
 
 enum RENDERMODE{
-	SHADED_MODE, WIREFRAME_MODE, DEPTH_MODE, NORMAL_MODE, BUFFER0_MODE
+	SHADED_MODE,
+	WIREFRAME_MODE,
+	DEPTH_MODE,
+	NORMAL_MODE,
+	SSAO_MODE,
+	SSR_MODE
 };
-static RENDERMODE renderMode;
+
+RENDERMODE renderMode;
 
 Menu settingsMenu;
 // Menü Funktionen
@@ -35,7 +42,7 @@ ErrCode setRenderMode(void* mode)noexcept{
 }
 
 //Sliders
-FloatSlider debugSlider[2];
+FloatSlider debugSlider[3];
 WORD sliderCount = 0;
 
 #define SPEED 0.25
@@ -43,32 +50,34 @@ WORD sliderCount = 0;
 Window window;
 Font font;
 
-void textureShader(Window& window, Image& image)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	fvec3 light_dir = {2, 2, 1};
-	light_dir = normalize(light_dir);
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		if(window.fragmentFlag[i] == 0) continue;
-		window.fragmentFlag[i] = 0;
-		float uvx = window.attributeBuffers[0][i].x;
-		float uvy = window.attributeBuffers[0][i].y;
-		DWORD color = texture2D(image, uvx, uvy);
-		if(A(color) < 120){
-			window.depth[i] = 0xFF'FF'FF'FF;
-			continue;
-		}
-		window.pixels[i] = color;
-	}
+RenderBuffers renderBuffers;
+Colorbuffer colorBuffers[3];
+float resolutionScale = 0.5;
+
+DWORD frameCounter = 0;
+
+fvec3 waterVertexShader(fvec3& point, float* attributes)noexcept{
+	point.x += cos(attributes[5]*5+frameCounter*0.2)*20;
+	point.y += sin(attributes[5]*5+frameCounter*0.2)*20;
+	return point;
 }
 
-void fxaa(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		DWORD color = window.pixels[i];
-		BYTE luminance = 0.2126*R(color)+0.7152*G(color)+0.0722*B(color);
-		window.pixels[i] = RGBA(luminance, luminance, luminance);
+fvec3 vertexShader(fvec3& point, float* attributes)noexcept{
+	return point;
+}
+
+void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+		if(renderBuffers.fragmentFlags[i] == 0) continue;
+		renderBuffers.fragmentFlags[i] = 0;
+		float uvx = renderBuffers.attributeBuffers[i+getAttrLoc(renderBuffers, 0)];
+		float uvy = renderBuffers.attributeBuffers[i+getAttrLoc(renderBuffers, 1)];
+		DWORD color = textureRepeated(image, uvx, uvy);
+		if(A(color) < 120){
+			renderBuffers.depthBuffer[i] = 0xFF'FF'FF'FF;
+			continue;
+		}
+		renderBuffers.frameBuffer[i] = color;
 	}
 }
 
@@ -95,12 +104,9 @@ uivec3 worldCoordinatesToScreenspace(fvec3& worldPixelPosition, float rotMat[3][
 	return screenCoords;
 }
 
-void ssao()noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	if(window.bufferCount < 1) return;
+void ssao(RenderBuffers& renderBuffers)noexcept{
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -108,57 +114,54 @@ void ssao()noexcept{
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	
+	const int ssaoSamples = 16;
+	const float ssaoMaxLength = 12;
+	const SDWORD minDepth = 2*DEPTH_DIVISOR;
+	const SDWORD maxDepth = 12*DEPTH_DIVISOR;
+	
 	DWORD idx = 0;
-	for(WORD y=0; y < bufferHeight; ++y){
-		for(WORD x=0; x < bufferWidth; ++x, ++idx){
+	for(WORD y=0; y < renderBuffers.width; ++y){
+		for(WORD x=0; x < renderBuffers.height; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window.attributeBuffers[1][idx].x;
-			worldNormal.y = window.attributeBuffers[1][idx].y;
-			worldNormal.z = window.attributeBuffers[1][idx].z;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 4)];
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
-
-			const int ssaoSamples = 16;
-			const float ssaoMaxLength = 10;
-			const SDWORD minDepth = 2*DEPTH_DIVISOR;
-			const SDWORD maxDepth = 12*DEPTH_DIVISOR;
-			bool outside = false;
+			worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 5)];
+			worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 6)];
+			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 7)];
 
 			float strength = 0;
 			for(int i=0; i < ssaoSamples; ++i){
 				fvec3 dir = generateRandomNormalInHemisphere(worldNormal);
-				float length = nextrand()/4294967294.f;
+				float length = (float)i/ssaoSamples;
 				length = -lerp(0.1f, 1.f, length*length);
 				dir.x *= length*ssaoMaxLength;
 				dir.y *= length*ssaoMaxLength;
 				dir.z *= length*ssaoMaxLength;
 				fvec3 samplePoint = {worldPixelPosition.x+dir.x, worldPixelPosition.y+dir.y, worldPixelPosition.z+dir.z};
 
-				uivec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, aspect_ratio, bufferWidth, bufferHeight);
+				uivec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
 
-				if(screenCoords.x >= bufferWidth || screenCoords.y >= bufferHeight){
+				if(screenCoords.x >= renderBuffers.width || screenCoords.y >= renderBuffers.height){
 					strength++;
 					continue;
 				}
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
 				if(depthDiff <= minDepth || depthDiff >= maxDepth) strength++;
 			}
 			strength /= ssaoSamples;
-			window.buffers[0][idx] = R(window.buffers[0][idx], 255*strength);
+			colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], 255*strength);
 		}
 	}
 }
 
-void ssr(Camera& cam)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	if(window.bufferCount < 1) return;
+void ssr(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 	float rotm[3][3];
-	float aspect_ratio = (float)window.windowHeight/window.windowWidth;
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -167,18 +170,18 @@ void ssr(Camera& cam)noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	DWORD idx = 0;
-	for(WORD y=0; y < bufferHeight; ++y){
-		for(WORD x=0; x < bufferWidth; ++x, ++idx){
+	for(WORD y=0; y < renderBuffers.height; ++y){
+		for(WORD x=0; x < renderBuffers.width; ++x, ++idx){
 			fvec3 worldNormal;
-			worldNormal.x = window.attributeBuffers[1][idx].x;
-			worldNormal.y = window.attributeBuffers[1][idx].y;
-			worldNormal.z = window.attributeBuffers[1][idx].z;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 4)];
 			if(worldNormal.y < 0.99) continue;
 
 			fvec3 worldPixelPosition;
-			worldPixelPosition.x = window.attributeBuffers[2][idx].x;
-			worldPixelPosition.y = window.attributeBuffers[2][idx].y;
-			worldPixelPosition.z = window.attributeBuffers[2][idx].z;
+			worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 5)];
+			worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 6)];
+			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 7)];
 
 			fvec3 viewDir = {worldPixelPosition.x-cam.pos.x, worldPixelPosition.y-cam.pos.y, worldPixelPosition.z-cam.pos.z};
 			viewDir = normalize(viewDir);
@@ -197,41 +200,39 @@ void ssr(Camera& cam)noexcept{
                 worldPixelPosition.y += reflDir.y * stepSize;
                 worldPixelPosition.z += reflDir.z * stepSize;
 
-				uivec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, aspect_ratio, bufferWidth, bufferHeight);
+				uivec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
 
-                if(screenCoords.x >= bufferWidth || screenCoords.y >= bufferHeight) break;
+                if(screenCoords.x >= renderBuffers.width || screenCoords.y >= renderBuffers.height) break;
 
-				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-window.depth[screenCoords.y*bufferWidth+screenCoords.x];
+				SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
                 if(depthDiff >= maxDepth) break;
 				if(depthDiff > 0){
                     hit = true;
-					DWORD currentColor = window.pixels[idx];
-					DWORD reflectionColor = window.pixels[screenCoords.y*bufferWidth+screenCoords.x];
-                    window.pixels[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
+					DWORD currentColor = renderBuffers.frameBuffer[idx];
+					DWORD reflectionColor = renderBuffers.frameBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
+                    renderBuffers.frameBuffer[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
 												G(currentColor)*albedoAmount+G(reflectionColor)*reflectionAmount,
 												B(currentColor)*albedoAmount+B(reflectionColor)*reflectionAmount);
                     break;
                 }
             }
 
-            if(!hit) window.pixels[idx] = RGBA(0, 191, 255);
+            if(!hit) renderBuffers.frameBuffer[idx] = RGBA(0, 191, 255);
 		}
 	}
 }
 
-void pointLightShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
+void pointLightShader(RenderBuffers& renderBuffers)noexcept{
 	fvec3 lightPos[] = {{0, -40, 0},{200, -160, 100}};
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
 		fvec3 worldPixelPosition;
-		worldPixelPosition.x = window.attributeBuffers[2][i].x;
-		worldPixelPosition.y = window.attributeBuffers[2][i].y;
-		worldPixelPosition.z = window.attributeBuffers[2][i].z;
+		worldPixelPosition.x = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*5];
+		worldPixelPosition.y = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*6];
+		worldPixelPosition.z = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*7];
 		fvec3 worldNormal;
-		worldNormal.x = window.attributeBuffers[1][i].x;
-		worldNormal.y = window.attributeBuffers[1][i].y;
-		worldNormal.z = window.attributeBuffers[1][i].z;
+		worldNormal.x = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*2];
+		worldNormal.y = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*3];
+		worldNormal.z = renderBuffers.attributeBuffers[i+renderBuffers.width*renderBuffers.height*4];
 		float totalStrength = 0;
 		for(int i=0; i < sizeof(lightPos)/sizeof(fvec3); ++i){
 			fvec3 posDiff = {worldPixelPosition.x-lightPos[i].x, worldPixelPosition.y-lightPos[i].y, worldPixelPosition.z-lightPos[i].z};
@@ -241,67 +242,68 @@ void pointLightShader(Window& window)noexcept{
 			totalStrength += strength;
 		}
 		totalStrength = clamp(totalStrength, 0.f, 1.f);
-		DWORD color = window.pixels[i];
-		window.pixels[i] = RGBA(R(color)*totalStrength, G(color)*totalStrength, B(color)*totalStrength);
+		DWORD color = renderBuffers.frameBuffer[i];
+		renderBuffers.frameBuffer[i] = RGBA(R(color)*totalStrength, G(color)*totalStrength, B(color)*totalStrength);
 	}
 }
 
-void depthBufferShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		QWORD depth = window.depth[i]*255;
+void depthBufferShader(RenderBuffers& renderBuffers)noexcept{
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+		QWORD depth = renderBuffers.depthBuffer[i]*255;
 		BYTE color = depth/0xFFFFFF;
-		window.pixels[i] = RGBA(color, color, color);
+		renderBuffers.frameBuffer[i] = RGBA(color, color, color);
 	}
 }
 
-void normalBufferShader(Window& window)noexcept{
-	DWORD bufferWidth = window.windowWidth/window.pixelSize;
-	DWORD bufferHeight = window.windowHeight/window.pixelSize;
-	for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-		fvec3 n;
-		n.x = window.attributeBuffers[1][i].x;
-		n.y = window.attributeBuffers[1][i].y;
-		n.z = window.attributeBuffers[1][i].z;
-		window.pixels[i] = RGBA((n.x+1)*127.5, (n.y+1)*127.5, (n.z+1)*127.5);
+void normalBufferShader(RenderBuffers& renderBuffers)noexcept{
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+		BYTE red = (renderBuffers.attributeBuffers[i+getAttrLoc(renderBuffers, 2)]+1)*127.5;
+		BYTE green = (renderBuffers.attributeBuffers[i+getAttrLoc(renderBuffers, 3)]+1)*127.5;
+		BYTE blue = (renderBuffers.attributeBuffers[i+getAttrLoc(renderBuffers, 4)]+1)*127.5;
+		renderBuffers.frameBuffer[i] = RGBA(red, green, blue);
 	}
 }
 
-void drawTriangleModel(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	if(model.material == nullptr) textureShader(window, defaultTexture);
-	else textureShader(window, model.material->textures[0]);
+void drawTriangleModel(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	if(model.material == nullptr) textureShader(renderBuffers, defaultTexture);
+	else textureShader(renderBuffers, model.material->textures[0]);
 }
 
-void drawTriangleModelOutline(Window& window, TriangleModel& model)noexcept{
-	rasterizeOutline(window, model.triangles, 0, model.triangleCount, cam);
+void drawTriangleModelOutline(RenderBuffers& renderBuffers, TriangleModel& model)noexcept{
+	rasterizeOutline(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
 }
 
-void drawDepthBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	depthBufferShader(window);
+void drawDepthBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	depthBufferShader(renderBuffers);
 }
 
-void drawNormalBuffer(Window& window, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(window, model.triangles, 0, model.triangleCount, cam);
-	normalBufferShader(window);
+void drawNormalBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	normalBufferShader(renderBuffers);
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	if(ErrCheck(initApp(), "App initialisieren") != SUCCESS) return -1;
 
-	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, PIXELSIZE, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
-	if(ErrCheck(assignAttributeBuffers(window, 3), "AttributeBuffer hinzufügen") != SUCCESS) return -1;
-	if(ErrCheck(addBuffers(window, 2), "Buffer hinzufügen") != SUCCESS) return -1;
+	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
+	createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 8);
+	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
+		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != SUCCESS) return -1;
+	}
 
-	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
-	font.font_size = 42/window.pixelSize;
+	if(ErrCheck(loadFont("fonts/ascii.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	font.font_size = 40/window.pixelSize;
 
 	//TODO dynamisch
-	TriangleModel* models = new(std::nothrow) TriangleModel[40];
+	#define MODELSTORAGECOUNT 1000
+	TriangleModel* models = new(std::nothrow) TriangleModel[MODELSTORAGECOUNT];
+	for(int i=0; i < MODELSTORAGECOUNT; ++i){
+		models[i].attributesCount = 8;
+	}
 	DWORD modelCount = 0;
-	Material* materials = new(std::nothrow) Material[40];
+	Material* materials = new(std::nothrow) Material[MODELSTORAGECOUNT];
 	DWORD materialCount = 0;
 	if(!models || !materials){
 		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
@@ -311,15 +313,18 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Image defaultTexture;
 	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
 
-	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -4.5), "Modell laden") != SUCCESS) return -1;
-	// if(ErrCheck(loadObj("objects/terrain1_optimized.obj", models, modelCount, materials, materialCount, 2, 0, 0, 0, 10), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 4.5, -4.5, 4.5), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
+	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
-		for(DWORD j=0; j < model.triangleCount; ++j){
+		DWORD idx = 0;
+		for(DWORD j=0; j < model.triangleCount; ++j, ++idx){
 			for(BYTE k=0; k < 3; ++k){
-				model.triangles[j].attribute[2][k].x = model.triangles[j].points[k].x;
-				model.triangles[j].attribute[2][k].y = model.triangles[j].points[k].y;
-				model.triangles[j].attribute[2][k].z = model.triangles[j].points[k].z;
+				float* positionLocation = getAttrLoc(model, j, k, POSITIONATTRIBUTEOFFSET);
+				positionLocation[0] = model.triangles[j].points[k].x;
+				positionLocation[1] = model.triangles[j].points[k].y;
+				positionLocation[2] = model.triangles[j].points[k].z;
 			}
 		}
 	}
@@ -370,19 +375,43 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[4].size = buttonSize;
 	settingsMenu.buttons[4].pos = buttonPos;
 	settingsMenu.buttons[4].event = setRenderMode;
-	settingsMenu.buttons[4].text = "BUFFER0";
-	const RENDERMODE buffer0Mode = BUFFER0_MODE;
-	settingsMenu.buttons[4].data = (void*)&buffer0Mode;
+	settingsMenu.buttons[4].text = "SSAO";
+	const RENDERMODE button4Mode = SSAO_MODE;
+	settingsMenu.buttons[4].data = (void*)&button4Mode;
 	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
 	settingsMenu.buttonCount = 5;
 
-	debugSlider[0].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[0].sliderRadius+10/window.pixelSize};
-	debugSlider[0].sliderPos = 10;
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	settingsMenu.buttons[5].size = buttonSize;
+	settingsMenu.buttons[5].pos = buttonPos;
+	settingsMenu.buttons[5].event = setRenderMode;
+	settingsMenu.buttons[5].text = "SSR";
+	const RENDERMODE button5Mode = SSR_MODE;
+	settingsMenu.buttons[5].data = (void*)&button5Mode;
+	settingsMenu.buttons[5].textsize = 36/window.pixelSize;
+	settingsMenu.buttonCount = 6;
+
+	buttonPos.y += buttonSize.y+34;
+	debugSlider[0].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[0].size = {200, 6};
+	debugSlider[0].sliderRadius = 12;
 	debugSlider[0].value = 10;
-	debugSlider[1].pos = {buttonPos.x, buttonPos.y+buttonSize.y+debugSlider[1].sliderRadius+10/window.pixelSize*2+debugSlider[0].sliderRadius*2};
-	debugSlider[1].sliderPos = 20;
+	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[1].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[1].size = {200, 6};
+	debugSlider[1].sliderRadius = 12;
 	debugSlider[1].value = 20;
-	sliderCount = 2;
+	debugSlider[1].sliderPos = getFloatSliderPosFromValue(debugSlider[1]);
+	buttonPos.y += debugSlider[0].sliderRadius*2+10;
+	debugSlider[2].pos = {buttonPos.x, buttonPos.y};
+	debugSlider[2].size = {200, 6};
+	debugSlider[2].sliderRadius = 12;
+	debugSlider[2].minValue = 0.1;
+	debugSlider[2].maxValue = 2.0;
+	debugSlider[2].value = 0.5;
+	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
+	sliderCount = 3;
 
 	for(WORD i=0; i < RANDOMNORMALSCOUNT; ++i){
 		while(1){
@@ -402,89 +431,97 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		resetTimer(_perfAnalyzer.timer[0]);
 		resetTimer(_perfAnalyzer.timer[1]);
 		float performancePreFilter;
-		clearWindow(window);
+		clearRenderBuffers(renderBuffers);
 
-#ifdef THREADING
-
-#else
 		switch(renderMode){
 			case WIREFRAME_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(window, models[i]);
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(renderBuffers, models[i]);
 				break;
 			}
 			case SHADED_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
-				pointLightShader(window);
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
+				// pointLightShader(renderBuffers);
 				break;
 			}
 			case DEPTH_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(window, models[i], defaultTexture);
+				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
 			case NORMAL_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(window, models[i], defaultTexture);
+				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
 			// #define SSAOFILTER
-			case BUFFER0_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(window, models[i], defaultTexture);
-				ssao();
+			case SSAO_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
+				ssao(renderBuffers);
 				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
-				DWORD bufferWidth = window.windowWidth/window.pixelSize;
-				DWORD bufferHeight = window.windowHeight/window.pixelSize;
 				#ifdef SSAOFILTER
-				for(DWORD y=0; y < bufferHeight; ++y){
-					for(DWORD x=0; x < bufferWidth; ++x){
-						DWORD idx = y*bufferWidth+x;
-						window.buffers[1][idx] = 0;
+				for(DWORD y=0; y < renderBuffers.height; ++y){
+					for(DWORD x=0; x < renderBuffers.width; ++x){
+						DWORD idx = y*renderBuffers.width+x;
+						colorBuffers[1].data[idx] = 0;
 						for(int dy=-2; dy < 2; ++dy){
 							for(int dx=-2; dx < 2; ++dx){
-								DWORD sampleIdx = ((y+dy)*bufferWidth+dx+x)%(bufferWidth*bufferHeight);
-								window.buffers[1][idx] += R(window.buffers[0][sampleIdx]);
+								DWORD sampleIdx = ((y+dy)*renderBuffers.width+dx+x)%(renderBuffers.width*renderBuffers.height);
+								colorBuffers[1].data[idx] += R(colorBuffers[0].data[sampleIdx]);
 							}
 						}
-						window.buffers[0][idx] = G(window.buffers[0][idx], window.buffers[1][idx]/16);
+						colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], colorBuffers[1].data[idx]/16);
 					}
 				}
-				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-					DWORD color = window.pixels[i];
-					float factor = G(window.buffers[0][i])/255.f;
-					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+					DWORD color = renderBuffers.frameBuffer[i];
+					float factor = R(colorBuffers[0].data[i])/255.f;
+					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#else
-				for(DWORD i=0; i < bufferWidth*bufferHeight; ++i){
-					DWORD color = window.pixels[i];
-					float factor = R(window.buffers[0][i])/255.f;
-					window.pixels[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
+				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+					DWORD color = renderBuffers.frameBuffer[i];
+					float factor = (R(colorBuffers[0].data[i])+R(colorBuffers[1].data[i]))/510.f;
+					colorBuffers[1].data[i] = colorBuffers[0].data[i];
+					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
 				}
 				#endif
 				break;
 			}
+			case SSR_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
+				ssr(renderBuffers, cam);
+				break;
+			}
 		}
-#endif
+
+		Image dummyImage;
+		dummyImage.width = renderBuffers.width;
+		dummyImage.height = renderBuffers.height;
+		dummyImage.data = renderBuffers.frameBuffer;
+		copyImageToColorbuffer(window.framebuffer, dummyImage, 0, 0, window.windowWidth, window.windowHeight);
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])/1000.f) + "ms";
-		drawFontString(window, font, val.c_str(), 5, 2);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, 2);
 		val = floatToString(performancePreFilter) + "ms";
-		drawFontString(window, font, val.c_str(), 5, font.font_size+4);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size+4);
 		val = longToString(_perfAnalyzer.totalTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*2+6);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*2+6);
 		val = longToString(_perfAnalyzer.drawnTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*3+8);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*3+8);
 		val = longToString(_perfAnalyzer.pixelsDrawn);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*4+10);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*4+10);
 		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*5+12);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*5+12);
 		val = longToString(_perfAnalyzer.pointlessTriangles);
-		drawFontString(window, font, val.c_str(), 5, font.font_size*6+14);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*6+14);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 
 		drawWindow(window);
+		++frameCounter;
 	}
 
 	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
+	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();
@@ -507,8 +544,17 @@ void update(float dt)noexcept{
 		cam.pos.y -= getButton(keyboard, KEY_SPACE)*SPEED*dt;
 		cam.pos.y += getButton(keyboard, KEY_SHIFT)*SPEED*dt;
 	}else{
-		updateMenu(window, settingsMenu, font);
-		updateFloatSliders(window, font, debugSlider, sliderCount);
+		updateMenu(window.framebuffer, settingsMenu, font);
+		float preResolutionScale = resolutionScale;
+		updateFloatSliders(window.framebuffer, font, debugSlider, sliderCount);
+		resolutionScale = debugSlider[2].value;
+		if(resolutionScale != preResolutionScale){
+			resizeRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
+			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
+				destroyColorbuffer(colorBuffers[i]);
+				createColorbuffer(colorBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
+			}
+		}
 	}
 }
 
@@ -526,7 +572,12 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
 			// ErrCheck(setWindowFlag(window, WINDOW_RESIZE), "setzte resize Fensterstatus");
-			ErrCheck(resizeWindow(*window, width, height, PIXELSIZE), "Fenster skalieren");
+			ErrCheck(resizeWindow(*window, width, height, 1), "Fenster skalieren");
+			ErrCheck(resizeRenderBuffers(renderBuffers, width*resolutionScale, height*resolutionScale), "Renderbuffers skalieren");
+			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
+				destroyColorbuffer(colorBuffers[i]);
+				ErrCheck(createColorbuffer(colorBuffers[i], width*resolutionScale, height*resolutionScale), "Colorbuffer erstellen");
+			}
 			break;
 		}
 		case WM_LBUTTONDOWN:{

@@ -110,12 +110,24 @@ constexpr fvec3 reflect(const fvec3& vec, const fvec3& normal)noexcept{
 
 #define MULTIPLIER 1664525
 #define INCREMENT 1013904223
-static unsigned long _rand;
+unsigned long _rand;
 unsigned long nextrand()noexcept{
     _rand = (MULTIPLIER*_rand+INCREMENT);
     return _rand;
 }
 
-float lerp(float a, float b, float t){
+constexpr float lerp(float a, float b, float t)noexcept{
     return a+t*(b-a);
+}
+
+//Gibt 0 zurück, falls die Zahl positive ist, sonst 1
+constexpr BYTE sign(float val)noexcept{
+	return ((*(DWORD*)&val)>>31);
+}
+
+//Testet ob die float Zahl negative ist und gibt entweder -1 oder 1 zurück
+constexpr float negSign(float val)noexcept{
+	DWORD buffer = 0b00111111100000000000000000000000;	//Binäre Darstellung einer float 1
+	buffer |= ((*(DWORD*)&val)&0b1000'0000'0000'0000'0000'0000'0000'0000);
+	return *(float*)&buffer;
 }

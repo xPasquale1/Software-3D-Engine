@@ -87,7 +87,7 @@ enum MOUSEBUTTON{
 struct Mouse{
 	ivec2 pos = {};
 	char button = 0;	//Bits: LMB, RMB, Rest ungenutzt
-}; static Mouse mouse;
+}; Mouse mouse;
 
 constexpr bool getButton(Mouse& mouse, MOUSEBUTTON button)noexcept{return (mouse.button & button);}
 constexpr void setButton(Mouse& mouse, MOUSEBUTTON button)noexcept{mouse.button |= button;}
@@ -100,7 +100,7 @@ constexpr  const char* stringLookUp2(long value)noexcept{
 			"09192939495969798999"[value<<1];
 }
 //std::to_string ist langsam, das ist simpel und schnell
-static char _dec_to_str_out[12] = "00000000000";
+char _dec_to_str_out[12] = "00000000000";
 const char* longToString(long value)noexcept{
 	char* ptr = _dec_to_str_out + 11;
 	*ptr = '0';
@@ -186,7 +186,7 @@ enum KEYBOARDBUTTON : unsigned long long{
 };
 struct Keyboard{
 	unsigned long long buttons;	//Bits siehe enum oben
-}; static Keyboard keyboard;
+}; Keyboard keyboard;
 
 constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{return keyboard.buttons & button;}
 constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{keyboard.buttons |= button;}
@@ -237,7 +237,7 @@ struct PerfAnalyzer{
 	DWORD pixelsCulled = 0;			//Wegen Depthbuffer nicht gezeichnete Pixel
 	DWORD pointlessTriangles = 0;
 	Timer timer[PERFORMANCE_ANALYZER_DATA_POINTS];
-}; static PerfAnalyzer _perfAnalyzer;
+}; PerfAnalyzer _perfAnalyzer;
 
 //Setzt Statistiken zurück
 void resetData(PerfAnalyzer& pa)noexcept{
@@ -250,9 +250,6 @@ void resetData(PerfAnalyzer& pa)noexcept{
 
 //TODO Kompression
 
-DWORD searchInWindow(){
-	return 0;
-}
 DWORD compress(BYTE* input, DWORD size, BYTE* output){
 	return 0;
 }
