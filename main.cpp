@@ -29,7 +29,8 @@ enum RENDERMODES{
 	RENDERMODE_DEPTH_MODE,
 	RENDERMODE_NORMAL_MODE,
 	RENDERMODE_SSAO_MODE,
-	RENDERMODE_SSR_MODE
+	RENDERMODE_SSR_MODE,
+	RENDERMODE_SSGI_MODE
 };
 
 RENDERMODES renderMode;
@@ -81,11 +82,22 @@ void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
 	}
 }
 
-#define RANDOMNORMALSCOUNT 256
+#define RANDOMNORMALSCOUNT 211
 fvec3 randomNormalVectorBuffer[RANDOMNORMALSCOUNT];
 
 fvec3 generateRandomNormalInHemisphere(fvec3& normal)noexcept{
 	fvec3 random = randomNormalVectorBuffer[nextrand()%RANDOMNORMALSCOUNT];
+    if(dot(normal, random) < 0){
+		random.x = -random.x;
+		random.y = -random.y;
+		random.z = -random.z;
+	}
+    return random;
+}
+
+//Macht keine Bereichsüberprüfung!
+fvec3 generateRandomNormalInHemisphere(fvec3& normal, WORD idx)noexcept{
+	fvec3 random = randomNormalVectorBuffer[idx];
     if(dot(normal, random) < 0){
 		random.x = -random.x;
 		random.y = -random.y;
@@ -102,6 +114,71 @@ uivec3 worldCoordinatesToScreenspace(fvec3& worldPixelPosition, float rotMat[3][
     screenCoords.y = (((screenPos.y*(cam.focal_length/screenPos.z))*0.5)+0.5)*bufferHeight;
 	screenCoords.z = screenPos.z;
 	return screenCoords;
+}
+
+//TODO Setzt vorraus, dass colorBuffers und renderBuffers die gleiche Auflösung haben
+void ssgi(RenderBuffers& renderBuffers, Camera& cam)noexcept{
+	float rotm[3][3];
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	float sin_roty = sin(cam.rot.y);
+	float cos_roty = cos(cam.rot.y);
+    rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
+    rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
+    rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	
+	const int ssgiSamples = 16;
+	
+	DWORD idx = 0;
+	for(WORD y=0; y < renderBuffers.width; ++y){
+		for(WORD x=0; x < renderBuffers.height; ++x, ++idx){
+			fvec3 worldNormal;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 4)];
+
+			fvec3 worldPixelPosition;
+			worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 5)];
+			worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 6)];
+			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(renderBuffers, 7)];
+
+			DWORD red = 0;
+			DWORD green = 0;
+			DWORD blue = 0;
+			for(int i=0; i < ssgiSamples; ++i){
+				fvec3 dir = generateRandomNormalInHemisphere(worldNormal);
+				const float stepSize = 10;
+				const int maxSteps = 60;
+				const float maxDepth = 20*DEPTH_DIVISOR;
+				fvec3 samplePos = worldPixelPosition;
+
+				for(int step=0; step < maxSteps; ++step){
+					samplePos.x -= dir.x * stepSize;
+					samplePos.y -= dir.y * stepSize;
+					samplePos.z -= dir.z * stepSize;
+
+					uivec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
+
+					if(screenCoords.x >= renderBuffers.width || screenCoords.y >= renderBuffers.height) break;
+
+					SDWORD depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
+					if(depthDiff >= maxDepth) break;
+					if(depthDiff > 0){
+						DWORD reflectionColor = renderBuffers.frameBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
+						red += R(reflectionColor);
+						green += G(reflectionColor);
+						blue += B(reflectionColor);
+						break;
+					}
+				}
+			}
+			red /= ssgiSamples;
+			green /= ssgiSamples;
+			blue /= ssgiSamples;
+			colorBuffers[0].data[idx] = RGBA(red, green, blue);
+		}
+	}
 }
 
 void ssao(RenderBuffers& renderBuffers)noexcept{
@@ -211,8 +288,8 @@ void ssr(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 					DWORD currentColor = renderBuffers.frameBuffer[idx];
 					DWORD reflectionColor = renderBuffers.frameBuffer[screenCoords.y*renderBuffers.width+screenCoords.x];
                     renderBuffers.frameBuffer[idx] = RGBA(	R(currentColor)*albedoAmount+R(reflectionColor)*reflectionAmount,
-												G(currentColor)*albedoAmount+G(reflectionColor)*reflectionAmount,
-												B(currentColor)*albedoAmount+B(reflectionColor)*reflectionAmount);
+															G(currentColor)*albedoAmount+G(reflectionColor)*reflectionAmount,
+															B(currentColor)*albedoAmount+B(reflectionColor)*reflectionAmount);
                     break;
                 }
             }
@@ -288,7 +365,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(initApp(), "App initialisieren") != ERR_SUCCESS) return -1;
 
 	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != ERR_SUCCESS) return -1;
-	createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 8);
+	if(ErrCheck(createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 8), "Renderbuffers erstellen") != ERR_SUCCESS) return -1;
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
@@ -318,7 +395,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// std::cout << filepath << std::endl;
 
 	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
-	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
@@ -383,7 +460,6 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	const RENDERMODES button4Mode = RENDERMODE_SSAO_MODE;
 	settingsMenu.buttons[4].data = (void*)&button4Mode;
 	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
-	settingsMenu.buttonCount = 5;
 
 	buttonPos.y += buttonSize.y+10/window.pixelSize;
 	settingsMenu.buttons[5].size = buttonSize;
@@ -393,7 +469,16 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	const RENDERMODES button5Mode = RENDERMODE_SSR_MODE;
 	settingsMenu.buttons[5].data = (void*)&button5Mode;
 	settingsMenu.buttons[5].textsize = 36/window.pixelSize;
-	settingsMenu.buttonCount = 6;
+
+	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	settingsMenu.buttons[6].size = buttonSize;
+	settingsMenu.buttons[6].pos = buttonPos;
+	settingsMenu.buttons[6].event = setRenderMode;
+	settingsMenu.buttons[6].text = "SSGI";
+	const RENDERMODES button6Mode = RENDERMODE_SSGI_MODE;
+	settingsMenu.buttons[6].data = (void*)&button6Mode;
+	settingsMenu.buttons[6].textsize = 36/window.pixelSize;
+	settingsMenu.buttonCount = 7;
 
 	buttonPos.y += buttonSize.y+34;
 	debugSlider[0].pos = {buttonPos.x, buttonPos.y};
@@ -402,21 +487,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[0].minValue = 0.1;
 	debugSlider[0].maxValue = 2.0;
 	debugSlider[0].value = 0.5;
-	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
+	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
 
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[1].pos = {buttonPos.x, buttonPos.y};
 	debugSlider[1].size = {200, 6};
 	debugSlider[1].sliderRadius = 12;
-	debugSlider[1].value = 20;
+	debugSlider[1].value = 10;
 	debugSlider[1].sliderPos = getFloatSliderPosFromValue(debugSlider[1]);
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[2].pos = {buttonPos.x, buttonPos.y};
 	debugSlider[2].size = {200, 6};
 	debugSlider[2].sliderRadius = 12;
-	debugSlider[2].value = 10;
-	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
+	debugSlider[2].value = 20;
+	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
 
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
@@ -441,7 +526,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[5].sliderRadius = 12;
 	debugSlider[5].minValue = 0;
 	debugSlider[5].maxValue = 10;
-	debugSlider[5].value = 3;
+	debugSlider[5].value = 2;
 	debugSlider[5].sliderPos = getFloatSliderPosFromValue(debugSlider[5]);
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[6].pos = {buttonPos.x, buttonPos.y};
@@ -528,6 +613,15 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 			case RENDERMODE_SSR_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				ssr(renderBuffers, cam);
+				break;
+			}
+			case RENDERMODE_SSGI_MODE:{
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
+				// pointLightShader(renderBuffers);
+				ssgi(renderBuffers, cam);
+				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+					renderBuffers.frameBuffer[i] = colorBuffers[0].data[i];
+				}
 				break;
 			}
 		}
