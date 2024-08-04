@@ -26,8 +26,8 @@ ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height){
 	buffer.width = width;
 	buffer.height = height;
 	buffer.data = new(std::nothrow) DWORD[width*height];
-	if(buffer.data == nullptr) return BAD_ALLOC;
-	return SUCCESS; 
+	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
+	return ERR_SUCCESS; 
 }
 
 void destroyColorbuffer(Colorbuffer& buffer){
@@ -35,10 +35,10 @@ void destroyColorbuffer(Colorbuffer& buffer){
 }
 
 #define WINDOWFLAGSTYPE BYTE
-enum WINDOWFLAG : WINDOWFLAGSTYPE{
-	WINDOW_NONE = 0,
-	WINDOW_CLOSE = 1,
-	WINDOW_RESIZE = 2
+enum WINDOWFLAGS : WINDOWFLAGSTYPE{
+	WINDOWFLAG_NONE=0,
+	WINDOWFLAG_CLOSE=1,
+	WINDOWFLAG_RESIZE=2
 };
 //Hat viele Attribute die man auch über die win api abrufen könnte, aber diese extra zu speichern macht alles übersichtlicher
 struct Window{
@@ -47,39 +47,29 @@ struct Window{
 	WORD windowHeight = 800;						//Fensterhöhe
 	Colorbuffer framebuffer;						//Farbbuffer für das Fenster
 	WORD pixelSize = 1;								//Größe der Pixel in Bildschirmpixeln
-	WINDOWFLAG flags = WINDOW_NONE;					//Fensterflags
+	WINDOWFLAGS flags = WINDOWFLAG_NONE;			//Fensterflags
 	ID2D1HwndRenderTarget* renderTarget = nullptr;	//Direct 2D Rendertarget
 	std::string windowClassName;					//Ja, jedes Fenster hat seine eigene Klasse... GROSSES TODO
 	void* data;										//Generischer Datenpointer der Überschrieben werden darf
 };
 
-#define APPLICATIONFLAGSTYPE BYTE
-enum APPLICATIONFLAG : APPLICATIONFLAGSTYPE{
-	APP_RUNNING=1,
-	APP_HAS_DEVICE=2	//TODO tot
-};
 struct Application{
-	APPLICATIONFLAG flags = APP_RUNNING;		//Applikationsflags
 	ID2D1Factory* factory = nullptr;			//Direct2D Factory
 }; Application app;
-
-bool getAppFlag(APPLICATIONFLAG flag)noexcept{return(app.flags & flag);}
-void setAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags | flag);}
-void resetAppFlag(APPLICATIONFLAG flag)noexcept{app.flags = (APPLICATIONFLAG)(app.flags & ~flag);}
 
 ErrCode initApp()noexcept{
 	HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &app.factory);
 	if(hr){
 		std::cerr << hr << std::endl;
-		return APP_INIT;
+		return ERR_APP_INIT;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //TODO wirft das errors?
 ErrCode destroyApp()noexcept{
 	app.factory->Release();
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 typedef LRESULT (*window_callback_function)(HWND, UINT, WPARAM, LPARAM);
@@ -99,7 +89,7 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	//Registriere Fenster Klasse
 	if(!RegisterClass(&window_class)){
 		std::cerr << "Register-Class: " << GetLastError() << std::endl;
-		return CREATE_WINDOW;
+		return ERR_CREATE_WINDOW;
 	}
 
 	RECT rect;
@@ -115,7 +105,7 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	window.handle = CreateWindow(window_class.lpszClassName, name, WS_VISIBLE | WS_OVERLAPPEDWINDOW, x, y, w, h, parentWindow, NULL, hInstance, NULL);
 	if(window.handle == NULL){
 		std::cerr << "Create-Window: "<< GetLastError() << std::endl;
-		return CREATE_WINDOW;
+		return ERR_CREATE_WINDOW;
 	}
 
 	//TODO idk ob das so ok ist, win32 doku sagt nicht viel darüber aus... aber angeblich ist USERDATA genau für sowas gedacht und es sollte auch nie überschrieben werden...
@@ -136,7 +126,7 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
     HRESULT hr = app.factory->CreateHwndRenderTarget(properties, hwndProperties, &window.renderTarget);
     if(hr){
 		std::cerr << "Create-Rendertarget: "<< hr << std::endl;
-		return INIT_RENDER_TARGET;
+		return ERR_INIT_RENDER_TARGET;
     }
 
 	WORD buffer_width = windowWidth/pixelSize;
@@ -145,37 +135,37 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	createColorbuffer(window.framebuffer, buffer_width, buffer_height);
 	window.windowWidth = windowWidth;
 	window.windowHeight = windowHeight;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Zerstört das Fenster und alle allokierten Ressourcen mit diesem
 ErrCode destroyWindow(Window& window)noexcept{
 	if(!UnregisterClassA(window.windowClassName.c_str(), NULL)){
 		std::cerr << GetLastError() << std::endl;
-		return GENERIC_ERROR;
+		return ERR_GENERIC_ERROR;
 	}
 	DestroyWindow(window.handle);
 	destroyColorbuffer(window.framebuffer);
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
-ErrCode setWindowFlag(Window& window, WINDOWFLAG state)noexcept{
-	window.flags = (WINDOWFLAG)(window.flags | state);
-	return SUCCESS;
+ErrCode setWindowFlag(Window& window, WINDOWFLAGS state)noexcept{
+	window.flags = (WINDOWFLAGS)(window.flags | state);
+	return ERR_SUCCESS;
 }
-ErrCode resetWindowFlag(Window& window, WINDOWFLAG state)noexcept{
-	window.flags = (WINDOWFLAG)(window.flags & ~state);
-	return SUCCESS;
+ErrCode resetWindowFlag(Window& window, WINDOWFLAGS state)noexcept{
+	window.flags = (WINDOWFLAGS)(window.flags & ~state);
+	return ERR_SUCCESS;
 }
-bool getWindowFlag(Window& window, WINDOWFLAG state)noexcept{
+bool getWindowFlag(Window& window, WINDOWFLAGS state)noexcept{
 	return (window.flags & state);
 }
 
 //TODO Sollte ERRCODE zurückgeben und WINDOWFLAG als Referenzparameter übergeben bekommen
 //Gibt den nächsten Zustand des Fensters zurück und löscht diesen anschließend, Anwendung z.B. while(state = getNextWindowState() != WINDOW_NONE)...
-WINDOWFLAG getNextWindowState(Window& window)noexcept{
-	WINDOWFLAG flag = (WINDOWFLAG)(window.flags & -window.flags);
-	window.flags = (WINDOWFLAG)(window.flags & ~flag);
+WINDOWFLAGS getNextWindowState(Window& window)noexcept{
+	WINDOWFLAGS flag = (WINDOWFLAGS)(window.flags & -window.flags);
+	window.flags = (WINDOWFLAGS)(window.flags & ~flag);
 	return flag;
 }
 
@@ -187,9 +177,9 @@ ErrCode resizeWindow(Window& window, WORD width, WORD height, WORD pixel_size)no
 	WORD bufferWidth = width/pixel_size;
 	WORD bufferHeight = height/pixel_size;
 	ErrCode code;
-	if((code = createColorbuffer(window.framebuffer, bufferWidth, bufferHeight)) != SUCCESS) return code;
+	if((code = createColorbuffer(window.framebuffer, bufferWidth, bufferHeight)) != ERR_SUCCESS) return code;
 	window.renderTarget->Resize({width, height});
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //TODO anstatt solch eine komplexe Funktion in createWindow rein zu geben, könnte man seine eigene schreiben mit Window* und uMsg,... als Parameter
@@ -199,37 +189,31 @@ LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LP
 	if(window == nullptr) return DefWindowProc(hwnd, uMsg, wParam, lParam);	//TODO das ist ein Fehler, wie melden aber?
 	switch(uMsg){
 		case WM_DESTROY:{
-			ErrCheck(setWindowFlag(*window, WINDOW_CLOSE), "setze close Fensterstatus");
+			ErrCheck(setWindowFlag(*window, WINDOWFLAG_CLOSE), "setze close Fensterstatus");
 			break;
 		}
 		case WM_SIZE:{
 			UINT width = LOWORD(lParam);
 			UINT height = HIWORD(lParam);
 			if(!width || !height) break;
-			ErrCheck(setWindowFlag(*window, WINDOW_RESIZE), "setzte resize Fensterstatus");
+			ErrCheck(setWindowFlag(*window, WINDOWFLAG_RESIZE), "setzte resize Fensterstatus");
 			ErrCheck(resizeWindow(*window, width, height, 1), "Fenster skalieren");
 			break;
 		}
 		case WM_LBUTTONDOWN:{
-			if(!getButton(mouse, MOUSE_LMB)){
-
-			};
-			setButton(mouse, MOUSE_LMB);
+			setButton(mouse, MOUSEBUTTON_LMB);
 			break;
 		}
 		case WM_LBUTTONUP:{
-			resetButton(mouse, MOUSE_LMB);
+			resetButton(mouse, MOUSEBUTTON_LMB);
 			break;
 		}
 		case WM_RBUTTONDOWN:{
-			if(!getButton(mouse, MOUSE_RMB)){
-
-			};
-			setButton(mouse, MOUSE_RMB);
+			setButton(mouse, MOUSEBUTTON_RMB);
 			break;
 		}
 		case WM_RBUTTONUP:{
-			resetButton(mouse, MOUSE_RMB);
+			resetButton(mouse, MOUSEBUTTON_RMB);
 			break;
 		}
 		case WM_MOUSEMOVE:{
@@ -264,11 +248,11 @@ ErrCode clearWindow(Window& window, DWORD color)noexcept{
 	WORD buffer_width = window.windowWidth/window.pixelSize;
 	WORD buffer_height = window.windowHeight/window.pixelSize;
 	for(DWORD i=0; i < window.framebuffer.width*window.framebuffer.height; ++i) window.framebuffer.data[i] = color;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode drawWindow(Window& window)noexcept{
-	if(window.windowWidth == 0 || window.windowHeight == 0) return GENERIC_ERROR;
+	if(window.windowWidth == 0 || window.windowHeight == 0) return ERR_GENERIC_ERROR;
 	ID2D1Bitmap* bitmap;
 	D2D1_BITMAP_PROPERTIES properties = {};
 	properties.pixelFormat.alphaMode = D2D1_ALPHA_MODE_PREMULTIPLIED;
@@ -284,7 +268,7 @@ ErrCode drawWindow(Window& window)noexcept{
 	window.renderTarget->DrawBitmap(bitmap, D2D1::RectF(0, 0, window.windowWidth, window.windowHeight), 1, D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, D2D1::RectF(0, 0, window.framebuffer.width, window.framebuffer.height));
 	bitmap->Release();
 	window.renderTarget->EndDraw();
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode drawRectangle(Colorbuffer& buffer, WORD x, WORD y, WORD dx, WORD dy, DWORD color)noexcept{
@@ -293,7 +277,7 @@ ErrCode drawRectangle(Colorbuffer& buffer, WORD x, WORD y, WORD dx, WORD dy, DWO
 			buffer.data[i*buffer.width+j] = color;
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode drawLine(Colorbuffer& buffer, WORD start_x, WORD start_y, WORD end_x, WORD end_y, DWORD color)noexcept{
@@ -309,7 +293,7 @@ ErrCode drawLine(Colorbuffer& buffer, WORD start_x, WORD start_y, WORD end_x, WO
 		x += xinc;
 		y += yinc;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode drawCircle(Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD color)noexcept{
@@ -318,7 +302,7 @@ ErrCode drawCircle(Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD color
 			if(j*j+i*i <= radius*radius) buffer.data[(i+y)*buffer.width+j+x] = color;
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 struct Image{
@@ -329,20 +313,20 @@ struct Image{
 
 ErrCode createImage(Image& image, WORD width, WORD height)noexcept{
 	image.data = new(std::nothrow) DWORD[width*height];
-	if(!image.data) return BAD_ALLOC;
+	if(!image.data) return ERR_BAD_ALLOC;
 	image.width = width;
 	image.height = height;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode loadImage(const char* name, Image& image)noexcept{
 	std::fstream file;
 	file.open(name, std::ios::in | std::ios::binary);
-	if(!file.is_open()) return FILE_NOT_FOUND;
+	if(!file.is_open()) return ERR_FILE_NOT_FOUND;
 	file.read((char*)&image.width, 2);
 	file.read((char*)&image.height, 2);
 	image.data = new(std::nothrow) DWORD[image.width*image.height];
-	if(!image.data) return BAD_ALLOC;
+	if(!image.data) return ERR_BAD_ALLOC;
 	BYTE val[4];
 	for(DWORD i=0; i < image.width*image.height; ++i){
 		file.read((char*)&val[0], 1);
@@ -352,15 +336,15 @@ ErrCode loadImage(const char* name, Image& image)noexcept{
 		image.data[i] = RGBA(val[0], val[1], val[2], val[3]);
 	}
 	file.close();
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 ErrCode createBlankImage(Image& image, WORD width, WORD height, DWORD color)noexcept{
 	ErrCode code;
 	code = createImage(image, width, height);
-	if(code != SUCCESS) return code;
+	if(code != ERR_SUCCESS) return code;
 	for(DWORD i=0; i < width*height; ++i) image.data[i] = color;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //TODO sollte ErrCode zurückgeben
@@ -406,6 +390,7 @@ void flipImageVertically(Image& image)noexcept{
 }
 
 //Kopiert das gesamte Image in den angegebenen Bereich von start_x bis end_x und start_y bis end_y
+//TODO Warum hat das ErrCode?
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
 //TODO up-/downscaling methoden wie nearest, bilinear,...
 ErrCode copyImageToColorbuffer(Colorbuffer& buffer, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
@@ -417,10 +402,11 @@ ErrCode copyImageToColorbuffer(Colorbuffer& buffer, Image& image, WORD start_x, 
 			if(A(color) > 0) buffer.data[y*buffer.width+x] = color;
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Funktion testet ob jeder pixel im gültigen Fensterbereich liegt! idx ist der window index
+//TODO Warum hat das n ErrCode?
 //TODO ist das wirklich nötig eine ganze extra Funktion dafür zu machen?
 ErrCode copyImageToColorbufferSave(Colorbuffer& buffer, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	for(int y=start_y; y < end_y; ++y){
@@ -433,7 +419,7 @@ ErrCode copyImageToColorbufferSave(Colorbuffer& buffer, Image& image, WORD start
 			if(A(color) > 0) buffer.data[y*buffer.width+x] = color;
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 struct Font{
@@ -451,7 +437,7 @@ void destroyFont(Font& font)noexcept{
 ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
 	ErrCode code;
 	font.char_size = char_size;
-	if((code = ErrCheck(loadImage(path, font.image), "font image laden")) != SUCCESS){
+	if((code = ErrCheck(loadImage(path, font.image), "font image laden")) != ERR_SUCCESS){
 		return code;
 	}
 	//Lese max x von jedem Zeichen
@@ -467,7 +453,7 @@ ErrCode loadFont(const char* path, Font& font, ivec2 char_size)noexcept{
 		}
 		font.char_sizes[i] = x_max - (i%16)*char_size.x + 10;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Gibts zurück wie viele Pixel der Text unter der gegebenen Font benötigt
@@ -514,14 +500,15 @@ DWORD drawFontString(Colorbuffer& buffer, Font& font, const char* string, DWORD 
 	return offset;
 }
 
-ErrCode _defaultEvent(void*)noexcept{return SUCCESS;}
+ErrCode _defaultEvent(void*)noexcept{return ERR_SUCCESS;}
 enum BUTTONFLAGS{
-	BUTTON_VISIBLE=1,
-	BUTTON_CAN_HOVER=2,
-	BUTTON_HOVER=4,
-	BUTTON_PRESSED=8,
-	BUTTON_TEXT_CENTER=16,
-	BUTTON_DISABLED=32
+	BUTTONFLAG_NONE=0,
+	BUTTONFLAG_VISIBLE=1,
+	BUTTONFLAG_CAN_HOVER=2,
+	BUTTONFLAG_HOVER=4,
+	BUTTONFLAG_PRESSED=8,
+	BUTTONFLAG_TEXT_CENTER=16,
+	BUTTONFLAG_DISABLED=32
 };
 struct Button{
 	ErrCode (*event)(void*)noexcept = _defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
@@ -532,7 +519,7 @@ struct Button{
 	ivec2 repos = {0, 0};
 	ivec2 size = {50, 10};
 	ivec2 resize = {55, 11};
-	BYTE flags = BUTTON_VISIBLE | BUTTON_CAN_HOVER | BUTTON_TEXT_CENTER;
+	BYTE flags = BUTTONFLAG_VISIBLE | BUTTONFLAG_CAN_HOVER | BUTTONFLAG_TEXT_CENTER;
 	DWORD color = RGBA(120, 120, 120);
 	DWORD hover_color = RGBA(120, 120, 255);
 	DWORD textcolor = RGBA(180, 180, 180);
@@ -552,17 +539,17 @@ constexpr bool getButtonFlag(Button& button, BUTTONFLAGS flag)noexcept{return (b
 void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
-		if(!getButtonFlag(b, BUTTON_VISIBLE) || getButtonFlag(b, BUTTON_DISABLED)) continue;
+		if(!getButtonFlag(b, BUTTONFLAG_VISIBLE) || getButtonFlag(b, BUTTONFLAG_DISABLED)) continue;
 		ivec2 delta = {mouse.pos.x - b.pos.x, mouse.pos.y - b.pos.y};
 		if(delta.x >= 0 && delta.x <= b.size.x && delta.y >= 0 && delta.y <= b.size.y){
-			if(getButtonFlag(b, BUTTON_CAN_HOVER)) b.flags |= BUTTON_HOVER;
-			if(getButton(mouse, MOUSE_LMB) && !getButtonFlag(b, BUTTON_PRESSED)){
+			if(getButtonFlag(b, BUTTONFLAG_CAN_HOVER)) b.flags |= BUTTONFLAG_HOVER;
+			if(getButton(mouse, MOUSEBUTTON_LMB) && !getButtonFlag(b, BUTTONFLAG_PRESSED)){
 				ErrCheck(b.event(b.data));
-				b.flags |= BUTTON_PRESSED;
+				b.flags |= BUTTONFLAG_PRESSED;
 			}
-			else if(!getButton(mouse, MOUSE_LMB)) b.flags &= ~BUTTON_PRESSED;
-		}else if(getButtonFlag(b, BUTTON_CAN_HOVER)){
-			b.flags &= ~BUTTON_HOVER;
+			else if(!getButton(mouse, MOUSEBUTTON_LMB)) b.flags &= ~BUTTONFLAG_PRESSED;
+		}else if(getButtonFlag(b, BUTTONFLAG_CAN_HOVER)){
+			b.flags &= ~BUTTONFLAG_HOVER;
 		}
 	}
 }
@@ -570,24 +557,24 @@ void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 void drawButtons(Colorbuffer& buffer, Font& font, Button* buttons, WORD button_count)noexcept{
 	for(WORD i=0; i < button_count; ++i){
 		Button& b = buttons[i];
-		if(!getButtonFlag(b, BUTTON_VISIBLE)) continue;
-		if(getButtonFlag(b, BUTTON_DISABLED)){
+		if(!getButtonFlag(b, BUTTONFLAG_VISIBLE)) continue;
+		if(getButtonFlag(b, BUTTONFLAG_DISABLED)){
 			if(b.disabledImage == nullptr)
 				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.disabledColor);
 			else
 				copyImageToColorbuffer(buffer, *b.disabledImage, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
 		}else if(b.image == nullptr){
-			if(getButtonFlag(b, BUTTON_CAN_HOVER) && getButtonFlag(b, BUTTON_HOVER))
+			if(getButtonFlag(b, BUTTONFLAG_CAN_HOVER) && getButtonFlag(b, BUTTONFLAG_HOVER))
 				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.hover_color);
 			else
 				drawRectangle(buffer, b.pos.x, b.pos.y, b.size.x, b.size.y, b.color);
 		}else{
-			if(getButtonFlag(b, BUTTON_CAN_HOVER) && getButtonFlag(b, BUTTON_HOVER))
+			if(getButtonFlag(b, BUTTONFLAG_CAN_HOVER) && getButtonFlag(b, BUTTONFLAG_HOVER))
 				copyImageToColorbuffer(buffer, *b.image, b.repos.x, b.repos.y, b.repos.x+b.resize.x, b.repos.y+b.resize.y);
 			else
 				copyImageToColorbuffer(buffer, *b.image, b.pos.x, b.pos.y, b.pos.x+b.size.x, b.pos.y+b.size.y);
 		}
-		if(getButtonFlag(b, BUTTON_TEXT_CENTER)){
+		if(getButtonFlag(b, BUTTONFLAG_TEXT_CENTER)){
 			DWORD offset = 0;
 			WORD tmp_font_size = font.font_size;
 			font.font_size = b.textsize;
@@ -621,20 +608,20 @@ struct Label{
 };
 
 enum MENUFLAGS{
-	MENU_OPEN=1,
-	MENU_OPEN_TOGGLE=2
+	MENUFLAG_OPEN=1,
+	MENUFLAG_OPEN_TOGGLE=2
 };
 //TODO sollte alles dynamisch hinzugefügt werden
 #define MAX_BUTTONS 10
 #define MAX_STRINGS 20
 #define MAX_IMAGES 5
 struct Menu{
-	Image* images[MAX_IMAGES];	//Sind für die Buttons
+	Image* images[MAX_IMAGES];		//Sind für die Buttons
 	BYTE imageCount = 0;
 	Button buttons[MAX_BUTTONS];
 	BYTE buttonCount = 0;
-	BYTE flags = MENU_OPEN;		//Bits: offen, toggle bit für offen, Rest ungenutzt
-	ivec2 pos = {};				//TODO Position in Bildschirmpixelkoordinaten
+	BYTE flags = MENUFLAG_OPEN;
+	ivec2 pos = {};					//TODO Position in Bildschirmpixelkoordinaten
 	Label labels[MAX_STRINGS];
 	BYTE labelCount = 0;
 };
@@ -650,7 +637,7 @@ constexpr void resetMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{menu.flags &= ~
 constexpr bool getMenuFlag(Menu& menu, MENUFLAGS flag)noexcept{return (menu.flags&flag);}
 
 void updateMenu(Colorbuffer& buffer, Menu& menu, Font& font)noexcept{
-	if(getMenuFlag(menu, MENU_OPEN)){
+	if(getMenuFlag(menu, MENUFLAG_OPEN)){
 		updateButtons(buffer, font, menu.buttons, menu.buttonCount);
 		for(WORD i=0; i < menu.labelCount; ++i){
 			Label& label = menu.labels[i];
@@ -666,7 +653,8 @@ void updateMenu(Colorbuffer& buffer, Menu& menu, Font& font)noexcept{
 }
 
 enum FLOATSLIDERFLAGS{
-	CAPTURED=1
+	FLOATSLIDERFLAG_NONE=0,
+	FLOATSLIDERFLAG_CAPTURED=1
 };
 
 struct FloatSlider{
@@ -675,7 +663,7 @@ struct FloatSlider{
 	WORD sliderRadius = 6;
 	WORD sliderPos = 0;
 	DWORD color = RGBA(180, 180, 180);
-	BYTE flags = 0;
+	BYTE flags = FLOATSLIDERFLAG_NONE;
 	float minValue = 0;
 	float maxValue = 100;
 	float value = 0;
@@ -691,13 +679,13 @@ WORD getFloatSliderPosFromValue(FloatSlider& slider){
 
 void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, WORD sliderCount)noexcept{
 	for(WORD i=0; i < sliderCount; ++i){
-		if(getButton(mouse, MOUSE_LMB) && !getButton(mouse, MOUSE_PREV_LMB)){
+		if(getButton(mouse, MOUSEBUTTON_LMB) && !getButton(mouse, MOUSEBUTTON_PREV_LMB)){
 			WORD x = mouse.pos.x-sliders[i].pos.x-sliders[i].sliderPos+sliders[i].sliderRadius;
 			WORD y = mouse.pos.y-sliders[i].pos.y+sliders[i].sliderRadius;
-			if(x <= sliders[i].sliderRadius*2 && y <= sliders[i].sliderRadius*2) setSliderFlag(sliders[i], CAPTURED);
+			if(x <= sliders[i].sliderRadius*2 && y <= sliders[i].sliderRadius*2) setSliderFlag(sliders[i], FLOATSLIDERFLAG_CAPTURED);
 		}
-		if(!getButton(mouse, MOUSE_LMB)) resetSliderFlag(sliders[i], CAPTURED);
-		if(getSliderFlag(sliders[i], CAPTURED)){
+		if(!getButton(mouse, MOUSEBUTTON_LMB)) resetSliderFlag(sliders[i], FLOATSLIDERFLAG_CAPTURED);
+		if(getSliderFlag(sliders[i], FLOATSLIDERFLAG_CAPTURED)){
 			sliders[i].sliderPos = clamp(mouse.pos.x-sliders[i].pos.x, 0, sliders[i].size.x);
 			sliders[i].value = (sliders[i].sliderPos*(sliders[i].maxValue-sliders[i].minValue))/sliders[i].size.x+sliders[i].minValue;
 		}
@@ -717,14 +705,14 @@ ErrCode openExplorer(char* filepath, DWORD maxPathLength, const char filterStr[]
     ofn.Flags = OFN_PATHMUSTEXIST | OFN_FILEMUSTEXIST;
     char currentDir[MAX_PATH]{0};
     DWORD directoryLength = GetCurrentDirectoryA(MAX_PATH, currentDir);
-    if(directoryLength == 0) return GENERIC_ERROR;				//TODO sollte ein eigener Fehler sein
+    if(directoryLength == 0) return ERR_GENERIC_ERROR;				//TODO sollte ein eigener Fehler sein
     currentDir[directoryLength] = '\\';
     ofn.lpstrInitialDir = currentDir;
     ofn.lpstrFilter = filterStr;
     ofn.nFilterIndex = 1;
-    if(GetOpenFileName(&ofn) != TRUE) return SUCCESS;	//TODO ehhh... es ist nicht zwangsweiße kein Fehler...
+    if(GetOpenFileName(&ofn) != TRUE) return ERR_SUCCESS;	//TODO ehhh... es ist nicht zwangsweiße kein Fehler...
 	strcpy(filepath, (char*)ofn.lpstrFile);
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
@@ -747,14 +735,14 @@ ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 	renderBuffers.height = height;
 	renderBuffers.attributeBuffersCount = attributesCount;
 	renderBuffers.frameBuffer = new DWORD[width*height];
-	if(renderBuffers.frameBuffer == nullptr) return BAD_ALLOC;
+	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.depthBuffer = new DWORD[width*height];
-	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
+	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.fragmentFlags = new BYTE[width*height];
-	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
+	if(renderBuffers.fragmentFlags == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.attributeBuffers = new float[width*height*attributesCount];
-	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
-	return SUCCESS;
+	if(renderBuffers.attributeBuffers == nullptr) return ERR_BAD_ALLOC;
+	return ERR_SUCCESS;
 }
 
 void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
@@ -767,19 +755,19 @@ void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height)noexcept{
 	delete[] renderBuffers.frameBuffer;
 	renderBuffers.frameBuffer = new(std::nothrow) DWORD[width*height];
-	if(renderBuffers.frameBuffer == nullptr) return BAD_ALLOC;
+	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
 	delete[] renderBuffers.depthBuffer;
 	renderBuffers.depthBuffer = new(std::nothrow) DWORD[width*height];
-	if(renderBuffers.depthBuffer == nullptr) return BAD_ALLOC;
+	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
 	delete[] renderBuffers.fragmentFlags;
 	renderBuffers.fragmentFlags = new(std::nothrow) BYTE[width*height];
-	if(renderBuffers.fragmentFlags == nullptr) return BAD_ALLOC;
+	if(renderBuffers.fragmentFlags == nullptr) return ERR_BAD_ALLOC;
 	delete[] renderBuffers.attributeBuffers;
 	renderBuffers.attributeBuffers = new(std::nothrow) float[width*height*renderBuffers.attributeBuffersCount];
-	if(renderBuffers.attributeBuffers == nullptr) return BAD_ALLOC;
+	if(renderBuffers.attributeBuffers == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.width = width;
 	renderBuffers.height = height;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
@@ -833,7 +821,7 @@ void destroyTriangleModel(TriangleModel& model)noexcept{
 ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
 	Triangle* newArray = new(std::nothrow) Triangle[model.triangleCapacity+additionalCapacity];
 	float* newAttributeArray = new(std::nothrow) float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
-	if(newArray == nullptr || newAttributeArray == nullptr) return BAD_ALLOC;
+	if(newArray == nullptr || newAttributeArray == nullptr) return ERR_BAD_ALLOC;
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
 	}
@@ -847,7 +835,7 @@ ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)
 	model.attributesBuffer = newAttributeArray;
 	delete[] oldAttributeArray;
 	model.triangleCapacity += additionalCapacity;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 constexpr float* getAttrLoc(TriangleModel& model, DWORD triangleIdx, BYTE pointIdx, BYTE location){
@@ -1422,27 +1410,27 @@ ErrCode splitString(const std::string& string, DWORD& value0, DWORD& value1, DWO
 	for(size_t i=0; i < string.size(); ++i){
 		if(string[i] == '/'){
 			idx++;
-			if(idx == 3) return MODEL_BAD_FORMAT;
+			if(idx == 3) return ERR_MODEL_BAD_FORMAT;
 			continue;
 		};
 		buffer[idx] += string[i];
 	}
-	if(idx < 2) return MODEL_BAD_FORMAT;
-	if(buffer[0].size() < 1) return MODEL_BAD_FORMAT;
-	if(buffer[1].size() < 1) return MODEL_BAD_FORMAT;
-	if(buffer[2].size() < 1) return MODEL_BAD_FORMAT;
+	if(idx < 2) return ERR_MODEL_BAD_FORMAT;
+	if(buffer[0].size() < 1) return ERR_MODEL_BAD_FORMAT;
+	if(buffer[1].size() < 1) return ERR_MODEL_BAD_FORMAT;
+	if(buffer[2].size() < 1) return ERR_MODEL_BAD_FORMAT;
 	value0 = std::stoul(buffer[0].c_str())-1;
 	value1 = std::stoul(buffer[1].c_str())-1;
 	value2 = std::stoul(buffer[2].c_str())-1;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //TODO unterstützt nur Flächen die aus Dreiecken bestehen
 //TODO man sollte übergeben können in welche location die Attribute gespeichert werden
 ErrCode readObj(const char* filename, Triangle* storage, float* attributesBuffer, BYTE attributesCount, DWORD* count, float x, float y, float z, float scale=1)noexcept{
 	std::fstream file; file.open(filename, std::ios::in);
-	if(!file.is_open()) return MODEL_NOT_FOUND;
-	if(attributesCount != 6) return MODEL_BAD_FORMAT;	//TODO neue Fehlermeldung
+	if(!file.is_open()) return ERR_MODEL_NOT_FOUND;
+	if(attributesCount != 6) return ERR_MODEL_BAD_FORMAT;	//TODO neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1490,11 +1478,11 @@ ErrCode readObj(const char* filename, Triangle* storage, float* attributesBuffer
 
 			//Lese Punkt/Texture/Normal
 			file >> word;
-			if(splitString(word, pt_order[0], uv_order[0], normal_order[0]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(splitString(word, pt_order[0], uv_order[0], normal_order[0]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
 			file >> word;
-			if(splitString(word, pt_order[1], uv_order[1], normal_order[1]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(splitString(word, pt_order[1], uv_order[1], normal_order[1]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
 			file >> word;
-			if(splitString(word, pt_order[2], uv_order[2], normal_order[2]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(splitString(word, pt_order[2], uv_order[2], normal_order[2]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
 
 			storage[current_count+tri_count].points[0] = points[pt_order[0]];
 			storage[current_count+tri_count].points[1] = points[pt_order[1]];
@@ -1524,7 +1512,7 @@ ErrCode readObj(const char* filename, Triangle* storage, float* attributesBuffer
 	std::cout << "UV-Koordinaten gelesen: " << uvs.size() << std::endl;
 	std::cout << "Dreiecke gelesen:       " << tri_count << std::endl;
 	std::cout << "Dreiecke insgesamt:     " << *count << '\n' << std::endl;
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Gibt das Keyword der obj/mtl Zeile als Zahlenwert zurück, für z.b. die Verwendung in einem switch case
@@ -1615,37 +1603,37 @@ ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 		case OBJ_V:{
 			std::string buffer;
 			float* data = (float*)outData;
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[0] = std::atof(buffer.c_str());
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[1] = std::atof(buffer.c_str());
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[2] = std::atof(buffer.c_str());
 			break;
 		}
 		case OBJ_VT:{
 			std::string buffer;
 			float* data = (float*)outData;
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[0] = std::atof(buffer.c_str());
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[1] = std::atof(buffer.c_str());
 			break;
 		}
 		case OBJ_S:{	//TODO muss noch implementiert werden
 			std::string buffer;
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			break;
 		}
 		case OBJ_F:{
 			std::string buffer;
 			DWORD* data = (DWORD*)outData;
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
-			if(splitString(buffer, data[0], data[1], data[2]) != SUCCESS) return MODEL_BAD_FORMAT;
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
-			if(splitString(buffer, data[3], data[4], data[5]) != SUCCESS) return MODEL_BAD_FORMAT;
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
-			if(splitString(buffer, data[6], data[7], data[8]) != SUCCESS) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[0], data[1], data[2]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[3], data[4], data[5]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
+			if(splitString(buffer, data[6], data[7], data[8]) != ERR_SUCCESS) return ERR_MODEL_BAD_FORMAT;
 			break;
 		}
 		case OBJ_O:
@@ -1654,7 +1642,7 @@ ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 		case OBJ_USEMTL:{
 			std::string buffer;
 			BYTE* data = (BYTE*)outData;
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			for(size_t i=0; i < buffer.size(); ++i){
 				data[i] = buffer[i];
 			}
@@ -1673,9 +1661,9 @@ ErrCode parseObjLine(OBJKEYWORD key, std::fstream& file, void* outData)noexcept{
 			data[idx] = '\0';
 			break;
 		}
-		default: return MODEL_BAD_FORMAT;
+		default: return ERR_MODEL_BAD_FORMAT;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Ließt die mtl Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die daten in den outData buffer
@@ -1689,11 +1677,11 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 		case MTL_KE:{
 			std::string buffer;
 			float* data = (float*)outData;
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[0] = std::atof(buffer.c_str());
-			if(readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[1] = std::atof(buffer.c_str());
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			data[2] = std::atof(buffer.c_str());
 			break;
 		}
@@ -1704,7 +1692,7 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 		case MTL_NEWMTL:{
 			std::string buffer;
 			BYTE* data = (BYTE*)outData;
-			if(!readWord(file, buffer)) return MODEL_BAD_FORMAT;
+			if(!readWord(file, buffer)) return ERR_MODEL_BAD_FORMAT;
 			for(size_t i=0; i < buffer.size(); ++i){
 				data[i] = buffer[i];
 			}
@@ -1726,9 +1714,9 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 			data[idx] = '\0';
 			break;
 		}
-		default: return MODEL_BAD_FORMAT;
+		default: return ERR_MODEL_BAD_FORMAT;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //TODO noch nicht alle Keywords werden beachtet
@@ -1736,7 +1724,7 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
-	if(!file.is_open()) return MATERIAL_NOT_FOUND;
+	if(!file.is_open()) return ERR_MATERIAL_NOT_FOUND;
 	std::string word;
 	void* data[80];
 	DWORD lineNumber = 0;
@@ -1745,17 +1733,17 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 		MTLKEYWORD key = (MTLKEYWORD)hashKeywords(word.c_str());
 		switch(key){
 			case MTL_NEWMTL:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				materialCount++;
 				materials[materialCount-1].name = std::string((char*)data);
 				break;
 			}
 			case MTL_MAP_D:{	//TODO richtig implementieren
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
 			case MTL_MAP_KD:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				std::string textureFile = std::string((char*)data);
 				size_t index = 0;
 				while(true){
@@ -1766,16 +1754,16 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				}
 				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
 				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
-				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
 				materials[materialCount-1].textureCount = 1;
 				break;
 			}
 			case MTL_KD:{	//TODO wie das TODO oben drüber und auch das unten drunter (:
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				float* values = (float*)data;
 				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
-				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				materials[materialCount-1].textureCount = 1;
 				break;
 			}
@@ -1787,13 +1775,13 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 			case MTL_D:
 			case MTL_ILLUM:
 			case MTL_COMMENT:{
-				if(parseMtlLine(key, file, data) != SUCCESS) return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
-			default: return ErrCheck(MATERIAL_BAD_FORMAT, std::string(word + " Unbekanntes MTL Keyword in Zeile: " + longToString(lineNumber)).c_str());
+			default: return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " Unbekanntes MTL Keyword in Zeile: " + longToString(lineNumber)).c_str());
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
 //Speichert die Modelle der .obj Datei und alle .mtl Materialen falls es diese noch nicht gibt 
@@ -1803,8 +1791,8 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, Material* materials, DWORD& materialCount, BYTE attributeCount, float x, float y, float z, float scaleX=1, float scaleY=1, float scaleZ=1)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
-	if(!file.is_open()) return MODEL_NOT_FOUND;
-	if(models[0].attributesCount < 5) return GENERIC_ERROR;		//TODO Neue Fehlermeldung
+	if(!file.is_open()) return ERR_MODEL_NOT_FOUND;
+	if(models[0].attributesCount < 5) return ERR_GENERIC_ERROR;		//TODO Neue Fehlermeldung
 	std::string word;
 	std::vector<fvec3> points;
 	std::vector<fvec3> normals;
@@ -1822,21 +1810,21 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 		OBJKEYWORD key = (OBJKEYWORD)hashKeywords(word.c_str());
 		switch(key){
 			case OBJ_O:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
 			case OBJ_V:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				points.push_back({((float*)data)[0]*scaleX, ((float*)data)[1]*scaleY, ((float*)data)[2]*scaleZ});
 				break;
 			}
 			case OBJ_VN:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				normals.push_back({((float*)data)[0], ((float*)data)[1], ((float*)data)[2]});
 				break;
 			}
 			case OBJ_VT:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				uvs.push_back({((float*)data)[0], ((float*)data)[1]});
 				break;
 			}
@@ -1848,12 +1836,12 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				if(models[modelCount-1].triangleCount >= models[modelCount-1].triangleCapacity) increaseTriangleCapacity(models[modelCount-1], 100);	//TODO 100
 				
 				//Lese Punkt/Texture/Normal
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				pt_order[0] = ((DWORD*)data)[0]; uv_order[0] = ((DWORD*)data)[1]; normal_order[0] = ((DWORD*)data)[2];
 				pt_order[1] = ((DWORD*)data)[3]; uv_order[1] = ((DWORD*)data)[4]; normal_order[1] = ((DWORD*)data)[5];
 				pt_order[2] = ((DWORD*)data)[6]; uv_order[2] = ((DWORD*)data)[7]; normal_order[2] = ((DWORD*)data)[8];
 
-				if(modelCount == 0) return ErrCheck(MODEL_BAD_FORMAT, "f modelCount == 0 aka keine usemtl Zeile vor einer f Zeile");
+				if(modelCount == 0) return ErrCheck(ERR_MODEL_BAD_FORMAT, "f modelCount == 0 aka keine usemtl Zeile vor einer f Zeile");
 				DWORD modelIdx = modelCount-1;
 				DWORD triangleIdx = models[modelIdx].triangleCount;
 
@@ -1884,27 +1872,27 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 				break;
 			}
 			case OBJ_MTLLIB:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				size_t lastSlash = std::string(filename).find_last_of("/");
 				std::string path = std::string(filename).substr(0, lastSlash+1);
 				std::string mtlFile = path + std::string((char*)data);
 				ErrCode err = loadMtl(mtlFile.c_str(), materials, materialCount);
-				if(err == MATERIAL_NOT_FOUND){
+				if(err == ERR_MATERIAL_NOT_FOUND){
 					ErrCheck(err, std::string(word + " Material Bibliothek nicht gefunden... fahre ohne fort... in Zeile: " + longToString(lineNumber)).c_str());
 					break;
 				}
-				if(ErrCheck(err, "Mtl Datei laden") != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(ErrCheck(err, "Mtl Datei laden") != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				hasMaterial = true;
 				break;
 			}
 			case OBJ_USEMTL:{
 				modelCount++;
 				if(!hasMaterial){
-					if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
-					ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material angefordert, Datei hat aber keins in Zeile: " + longToString(lineNumber)).c_str());
+					if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+					ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " Material angefordert, Datei hat aber keins in Zeile: " + longToString(lineNumber)).c_str());
 					break;
 				}
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				DWORD i=0;
 				for(;i < materialCount; ++i){
 					if(strcmp((char*)data, materials[i].name.c_str()) == 0){
@@ -1912,18 +1900,18 @@ ErrCode loadObj(const char* filename, TriangleModel* models, DWORD& modelCount, 
 						break;
 					}
 				}
-				if(i == materialCount) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Material nicht gefunden in Zeile: " + longToString(lineNumber)).c_str());
+				if(i == materialCount) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " Material nicht gefunden in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
 			case OBJ_G:			//TODO müssen alle noch implementiert werden
 			case OBJ_S:
 			case OBJ_L:
 			case OBJ_COMMENT:{
-				if(parseObjLine(key, file, data) != SUCCESS) return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(parseObjLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				break;
 			}
-			default: return ErrCheck(MODEL_BAD_FORMAT, std::string(word + " Unbekanntes OBJ Keyword in Zeile: " + longToString(lineNumber)).c_str());
+			default: return ErrCheck(ERR_MODEL_BAD_FORMAT, std::string(word + " Unbekanntes OBJ Keyword in Zeile: " + longToString(lineNumber)).c_str());
 		}
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }

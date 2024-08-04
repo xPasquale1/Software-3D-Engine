@@ -23,22 +23,22 @@ Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt)noexcept;
 
-enum RENDERMODE{
-	SHADED_MODE,
-	WIREFRAME_MODE,
-	DEPTH_MODE,
-	NORMAL_MODE,
-	SSAO_MODE,
-	SSR_MODE
+enum RENDERMODES{
+	RENDERMODE_SHADED_MODE,
+	RENDERMODE_WIREFRAME_MODE,
+	RENDERMODE_DEPTH_MODE,
+	RENDERMODE_NORMAL_MODE,
+	RENDERMODE_SSAO_MODE,
+	RENDERMODE_SSR_MODE
 };
 
-RENDERMODE renderMode;
+RENDERMODES renderMode;
 
 Menu settingsMenu;
 // Menü Funktionen
 ErrCode setRenderMode(void* mode)noexcept{
-	renderMode = *(RENDERMODE*)mode;
-	return SUCCESS;
+	renderMode = *(RENDERMODES*)mode;
+	return ERR_SUCCESS;
 }
 
 //Sliders
@@ -285,15 +285,15 @@ void drawNormalBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image&
 }
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
-	if(ErrCheck(initApp(), "App initialisieren") != SUCCESS) return -1;
+	if(ErrCheck(initApp(), "App initialisieren") != ERR_SUCCESS) return -1;
 
-	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != SUCCESS) return -1;
+	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != ERR_SUCCESS) return -1;
 	createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 8);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
-		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != SUCCESS) return -1;
+		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
 
-	if(ErrCheck(loadFont("fonts/ascii.tex", font, {82, 83}), "Font laden") != SUCCESS) return -1;
+	if(ErrCheck(loadFont("fonts/ascii.tex", font, {82, 83}), "Font laden") != ERR_SUCCESS) return -1;
 	font.font_size = 40/window.pixelSize;
 
 	//TODO dynamisch
@@ -306,18 +306,18 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	Material* materials = new(std::nothrow) Material[MODELSTORAGECOUNT];
 	DWORD materialCount = 0;
 	if(!models || !materials){
-		ErrCheck(BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
+		ErrCheck(ERR_BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
 		return -1;
 	}
 
 	Image defaultTexture;
-	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != SUCCESS) return -1;
+	if(ErrCheck(loadImage("textures/basic.tex", defaultTexture), "Default Texture laden") != ERR_SUCCESS) return -1;
 
 	// char filepath[MAX_PATH]{0};
 	// ErrCheck(openExplorer(filepath, sizeof(filepath), "OBJ Wavefront Format .obj\0*.obj\0"), "Explorer öffnen");
 	// std::cout << filepath << std::endl;
 
-	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
@@ -344,7 +344,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[0].pos = buttonPos;
 	settingsMenu.buttons[0].event = setRenderMode;
 	settingsMenu.buttons[0].text = "WIREFRAME";
-	const RENDERMODE wireframeMode = WIREFRAME_MODE;
+	const RENDERMODES wireframeMode = RENDERMODE_WIREFRAME_MODE;
 	settingsMenu.buttons[0].data = (void*)&wireframeMode;
 	settingsMenu.buttons[0].textsize = 36/window.pixelSize;
 
@@ -353,7 +353,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[1].pos = buttonPos;
 	settingsMenu.buttons[1].event = setRenderMode;
 	settingsMenu.buttons[1].text = "SHADED";
-	const RENDERMODE shadedMode = SHADED_MODE;
+	const RENDERMODES shadedMode = RENDERMODE_SHADED_MODE;
 	settingsMenu.buttons[1].data = (void*)&shadedMode;
 	settingsMenu.buttons[1].textsize = 36/window.pixelSize;
 
@@ -362,7 +362,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[2].pos = buttonPos;
 	settingsMenu.buttons[2].event = setRenderMode;
 	settingsMenu.buttons[2].text = "DEPTH";
-	const RENDERMODE depthMode = DEPTH_MODE;
+	const RENDERMODES depthMode = RENDERMODE_DEPTH_MODE;
 	settingsMenu.buttons[2].data = (void*)&depthMode;
 	settingsMenu.buttons[2].textsize = 36/window.pixelSize;
 
@@ -371,7 +371,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[3].pos = buttonPos;
 	settingsMenu.buttons[3].event = setRenderMode;
 	settingsMenu.buttons[3].text = "NORMAL";
-	const RENDERMODE normalMode = NORMAL_MODE;
+	const RENDERMODES normalMode = RENDERMODE_NORMAL_MODE;
 	settingsMenu.buttons[3].data = (void*)&normalMode;
 	settingsMenu.buttons[3].textsize = 36/window.pixelSize;
 
@@ -380,7 +380,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[4].pos = buttonPos;
 	settingsMenu.buttons[4].event = setRenderMode;
 	settingsMenu.buttons[4].text = "SSAO";
-	const RENDERMODE button4Mode = SSAO_MODE;
+	const RENDERMODES button4Mode = RENDERMODE_SSAO_MODE;
 	settingsMenu.buttons[4].data = (void*)&button4Mode;
 	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
 	settingsMenu.buttonCount = 5;
@@ -390,7 +390,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttons[5].pos = buttonPos;
 	settingsMenu.buttons[5].event = setRenderMode;
 	settingsMenu.buttons[5].text = "SSR";
-	const RENDERMODE button5Mode = SSR_MODE;
+	const RENDERMODES button5Mode = RENDERMODE_SSR_MODE;
 	settingsMenu.buttons[5].data = (void*)&button5Mode;
 	settingsMenu.buttons[5].textsize = 36/window.pixelSize;
 	settingsMenu.buttonCount = 6;
@@ -425,7 +425,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[3].sliderRadius = 12;
 	debugSlider[3].minValue = 1;
 	debugSlider[3].maxValue = 64;
-	debugSlider[3].value = 16;
+	debugSlider[3].value = 8;
 	debugSlider[3].sliderPos = getFloatSliderPosFromValue(debugSlider[3]);
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[4].pos = {buttonPos.x, buttonPos.y};
@@ -433,7 +433,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[4].sliderRadius = 12;
 	debugSlider[4].minValue = 2;
 	debugSlider[4].maxValue = 20;
-	debugSlider[4].value = 12;
+	debugSlider[4].value = 8;
 	debugSlider[4].sliderPos = getFloatSliderPosFromValue(debugSlider[4]);
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[5].pos = {buttonPos.x, buttonPos.y};
@@ -441,7 +441,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[5].sliderRadius = 12;
 	debugSlider[5].minValue = 0;
 	debugSlider[5].maxValue = 10;
-	debugSlider[5].value = 2;
+	debugSlider[5].value = 3;
 	debugSlider[5].sliderPos = getFloatSliderPosFromValue(debugSlider[5]);
 	buttonPos.y += debugSlider[0].sliderRadius*2+10;
 	debugSlider[6].pos = {buttonPos.x, buttonPos.y};
@@ -449,7 +449,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	debugSlider[6].sliderRadius = 12;
 	debugSlider[6].minValue = 1;
 	debugSlider[6].maxValue = 30;
-	debugSlider[6].value = 12;
+	debugSlider[6].value = 13;
 	debugSlider[6].sliderPos = getFloatSliderPosFromValue(debugSlider[6]);
 	sliderCount = 7;
 
@@ -474,25 +474,25 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		clearRenderBuffers(renderBuffers);
 
 		switch(renderMode){
-			case WIREFRAME_MODE:{
+			case RENDERMODE_WIREFRAME_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(renderBuffers, models[i]);
 				break;
 			}
-			case SHADED_MODE:{
+			case RENDERMODE_SHADED_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				// pointLightShader(renderBuffers);
 				break;
 			}
-			case DEPTH_MODE:{
+			case RENDERMODE_DEPTH_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawDepthBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
-			case NORMAL_MODE:{
+			case RENDERMODE_NORMAL_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
 			// #define SSAOFILTER
-			case SSAO_MODE:{
+			case RENDERMODE_SSAO_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				ssao(renderBuffers);
 				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
@@ -525,7 +525,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				#endif
 				break;
 			}
-			case SSR_MODE:{
+			case RENDERMODE_SSR_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				ssr(renderBuffers, cam);
 				break;
@@ -572,7 +572,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 void update(float dt)noexcept{
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
-	if(!getMenuFlag(settingsMenu, MENU_OPEN)){
+	if(!getMenuFlag(settingsMenu, MENUFLAG_OPEN)){
 		cam.pos.x -= getButton(keyboard, KEY_W)*sin_rotx*SPEED*dt;
 		cam.pos.z += getButton(keyboard, KEY_W)*cos_rotx*SPEED*dt;
 		cam.pos.x += getButton(keyboard, KEY_S)*sin_rotx*SPEED*dt;
@@ -596,10 +596,10 @@ void update(float dt)noexcept{
 			}
 		}
 	}
-	if(getButton(mouse, MOUSE_LMB)) setButton(mouse, MOUSE_PREV_LMB);
-	if(getButton(mouse, MOUSE_RMB)) setButton(mouse, MOUSE_PREV_RMB);
-	if(!getButton(mouse, MOUSE_LMB)) resetButton(mouse, MOUSE_PREV_LMB);
-	if(!getButton(mouse, MOUSE_RMB)) resetButton(mouse, MOUSE_PREV_RMB);
+	if(getButton(mouse, MOUSEBUTTON_LMB)) setButton(mouse, MOUSEBUTTON_PREV_LMB);
+	if(getButton(mouse, MOUSEBUTTON_RMB)) setButton(mouse, MOUSEBUTTON_PREV_RMB);
+	if(!getButton(mouse, MOUSEBUTTON_LMB)) resetButton(mouse, MOUSEBUTTON_PREV_LMB);
+	if(!getButton(mouse, MOUSEBUTTON_RMB)) resetButton(mouse, MOUSEBUTTON_PREV_RMB);
 }
 
 LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam){
@@ -608,7 +608,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 	switch(uMsg){
 		case WM_DESTROY:{
 			_running = false;
-			ErrCheck(setWindowFlag(*window, WINDOW_CLOSE), "setze close Fensterstatus");
+			ErrCheck(setWindowFlag(*window, WINDOWFLAG_CLOSE), "setze close Fensterstatus");
 			break;
 		}
 		case WM_SIZE:{
@@ -625,19 +625,19 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			break;
 		}
 		case WM_LBUTTONDOWN:{
-			setButton(mouse, MOUSE_LMB);
+			setButton(mouse, MOUSEBUTTON_LMB);
 			break;
 		}
 		case WM_LBUTTONUP:{
-			resetButton(mouse, MOUSE_LMB);
+			resetButton(mouse, MOUSEBUTTON_LMB);
 			break;
 		}
 		case WM_RBUTTONDOWN:{
-			setButton(mouse, MOUSE_RMB);
+			setButton(mouse, MOUSEBUTTON_RMB);
 			break;
 		}
 		case WM_RBUTTONUP:{
-			resetButton(mouse, MOUSE_RMB);
+			resetButton(mouse, MOUSEBUTTON_RMB);
 			break;
 		}
 		case WM_MOUSEMOVE:{
@@ -649,7 +649,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			ClientToScreen(hwnd, &point);
 			mouse.pos.x = (m_pos.x - w_pos.left)/window->pixelSize;
 			mouse.pos.y = ((m_pos.y - w_pos.top)-(point.y-w_pos.top))/window->pixelSize;
-				if(!getMenuFlag(settingsMenu, MENU_OPEN)){
+				if(!getMenuFlag(settingsMenu, MENUFLAG_OPEN)){
 					cam.rot.x -= ((float)m_pos.x-(window->windowWidth/2+w_pos.left)) * 0.001;
 					cam.rot.y += ((float)m_pos.y-(window->windowHeight/2+w_pos.top)) * 0.001;
 					cam.rot.y = clamp(cam.rot.y, -PI/2, PI/2);
@@ -679,12 +679,12 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				break;
 			case VK_ESCAPE:
 				setButton(keyboard, KEY_ESC);
-				if(!getMenuFlag(settingsMenu, MENU_OPEN_TOGGLE)){
-					setMenuFlag(settingsMenu, MENU_OPEN_TOGGLE);
-					settingsMenu.flags ^= MENU_OPEN;			//Änder offen bit
+				if(!getMenuFlag(settingsMenu, MENUFLAG_OPEN_TOGGLE)){
+					setMenuFlag(settingsMenu, MENUFLAG_OPEN_TOGGLE);
+					settingsMenu.flags ^= MENUFLAG_OPEN;			//Änder offen bit
 					tagRECT w_pos;
 					GetWindowRect(hwnd, &w_pos);
-					if(!getMenuFlag(settingsMenu, MENU_OPEN)) SetCursorPos(window->windowWidth/2+w_pos.left, window->windowHeight/2+w_pos.top);
+					if(!getMenuFlag(settingsMenu, MENUFLAG_OPEN)) SetCursorPos(window->windowWidth/2+w_pos.left, window->windowHeight/2+w_pos.top);
 				}
 				break;
 			}
@@ -712,7 +712,7 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				break;
 			case VK_ESCAPE:
 				resetButton(keyboard, KEY_ESC);
-				resetMenuFlag(settingsMenu, MENU_OPEN_TOGGLE);
+				resetMenuFlag(settingsMenu, MENUFLAG_OPEN_TOGGLE);
 				break;
 			}
 			return 0L;

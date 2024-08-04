@@ -17,19 +17,19 @@ typedef signed long long SQWORD;	//64 Bit signed
 //TODO sollte das error zeug nicht auch in window.h?
 //Error-Codes
 enum ErrCode{
-	SUCCESS = 0,
-	GENERIC_ERROR,
-	APP_INIT,
-	BAD_ALLOC,
-	CREATE_WINDOW,
-	TEXTURE_NOT_FOUND,
-	MODEL_NOT_FOUND,
-	MATERIAL_NOT_FOUND,
-	MODEL_BAD_FORMAT,
-	MATERIAL_BAD_FORMAT,
-	FILE_NOT_FOUND,
-	WINDOW_NOT_FOUND,
-	INIT_RENDER_TARGET
+	ERR_SUCCESS = 0,
+	ERR_GENERIC_ERROR,
+	ERR_APP_INIT,
+	ERR_BAD_ALLOC,
+	ERR_CREATE_WINDOW,
+	ERR_TEXTURE_NOT_FOUND,
+	ERR_MODEL_NOT_FOUND,
+	ERR_MATERIAL_NOT_FOUND,
+	ERR_MODEL_BAD_FORMAT,
+	ERR_MATERIAL_BAD_FORMAT,
+	ERR_FILE_NOT_FOUND,
+	ERR_WINDOW_NOT_FOUND,
+	ERR_INIT_RENDER_TARGET
 };
 enum ErrCodeFlags{
 	ERR_NO_FLAG = 0,
@@ -39,61 +39,62 @@ enum ErrCodeFlags{
 //TODO ERR_ON_FATAL ausgeben können wenn der nutzer es so möchte
 ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=ERR_NO_FLAG)noexcept{
 	switch(code){
-	case BAD_ALLOC:
+	case ERR_BAD_ALLOC:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[BAD_ALLOC ERROR] " << msg << std::endl;
 		return code;
-	case GENERIC_ERROR:
+	case ERR_GENERIC_ERROR:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[GENERIC_ERROR ERROR] " << msg << std::endl;
 		return code;
-	case CREATE_WINDOW:
+	case ERR_CREATE_WINDOW:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[CREATE_WINDOW ERROR] " << msg << std::endl;
 		return code;
-	case TEXTURE_NOT_FOUND:
+	case ERR_TEXTURE_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[TEXTURE_NOT_FOUND ERROR] " << msg << std::endl;
 		return code;
-	case MODEL_NOT_FOUND:
+	case ERR_MODEL_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MODEL_NOT_FOUND ERROR] " << msg << std::endl;
 		return code;
-	case MODEL_BAD_FORMAT:
+	case ERR_MODEL_BAD_FORMAT:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MODEL_BAD_FORMAT ERROR] " << msg << std::endl;
 		return code;
-	case FILE_NOT_FOUND:
+	case ERR_FILE_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[FILE_NOT_FOUND ERROR] " << msg << std::endl;
 		return code;
-	case WINDOW_NOT_FOUND:
+	case ERR_WINDOW_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[WINDOW_NOT_FOUND ERROR] " << msg << std::endl;
 		return code;
-	case APP_INIT:
+	case ERR_APP_INIT:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[APP_INIT ERROR] " << msg << std::endl;
 		return code;
-	case INIT_RENDER_TARGET:
+	case ERR_INIT_RENDER_TARGET:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[INIT_RENDER_TARGET ERROR] " << msg << std::endl;
 		return code;
-	case MATERIAL_NOT_FOUND:
+	case ERR_MATERIAL_NOT_FOUND:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MATERIAL_NOT_FOUND ERROR] " << msg << std::endl;
 		return code;
-	case MATERIAL_BAD_FORMAT:
+	case ERR_MATERIAL_BAD_FORMAT:
 		if(!(flags&ERR_NO_OUTPUT)) std::cerr << "[MATERIAL_BAD_FORMAT ERROR] " << msg << std::endl;
 		return code;
-	default: return SUCCESS;
+	default: return ERR_SUCCESS;
 	}
-	return SUCCESS;
+	return ERR_SUCCESS;
 }
 
-enum MOUSEBUTTON{
-	MOUSE_LMB=1,
-	MOUSE_RMB=2,
-	MOUSE_PREV_LMB=4,
-	MOUSE_PREV_RMB=8
+enum MOUSEBUTTONS{
+	MOUSEBUTTON_NONE=0,
+	MOUSEBUTTON_LMB=1,
+	MOUSEBUTTON_RMB=2,
+	MOUSEBUTTON_PREV_LMB=4,
+	MOUSEBUTTON_PREV_RMB=8
 };
 struct Mouse{
 	ivec2 pos = {};
-	char button = 0;	//Bits: LMB, RMB, Rest ungenutzt
+	MOUSEBUTTONS button = MOUSEBUTTON_NONE;
 }; Mouse mouse;
 
-constexpr bool getButton(Mouse& mouse, MOUSEBUTTON button)noexcept{return (mouse.button & button);}
-constexpr void setButton(Mouse& mouse, MOUSEBUTTON button)noexcept{mouse.button |= button;}
-constexpr void resetButton(Mouse& mouse, MOUSEBUTTON button)noexcept{mouse.button &= ~button;}
+constexpr bool getButton(Mouse& mouse, MOUSEBUTTONS button)noexcept{return (mouse.button & button);}
+constexpr void setButton(Mouse& mouse, MOUSEBUTTONS button)noexcept{mouse.button |= button;}
+constexpr void resetButton(Mouse& mouse, MOUSEBUTTONS button)noexcept{mouse.button &= ~button;}
 
 constexpr  const char* stringLookUp2(long value)noexcept{
 	return &"001020304050607080900111213141516171819102122232425262728292"
@@ -141,58 +142,59 @@ std::string floatToString(float value, BYTE decimals=2)noexcept{
 	return intToString(val, decimals);
 }
 
-enum KEYBOARDBUTTON : unsigned long long{
+enum KEYBOARDBUTTONS : unsigned long long{
+	KEY_NONE = 0ULL,
 	KEY_0 = 0ULL,
-	KEY_1 = 1ULL << 0,
-	KEY_3 = 1ULL << 1,
-	KEY_4 = 1ULL << 2,
-	KEY_5 = 1ULL << 3,
-	KEY_6 = 1ULL << 4,
-	KEY_7 = 1ULL << 5,
-	KEY_8 = 1ULL << 6,
-	KEY_9 = 1ULL << 7,
-	KEY_A = 1ULL << 8,
-	KEY_B = 1ULL << 9,
-	KEY_C = 1ULL << 10,
-	KEY_D = 1ULL << 11,
-	KEY_E = 1ULL << 12,
-	KEY_F = 1ULL << 13,
-	KEY_G = 1ULL << 14,
-	KEY_H = 1ULL << 15,
-	KEY_I = 1ULL << 16,
-	KEY_J = 1ULL << 17,
-	KEY_K = 1ULL << 18,
-	KEY_L = 1ULL << 19,
-	KEY_M = 1ULL << 20,
-	KEY_N = 1ULL << 21,
-	KEY_O = 1ULL << 22,
-	KEY_P = 1ULL << 23,
-	KEY_Q = 1ULL << 24,
-	KEY_R = 1ULL << 25,
-	KEY_S = 1ULL << 26,
-	KEY_T = 1ULL << 27,
-	KEY_U = 1ULL << 28,
-	KEY_V = 1ULL << 29,
-	KEY_W = 1ULL << 30,
-	KEY_X = 1ULL << 31,
-	KEY_Y = 1ULL << 32,
-	KEY_Z = 1ULL << 33,
-	KEY_SHIFT = 1ULL << 34,
-	KEY_SPACE = 1ULL << 35,
-	KEY_CTRL = 1ULL << 36,
-	KEY_ALT = 1ULL << 37,
-	KEY_ESC = 1ULL << 38,
-	KEY_TAB = 1ULL << 39,
-	KEY_ENTER = 1ULL << 40,
-	KEY_BACK = 1ULL << 41
+	KEY_1 = 1ULL << 1,
+	KEY_3 = 1ULL << 2,
+	KEY_4 = 1ULL << 3,
+	KEY_5 = 1ULL << 4,
+	KEY_6 = 1ULL << 5,
+	KEY_7 = 1ULL << 6,
+	KEY_8 = 1ULL << 7,
+	KEY_9 = 1ULL << 8,
+	KEY_A = 1ULL << 9,
+	KEY_B = 1ULL << 10,
+	KEY_C = 1ULL << 11,
+	KEY_D = 1ULL << 12,
+	KEY_E = 1ULL << 13,
+	KEY_F = 1ULL << 14,
+	KEY_G = 1ULL << 15,
+	KEY_H = 1ULL << 16,
+	KEY_I = 1ULL << 17,
+	KEY_J = 1ULL << 18,
+	KEY_K = 1ULL << 19,
+	KEY_L = 1ULL << 20,
+	KEY_M = 1ULL << 21,
+	KEY_N = 1ULL << 22,
+	KEY_O = 1ULL << 23,
+	KEY_P = 1ULL << 24,
+	KEY_Q = 1ULL << 25,
+	KEY_R = 1ULL << 26,
+	KEY_S = 1ULL << 27,
+	KEY_T = 1ULL << 28,
+	KEY_U = 1ULL << 29,
+	KEY_V = 1ULL << 30,
+	KEY_W = 1ULL << 31,
+	KEY_X = 1ULL << 32,
+	KEY_Y = 1ULL << 33,
+	KEY_Z = 1ULL << 34,
+	KEY_SHIFT = 1ULL << 35,
+	KEY_SPACE = 1ULL << 36,
+	KEY_CTRL = 1ULL << 37,
+	KEY_ALT = 1ULL << 38,
+	KEY_ESC = 1ULL << 39,
+	KEY_TAB = 1ULL << 40,
+	KEY_ENTER = 1ULL << 41,
+	KEY_BACK = 1ULL << 42
 };
 struct Keyboard{
-	unsigned long long buttons;	//Bits siehe enum oben
+	unsigned long long buttons = KEY_NONE;
 }; Keyboard keyboard;
 
-constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{return keyboard.buttons & button;}
-constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{keyboard.buttons |= button;}
-constexpr void resetButton(Keyboard& keyboard, KEYBOARDBUTTON button)noexcept{keyboard.buttons &= ~button;}
+constexpr bool getButton(Keyboard& keyboard, KEYBOARDBUTTONS button)noexcept{return keyboard.buttons & button;}
+constexpr void setButton(Keyboard& keyboard, KEYBOARDBUTTONS button)noexcept{keyboard.buttons |= button;}
+constexpr void resetButton(Keyboard& keyboard, KEYBOARDBUTTONS button)noexcept{keyboard.buttons &= ~button;}
 
 struct Timer{
 	LARGE_INTEGER startTime;
