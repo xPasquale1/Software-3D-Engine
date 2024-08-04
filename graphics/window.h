@@ -958,11 +958,10 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 }
 
 //TODO besser wie der alte, aber die UV-Koordinaten sind an den Rändern von Texturen noch nicht ganz korrekt
-/*
-void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
+void drawTriangleFilledNew(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attributesCount, Triangle& tri)noexcept{
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5)+0.5)*window.depth.width; pt1.x = ((pt1.x*0.5f)+0.5)*window.depth.width; pt2.x = ((pt2.x*0.5)+0.5)*window.depth.width;
-	pt0.y = ((pt0.y*0.5)+0.5)*window.depth.height; pt1.y = ((pt1.y*0.5f)+0.5)*window.depth.height; pt2.y = ((pt2.y*0.5)+0.5)*window.depth.height;
+	pt0.x = ((pt0.x*0.5)+0.5)*renderBuffers.width; pt1.x = ((pt1.x*0.5f)+0.5)*renderBuffers.width; pt2.x = ((pt2.x*0.5)+0.5)*renderBuffers.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*renderBuffers.height; pt1.y = ((pt1.y*0.5f)+0.5)*renderBuffers.height; pt2.y = ((pt2.y*0.5)+0.5)*renderBuffers.height;
 
 	int pt0x = pt0.x; int pt0y = pt0.y;
 	int pt1x = pt1.x; int pt1y = pt1.y;
@@ -973,13 +972,12 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 	if(pt0y == pt2y) return;
 
 	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
-	fvec4 attr[window.attributeBuffersCount][3];
-	for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-		for(BYTE j=0; j < 3; ++j){
-			attr[i][j].x = tri.attribute[i][j].x*invZ[j];
-			attr[i][j].y = tri.attribute[i][j].y*invZ[j];
-			attr[i][j].z = tri.attribute[i][j].z*invZ[j];
-			attr[i][j].w = tri.attribute[i][j].w*invZ[j];
+	float attr[attributesCount*3];
+	DWORD attribIdx = 0;
+	for(BYTE i=0; i < 3; ++i){
+		for(BYTE j=0; j < attributesCount; ++j){
+			attr[attribIdx] = attributesBuffer[attribIdx]*invZ[i];
+			attribIdx++;
 		}
 	}
 
@@ -1011,21 +1009,24 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 			float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
 			for(;xBeg < xEnd; ++xBeg){
 				float m3 = 1-m2-m1;
-				DWORD idx = y*window.depth.width+xBeg;
+				DWORD idx = y*renderBuffers.width+xBeg;
 				float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				DWORD inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= window.depth.data[idx]){
+				if(inc_depth <= renderBuffers.depthBuffer[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
 					#endif
-					window.depth.data[idx] = inc_depth;
-					window.fragmentFlag[idx] = 1;
-					for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-						window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
-						window.attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
-						window.attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
-						window.attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+					renderBuffers.depthBuffer[idx] = inc_depth;
+					renderBuffers.fragmentFlags[idx] = 1;
+					WORD attribIdx1 = 0;
+					WORD attribIdx2 = attributesCount;
+					WORD attribIdx3 = attributesCount*2;
+					for(BYTE i=0; i < attributesCount; ++i){
+						renderBuffers.attributeBuffers[idx+renderBuffers.width*renderBuffers.height*i] = (m1*attr[attribIdx1] + m2*attr[attribIdx2] + m3*attr[attribIdx3])*depth;
+						attribIdx1++;
+						attribIdx2++;
+						attribIdx3++;
 					}
 				}
 				#ifdef PERFORMANCE_ANALYZER
@@ -1054,21 +1055,24 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 		float m2 = (float)((pt2.x-xBeg)*(pt0.y-y)-(pt0.x-xBeg)*(pt2.y-y))*div;
 		for(;xBeg < xEnd; ++xBeg){
 			float m3 = 1-m2-m1;
-			DWORD idx = y*window.depth.width+xBeg;
+			DWORD idx = y*renderBuffers.width+xBeg;
 			float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 			//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 			DWORD inc_depth = depth*DEPTH_DIVISOR;
-			if(inc_depth <= window.depth.data[idx]){
+			if(inc_depth <= renderBuffers.depthBuffer[idx]){
 				#ifdef PERFORMANCE_ANALYZER
 				_perfAnalyzer.pixelsDrawn++;
 				#endif
-				window.depth.data[idx] = inc_depth;
-				window.fragmentFlag[idx] = 1;
-				for(BYTE i=0; i < window.attributeBuffersCount; ++i){
-					window.attributeBuffers[i][idx].x = (m1*attr[i][0].x + m2*attr[i][1].x + m3*attr[i][2].x)*depth;
-					window.attributeBuffers[i][idx].y = (m1*attr[i][0].y + m2*attr[i][1].y + m3*attr[i][2].y)*depth;
-					window.attributeBuffers[i][idx].z = (m1*attr[i][0].z + m2*attr[i][1].z + m3*attr[i][2].z)*depth;
-					window.attributeBuffers[i][idx].w = (m1*attr[i][0].w + m2*attr[i][1].w + m3*attr[i][2].w)*depth;
+				renderBuffers.depthBuffer[idx] = inc_depth;
+				renderBuffers.fragmentFlags[idx] = 1;
+				WORD attribIdx1 = 0;
+				WORD attribIdx2 = attributesCount;
+				WORD attribIdx3 = attributesCount*2;
+				for(BYTE i=0; i < attributesCount; ++i){
+					renderBuffers.attributeBuffers[idx+renderBuffers.width*renderBuffers.height*i] = (m1*attr[attribIdx1] + m2*attr[attribIdx2] + m3*attr[attribIdx3])*depth;
+					attribIdx1++;
+					attribIdx2++;
+					attribIdx3++;
 				}
 			}
 			#ifdef PERFORMANCE_ANALYZER
@@ -1079,7 +1083,6 @@ void drawTriangleFilledNew(Window& window, Triangle& tri)noexcept{
 		}
 	}
 }
-*/
 
 struct plane{
 	fvec3 pos;
@@ -1323,7 +1326,7 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
 			buffer[j].points[1].z = pt2.z;
 			buffer[j].points[2].z = pt3.z;
 			#ifdef NEWTRIANGLEDRAWINGALGORITHM
-			drawTriangleFilledNew(window, buffer[j]);
+			drawTriangleFilledNew(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
 			#else
 			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
 			#endif

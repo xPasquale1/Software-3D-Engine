@@ -89,7 +89,7 @@ enum MOUSEBUTTONS{
 };
 struct Mouse{
 	ivec2 pos = {};
-	MOUSEBUTTONS button = MOUSEBUTTON_NONE;
+	BYTE button = MOUSEBUTTON_NONE;
 }; Mouse mouse;
 
 constexpr bool getButton(Mouse& mouse, MOUSEBUTTONS button)noexcept{return (mouse.button & button);}
