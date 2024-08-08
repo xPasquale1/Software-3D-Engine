@@ -721,6 +721,29 @@ ErrCode openExplorer(char* filepath, DWORD maxPathLength, const char filterStr[]
 // #define EARLYZCULLING
 #define DEPTH_DIVISOR 100000000000000000000000000000000000.f	//TODO klar...
 
+struct Depthbuffer{
+	WORD width = 0;
+	WORD height = 0;
+	float* data = nullptr;
+};
+
+ErrCode createDepthbuffer(Depthbuffer& buffer, WORD width, WORD height)noexcept{
+	buffer.width = width;
+	buffer.height = height;
+	buffer.data = new(std::nothrow) float[width*height];
+	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
+	return ERR_SUCCESS;
+}
+
+void destroyDepthbuffer(Depthbuffer& buffer)noexcept{
+	delete[] buffer.data;
+}
+
+void clearDepthbuffer(Depthbuffer& buffer)noexcept{
+	DWORD totalSize = buffer.width*buffer.height;
+	for(DWORD i=0; i < totalSize; ++i) buffer.data[i] = FLOAT_MAX;
+}
+
 struct RenderBuffers{
 	WORD width;
 	WORD height;
@@ -775,7 +798,7 @@ ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
 		renderBuffers.frameBuffer[i] = RGBA(0, 0, 0);
-		renderBuffers.depthBuffer[i] = std::numeric_limits<float>::max();
+		renderBuffers.depthBuffer[i] = FLOAT_MAX;
 		renderBuffers.fragmentFlags[i] = 0;
 	}
 }
@@ -904,7 +927,7 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
 	float div = 1/cross(vs1, vs2);
 
-	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
+	const float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
 	float attr[attributesCount*3];
 	DWORD attribIdx = 0;
 	for(BYTE i=0; i < 3; ++i){
@@ -966,10 +989,10 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 	}
 }
 
-void drawTriangleFilledDepthOnly(RenderBuffers& renderBuffers, Triangle& tri)noexcept{
+void drawTriangleFilledDepthOnly(Depthbuffer& depthbuffer, Triangle& tri)noexcept{
 	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
-	pt0.x = ((pt0.x*0.5)+0.5)*renderBuffers.width; pt1.x = ((pt1.x*0.5f)+0.5)*renderBuffers.width; pt2.x = ((pt2.x*0.5)+0.5)*renderBuffers.width;
-	pt0.y = ((pt0.y*0.5)+0.5)*renderBuffers.height; pt1.y = ((pt1.y*0.5f)+0.5)*renderBuffers.height; pt2.y = ((pt2.y*0.5)+0.5)*renderBuffers.height;
+	pt0.x = ((pt0.x*0.5)+0.5)*depthbuffer.width; pt1.x = ((pt1.x*0.5f)+0.5)*depthbuffer.width; pt2.x = ((pt2.x*0.5)+0.5)*depthbuffer.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*depthbuffer.height; pt1.y = ((pt1.y*0.5f)+0.5)*depthbuffer.height; pt2.y = ((pt2.y*0.5)+0.5)*depthbuffer.height;
 
 	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
 	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
@@ -988,29 +1011,24 @@ void drawTriangleFilledDepthOnly(RenderBuffers& renderBuffers, Triangle& tri)noe
 	float deltaX_v = (pt1.y - pt0.y)*div;
 	float deltaY_u = (pt2.x - pt0.x)*div;
 	float deltaY_v = (pt1.x - pt0.x)*div;
-	float tmp_u; float tmp_v;
+	float tmp_u;
+	float tmp_v;
 	for(DWORD y = ymin; y <= ymax; ++y){
-		tmp_u = u; tmp_v = v;
+		tmp_u = u;
+		tmp_v = v;
 		bool wasIn = false;
 		for(DWORD x = xmin; x <= xmax; ++x){
 			//w -> pt0, u -> pt1, v -> pt2
 			float w = 1-u-v;
 			if((v >= 0)&&(u >= 0)&&(w >= 0)){
 				wasIn = true;
-				DWORD idx = y*renderBuffers.width+x;
+				DWORD idx = y*depthbuffer.width+x;
 				float depth = w*pt0.z + u*pt1.z + v*pt2.z;
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
 				float inc_depth = depth*DEPTH_DIVISOR;
-				if(inc_depth <= renderBuffers.depthBuffer[idx]){
-					#ifdef PERFORMANCE_ANALYZER
-					_perfAnalyzer.pixelsDrawn++;
-					#endif
-					renderBuffers.depthBuffer[idx] = inc_depth;
-					renderBuffers.fragmentFlags[idx] = 1;
+				if(inc_depth <= depthbuffer.data[idx]){
+					depthbuffer.data[idx] = inc_depth;
 				}
-				#ifdef PERFORMANCE_ANALYZER
-				else _perfAnalyzer.pixelsCulled++;
-				#endif
 			}
 			else if(wasIn) break;
 	        u += deltaX_u;
@@ -1310,14 +1328,14 @@ BYTE clipping(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attrib
 	return count;
 }
 
-bool cmpLess(float val, float region)noexcept{
+constexpr bool cmpLess(const float val, const float region)noexcept{
 	return val <= region;
 }
-bool cmpLarg(float val, float region)noexcept{
+constexpr bool cmpLarg(const float val, const float region)noexcept{
 	return val >= region;
 }
 
-void clipEdgeX(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
+void clipEdgeX(Triangle* buffer, BYTE& count, const float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
 	BYTE tmpCount = count;
 	BYTE newOffset = count;
 	BYTE offset = count;
@@ -1372,7 +1390,7 @@ void clipEdgeX(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(f
 	}
 }
 
-void clipEdgeY(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
+void clipEdgeY(Triangle* buffer, BYTE& count, const float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
 	BYTE tmpCount = count;
 	BYTE newOffset = count;
 	BYTE offset = count;
@@ -1429,14 +1447,13 @@ void clipEdgeY(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(f
 
 #define CLIPPINGREGIONSIZE 400
 const float INVCLIPPINGREGIONSIZE = 1.f/CLIPPINGREGIONSIZE;
-BYTE clippingOrthographic(RenderBuffers& renderBuffers, Triangle* triangles)noexcept{
+BYTE clippingOrthographic(Triangle* triangles)noexcept{
 	BYTE count = 1;
 
-	const float clippingRegionExtend = CLIPPINGREGIONSIZE*0.8;
-	clipEdgeX(triangles, count, clippingRegionExtend, cmpLess);
-	clipEdgeX(triangles, count, -clippingRegionExtend, cmpLarg);
-	clipEdgeY(triangles, count, clippingRegionExtend, cmpLess);
-	clipEdgeY(triangles, count, -clippingRegionExtend, cmpLarg);
+	clipEdgeX(triangles, count, 0.999, cmpLess);
+	clipEdgeX(triangles, count, -0.999, cmpLarg);
+	clipEdgeY(triangles, count, 0.999, cmpLess);
+	clipEdgeY(triangles, count, -0.999, cmpLarg);
 
 	return count;
 }
@@ -1585,10 +1602,7 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attri
     return;
 }
 
-void rasterizeShadowMap(RenderBuffers& renderBuffers, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
-#ifdef PERFORMANCE_ANALYZER
-	_perfAnalyzer.totalTriangles += endIdx - startIdx;
-#endif
+void rasterizeShadowMap(Depthbuffer& depthbuffer, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
 	float rotm[3][3];
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
@@ -1616,28 +1630,17 @@ void rasterizeShadowMap(RenderBuffers& renderBuffers, Triangle* tris, DWORD star
 #ifdef CULLFRONTFACESSHADOW
     	if(dot(tri.points[0], normal) >= 0) continue;
 #endif
-    	BYTE count = clippingOrthographic(renderBuffers, buffer);
+		tri.points[0].x *= INVCLIPPINGREGIONSIZE;
+    	tri.points[1].x *= INVCLIPPINGREGIONSIZE;
+    	tri.points[2].x *= INVCLIPPINGREGIONSIZE;
+		tri.points[0].y *= INVCLIPPINGREGIONSIZE;
+		tri.points[1].y *= INVCLIPPINGREGIONSIZE;
+		tri.points[2].y *= INVCLIPPINGREGIONSIZE;
+    	BYTE count = clippingOrthographic(buffer);
     	for(BYTE j=0; j < count; ++j){
-    		fvec3 pt1 = buffer[j].points[0];
-			fvec3 pt2 = buffer[j].points[1];
-			fvec3 pt3 = buffer[j].points[2];
-    		buffer[j].points[0].x = pt1.x*INVCLIPPINGREGIONSIZE;
-    		buffer[j].points[1].x = pt2.x*INVCLIPPINGREGIONSIZE;
-    		buffer[j].points[2].x = pt3.x*INVCLIPPINGREGIONSIZE;
-			buffer[j].points[0].y = pt1.y*INVCLIPPINGREGIONSIZE;
-			buffer[j].points[1].y = pt2.y*INVCLIPPINGREGIONSIZE;
-			buffer[j].points[2].y = pt3.y*INVCLIPPINGREGIONSIZE;
-    		buffer[j].points[0].z = pt1.z;
-			buffer[j].points[1].z = pt2.z;
-			buffer[j].points[2].z = pt3.z;
-			#ifdef NEWTRIANGLEDRAWINGALGORITHM
-			drawTriangleFilledNew(renderBuffers, attributesBuffer+j*totalAttributesCount, attributesCount, buffer[j]);
-			#else
-			drawTriangleFilledDepthOnly(renderBuffers, buffer[j]);
+			#ifdef NEWTRIANGLEDRAWINGALGORITHM	//TODO
 			#endif
-#ifdef PERFORMANCE_ANALYZER
-    		_perfAnalyzer.drawnTriangles += 1;
-#endif
+			drawTriangleFilledDepthOnly(depthbuffer, buffer[j]);
     	}
     }
     return;

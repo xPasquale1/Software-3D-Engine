@@ -79,7 +79,7 @@ void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
 		float uvy = renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 1)];
 		DWORD color = textureRepeated(image, uvx, uvy);
 		if(A(color) < 120){
-			renderBuffers.depthBuffer[i] = std::numeric_limits<float>::max();
+			renderBuffers.depthBuffer[i] = FLOAT_MAX;
 			continue;
 		}
 		renderBuffers.frameBuffer[i] = color;
@@ -99,32 +99,46 @@ fvec3 generateRandomNormalInHemisphere(fvec3& normal)noexcept{
     return random;
 }
 
-fvec3 worldCoordinatesToScreenspace(fvec3& worldPixelPosition, float rotMat[3][3], float aspectRatio, WORD bufferWidth, WORD bufferHeight)noexcept{
-	fvec3 cameraPosition = {worldPixelPosition.x-cam.pos.x, worldPixelPosition.y-cam.pos.y, worldPixelPosition.z-cam.pos.z};
+fvec3 worldCoordinatesToScreenspace(const fvec3& worldPixelPosition, const float rotMat[3][3], const fvec3& cameraPos, float aspectRatio, WORD bufferWidth, WORD bufferHeight)noexcept{
+	fvec3 cameraPosition = {worldPixelPosition.x-cameraPos.x, worldPixelPosition.y-cameraPos.y, worldPixelPosition.z-cameraPos.z};
 	fvec3 screenPos = mulVec3Mat3x3(cameraPosition, rotMat);
     screenPos.x = (((screenPos.x*(cam.focal_length/screenPos.z)*aspectRatio)*0.5)+0.5)*bufferWidth;
     screenPos.y = (((screenPos.y*(cam.focal_length/screenPos.z))*0.5)+0.5)*bufferHeight;
 	return screenPos;
 }
 
-fvec3 worldPosToViewSpaceOrtho(fvec3& worldPos, float rotMat[3][3], Camera& cam)noexcept{
-	fvec3 cameraPosition = {worldPos.x-cam.pos.x, worldPos.y-cam.pos.y, worldPos.z-cam.pos.z};
-	return mulVec3Mat3x3(cameraPosition, rotMat);
+fvec3 worldPosToViewSpaceOrtho(const fvec3& worldPos, const float rotMat[3][3], const fvec3& cameraPos, WORD bufferWidth, WORD bufferHeight)noexcept{
+	fvec3 cameraPosition = {worldPos.x-cameraPos.x, worldPos.y-cameraPos.y, worldPos.z-cameraPos.z};
+	fvec3 screenPos = mulVec3Mat3x3(cameraPosition, rotMat);
+	screenPos.x = ((screenPos.x*INVCLIPPINGREGIONSIZE*0.5)+0.5)*bufferWidth;
+	screenPos.y = ((screenPos.y*INVCLIPPINGREGIONSIZE*0.5)+0.5)*bufferHeight;
+	return screenPos;
 }
 
-void shadowMappingShader(RenderBuffers& renderBuffers, RenderBuffers& shadowBuffers, Camera& sceneCam, Camera& shadowCam)noexcept{
+void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthBuffer, Camera& sceneCam, Camera& shadowCam)noexcept{
 	float rotm[3][3];
+	float sceneCamRotm[3][3];
 	float sin_rotx = sin(shadowCam.rot.x);
 	float cos_rotx = cos(shadowCam.rot.x);
 	float sin_roty = sin(shadowCam.rot.y);
 	float cos_roty = cos(shadowCam.rot.y);
+	float sinRotxSceneCam = sin(sceneCam.rot.x);
+	float cosRotxSceneCam = cos(sceneCam.rot.x);
+	float sinRotySceneCam = sin(sceneCam.rot.y);
+	float cosRotySceneCam = cos(sceneCam.rot.y);
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
-	const float aspectRatioShadow = (float)shadowBuffers.height/shadowBuffers.width;
+	sceneCamRotm[0][0] = cosRotxSceneCam; 					sceneCamRotm[0][1] = 0; 				sceneCamRotm[0][2] = sinRotxSceneCam;
+    sceneCamRotm[1][0] = sinRotxSceneCam*sinRotySceneCam;	sceneCamRotm[1][1] = cosRotySceneCam; 	sceneCamRotm[1][2] = -sinRotySceneCam*cosRotxSceneCam;
+    sceneCamRotm[2][0] = -sinRotxSceneCam*cosRotySceneCam;	sceneCamRotm[2][1] = sinRotySceneCam; 	sceneCamRotm[2][2] = cosRotxSceneCam*cosRotySceneCam;
+
+	const float aspectRatio = (float)renderBuffers.height/renderBuffers.width;
 	DWORD idx = 0;
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
-	const fvec3 sunDir = mulVec3Mat3x3({0, -1, 0}, rotm);
+	const fvec3 sunDir = mulVec3InvMat3x3({0, 0, -1}, rotm);
+	const fvec3 invSunDir = {-sunDir.x, -sunDir.y, -sunDir.z};
+	const DWORD totalShadowSize = shadowDepthBuffer.width*shadowDepthBuffer.height;
 	for(WORD y=0; y < renderBuffers.height; ++y){
 		for(WORD x=0; x < renderBuffers.width; ++x, ++idx){
 			fvec3 worldPixelPosition;
@@ -133,24 +147,51 @@ void shadowMappingShader(RenderBuffers& renderBuffers, RenderBuffers& shadowBuff
 			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
 
 			fvec3 worldNormal;
-			worldNormal.x = -renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
-			worldNormal.y = -renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
-			worldNormal.z = -renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
-			float lightStrength = clamp(dot(worldNormal, sunDir), 0.f, 1.f);
-			lightStrength = 1;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
+			float lightStrength = clamp(dot(worldNormal, invSunDir), 0.f, 1.f);
 
-			fvec3 viewPos = worldPosToViewSpaceOrtho(worldPixelPosition, rotm, shadowCam);
-			DWORD uvx = ((viewPos.x*INVCLIPPINGREGIONSIZE*aspectRatioShadow*0.5)+0.5)*shadowBuffers.width;
-			DWORD uvy = ((viewPos.y*INVCLIPPINGREGIONSIZE*0.5)+0.5)*shadowBuffers.height;
-			
-			if(uvx >= shadowBuffers.width || uvy >= shadowBuffers.height){
+			fvec3 viewPos = worldPosToViewSpaceOrtho(worldPixelPosition, rotm, shadowCam.pos, shadowDepthBuffer.width, shadowDepthBuffer.height);
+			DWORD uvx = (DWORD)viewPos.x;
+			DWORD uvy = (DWORD)viewPos.y;
+
+			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height){
 				renderBuffers.frameBuffer[idx] = RGBA(255, 0, 0);
 				continue;
 			}
-			float shadowDepth = shadowBuffers.depthBuffer[uvy*shadowBuffers.width+uvx];
 
-			if(viewPos.z*DEPTH_DIVISOR-debugSlider[7].value*DEPTH_DIVISOR > shadowDepth) renderBuffers.frameBuffer[idx] = RGBA(0, 0, 0);
-			else renderBuffers.frameBuffer[idx] = RGBA(255*lightStrength, 255*lightStrength, 255*lightStrength);
+			float shadowColor = 0;
+			for(SBYTE dy=-1; dy <= 1; ++dy){
+				for(SBYTE dx=-1; dx <= 1; ++dx){
+					float shadowDepth = shadowDepthBuffer.data[((uvy+dy)*shadowDepthBuffer.width+uvx+dx)%totalShadowSize];
+					if(viewPos.z*DEPTH_DIVISOR-debugSlider[7].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
+				}
+			}
+			shadowColor /= 9;
+			
+			// const float stepSize = 1;
+			// const float maxSteps = 8;
+			// for(int step=0; step < maxSteps; ++step){
+			// 	worldPixelPosition.x += sunDir.x * stepSize;
+			// 	worldPixelPosition.y += sunDir.y * stepSize;
+			// 	worldPixelPosition.z += sunDir.z * stepSize;
+
+			// 	fvec3 viewPos = worldCoordinatesToScreenspace(worldPixelPosition, sceneCamRotm, cam.pos, aspectRatio, renderBuffers.width, renderBuffers.height);
+			// 	WORD uvx = (WORD)viewPos.x;
+			// 	WORD uvy = (WORD)viewPos.y;
+
+			// 	if(uvx >= renderBuffers.width || uvy >= renderBuffers.height) break;
+
+			// 	float depthDiff = viewPos.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[uvy*renderBuffers.width+uvx];
+			// 	if(depthDiff > 2*DEPTH_DIVISOR && depthDiff < 4*DEPTH_DIVISOR){
+			// 		shadowColor = 0;
+			// 		break;
+			// 	}
+			// }
+			
+			lightStrength *= shadowColor;
+			renderBuffers.frameBuffer[idx] = RGBA(255*lightStrength, 255*lightStrength, 255*lightStrength);
 		}
 	}
 }
@@ -196,7 +237,7 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 				samplePos.y -= dir.y * stepSize;
 				samplePos.z -= dir.z * stepSize;
 
-				fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
+				fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
 				WORD screenX = (WORD)screenCoords.x;
 				WORD screenY = (WORD)screenCoords.y;
 
@@ -259,7 +300,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
 			dir.z *= length*ssaoMaxLength;
 			fvec3 samplePoint = {worldPixelPosition.x+dir.x, worldPixelPosition.y+dir.y, worldPixelPosition.z+dir.z};
 
-			fvec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
+			fvec3 screenCoords = worldCoordinatesToScreenspace(samplePoint, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
 			WORD screenX = (WORD)screenCoords.x;
 			WORD screenY = (WORD)screenCoords.y;
 
@@ -317,7 +358,7 @@ void ssr(RenderBuffers& renderBuffers, Camera& cam)noexcept{
             worldPixelPosition.y += reflDir.y * stepSize;
             worldPixelPosition.z += reflDir.z * stepSize;
 
-			fvec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, aspect_ratio, renderBuffers.width, renderBuffers.height);
+			fvec3 screenCoords = worldCoordinatesToScreenspace(worldPixelPosition, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
 			WORD screenX = (WORD)screenCoords.x;
 			WORD screenY = (WORD)screenCoords.y;
 
@@ -369,7 +410,7 @@ void pointLightShader(RenderBuffers& renderBuffers)noexcept{
 void depthBufferShader(RenderBuffers& renderBuffers)noexcept{
 	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
 		float depth = renderBuffers.depthBuffer[i];
-		BYTE color = depth/std::numeric_limits<float>::max()*255;
+		BYTE color = depth/FLOAT_MAX*255;
 		renderBuffers.frameBuffer[i] = RGBA(color, color, color);
 	}
 }
@@ -603,8 +644,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		}
 	}
 
-	RenderBuffers shadowBuffers;
-	if(ErrCheck(createRenderBuffers(shadowBuffers, 1024, 1024, 0), "Shadowmap erstellen") != ERR_SUCCESS) return -1;
+	Depthbuffer shadowDepthBuffer;
+	if(ErrCheck(createDepthbuffer(shadowDepthBuffer, 1024, 1024), "Shadowmap erstellen") != ERR_SUCCESS) return -1;
 
 	while(_running){
 		getMessages(window);
@@ -613,21 +654,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		resetTimer(_perfAnalyzer.timer[1]);
 		float performancePreFilter;
 		clearRenderBuffers(renderBuffers);
-		clearRenderBuffers(shadowBuffers);
+		clearDepthbuffer(shadowDepthBuffer);
 
 		switch(renderMode){
 			case RENDERMODE_WIREFRAME_MODE:{
 				// for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(renderBuffers, models[i]);
 
 				for(DWORD i=0; i < modelCount; ++i){
-					rasterizeShadowMap(shadowBuffers, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
+					rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
 				}
 				for(WORD y=0; y < renderBuffers.height; ++y){
 					for(WORD x=0; x < renderBuffers.width; ++x){
-						WORD uvx = (x*(shadowBuffers.width-1))/renderBuffers.width;
-						WORD uvy = (y*(shadowBuffers.height-1))/renderBuffers.height;
-						float depth = shadowBuffers.depthBuffer[uvy*shadowBuffers.width+uvx];
-						BYTE color = depth/std::numeric_limits<float>::max()*255;
+						WORD uvx = (x*(shadowDepthBuffer.width-1))/renderBuffers.width;
+						WORD uvy = (y*(shadowDepthBuffer.height-1))/renderBuffers.height;
+						float depth = shadowDepthBuffer.data[uvy*shadowDepthBuffer.width+uvx];
+						BYTE color = depth/FLOAT_MAX*255;
 						renderBuffers.frameBuffer[y*renderBuffers.width+x] = RGBA(color, color, color);
 					}
 				}
@@ -638,9 +679,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 			case RENDERMODE_SHADED_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 				for(DWORD i=0; i < modelCount; ++i){
-					rasterizeShadowMap(shadowBuffers, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
+					rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
 				}
-				shadowMappingShader(renderBuffers, shadowBuffers, cam, shadowCamera);
+				shadowMappingShader(renderBuffers, shadowDepthBuffer, cam, shadowCamera);
 				break;
 			}
 			case RENDERMODE_DEPTH_MODE:{
@@ -731,6 +772,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
+	destroyRenderBuffers(renderBuffers);
+	destroyDepthbuffer(shadowDepthBuffer);
 	destroyFont(font);
 	destroyWindow(window);
 	destroyApp();

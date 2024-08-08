@@ -3,6 +3,7 @@
 #include "util.h"
 
 #define PI 3.14159265359
+#define FLOAT_MAX 3.40282346638528859811704183484516925e+38F
 
 // #define BRANCHLESSMINMAX
 
@@ -114,6 +115,20 @@ constexpr fvec3 mulVec3Mat3x3(const fvec3& vec, const float mat[3][3])noexcept{
 	out.y += (mat[1][2]*vec.z);
 	out.z += (mat[2][0]*vec.x);
 	out.z += (mat[2][1]*vec.y);
+	out.z += (mat[2][2]*vec.z);
+	return out;
+}
+
+constexpr fvec3 mulVec3InvMat3x3(const fvec3& vec, const float mat[3][3])noexcept{
+	fvec3 out = {0, 0, 0};
+	out.x += (mat[0][0]*vec.x);
+	out.x += (mat[1][0]*vec.y);
+	out.x += (mat[2][0]*vec.z);
+	out.y += (mat[0][1]*vec.x);
+	out.y += (mat[1][1]*vec.y);
+	out.y += (mat[2][1]*vec.z);
+	out.z += (mat[0][2]*vec.x);
+	out.z += (mat[1][2]*vec.y);
 	out.z += (mat[2][2]*vec.z);
 	return out;
 }
