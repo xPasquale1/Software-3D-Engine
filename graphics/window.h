@@ -469,9 +469,10 @@ WORD getStringFontSize(Font& font, std::string& text)noexcept{
 }
 
 //Gibt zurück wie breit das Symbol war das gezeichnet wurde
-//TODO Errors? übergebe symbol größe als Referenz Parameter
+//TODO Errors wegen invalidem Symbol etc.? übergebe symbol größe als Referenz Parameter
 DWORD drawFontChar(Colorbuffer& buffer, Font& font, char symbol, DWORD start_x, DWORD start_y)noexcept{
 	DWORD idx = (symbol-32);
+	if(idx > 223) return 0;
 	float div = (float)font.char_size.y/font.font_size;
 	DWORD end_x = start_x+font.char_sizes[idx]/div;
 	DWORD end_y = start_y+font.font_size;
@@ -718,13 +719,13 @@ ErrCode openExplorer(char* filepath, DWORD maxPathLength, const char filterStr[]
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
 
 // #define EARLYZCULLING
-#define DEPTH_DIVISOR 10000.f
+#define DEPTH_DIVISOR 100000000000000000000000000000000000.f	//TODO klar...
 
 struct RenderBuffers{
 	WORD width;
 	WORD height;
 	DWORD* frameBuffer;
-	DWORD* depthBuffer;			//TODO Sollten ein Floatbuffer sein
+	float* depthBuffer;
 	BYTE* fragmentFlags;		//TODO Markiert eh nur ob ein Fragment gezeichnet wurde oder nicht, daher bits anstatt bytes
 	float* attributeBuffers;
 	BYTE attributeBuffersCount = 0;
@@ -736,7 +737,7 @@ ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 	renderBuffers.attributeBuffersCount = attributesCount;
 	renderBuffers.frameBuffer = new DWORD[width*height];
 	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
-	renderBuffers.depthBuffer = new DWORD[width*height];
+	renderBuffers.depthBuffer = new float[width*height];
 	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.fragmentFlags = new BYTE[width*height];
 	if(renderBuffers.fragmentFlags == nullptr) return ERR_BAD_ALLOC;
@@ -752,12 +753,13 @@ void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 	delete[] renderBuffers.attributeBuffers;
 }
 
+//TODO Muss ja eigentlich nur neu allokiert werden, wenn der Größer werden soll
 ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height)noexcept{
 	delete[] renderBuffers.frameBuffer;
 	renderBuffers.frameBuffer = new(std::nothrow) DWORD[width*height];
 	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
 	delete[] renderBuffers.depthBuffer;
-	renderBuffers.depthBuffer = new(std::nothrow) DWORD[width*height];
+	renderBuffers.depthBuffer = new(std::nothrow) float[width*height];
 	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
 	delete[] renderBuffers.fragmentFlags;
 	renderBuffers.fragmentFlags = new(std::nothrow) BYTE[width*height];
@@ -773,14 +775,14 @@ ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
 		renderBuffers.frameBuffer[i] = RGBA(0, 0, 0);
-		renderBuffers.depthBuffer[i] = 0xFF'FF'FF'FF;
+		renderBuffers.depthBuffer[i] = std::numeric_limits<float>::max();
 		renderBuffers.fragmentFlags[i] = 0;
 	}
 }
 
 //TODO Attribute für always_inline?
-inline DWORD getAttrLoc(RenderBuffers& renderBuffers, BYTE location)noexcept{
-	return renderBuffers.width*renderBuffers.height*location;
+inline DWORD getAttrLoc(DWORD totalBufferSize, BYTE location)noexcept{
+	return totalBufferSize*location;
 }
 
 //TODO vllt weg? Oder zumindest passender benennen wie TriangleVertexPositions oder so
@@ -888,12 +890,13 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 
 	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
 	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
-	if(ymin == ymax){
-		#ifdef PERFORMANCE_ANALYZER
-		_perfAnalyzer.pointlessTriangles++;
-		#endif
-		return;	//TODO sollte es nicht trotzdem gezeichnet werden, halt als Punkt?
-	}
+	//TODO irgendwie kann man das doch bestimmt ausnutzen
+	// if(ymin == ymax){
+	// 	#ifdef PERFORMANCE_ANALYZER
+	// 	_perfAnalyzer.pointlessTriangles++;
+	// 	#endif
+	// 	return;
+	// }
 	DWORD xmin = min(pt0.x, min(pt1.x, pt2.x));
 	DWORD xmax = max(pt0.x, max(pt1.x, pt2.x));
 
@@ -913,9 +916,12 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 
 	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
 	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
-	float u = cross(q, vs2)*div; float v = cross(vs1, q)*div;
-	float deltaX_u = (pt2.y - pt0.y)*div; float deltaX_v = (pt1.y - pt0.y)*div;
-	float deltaY_u = (pt2.x - pt0.x)*div; float deltaY_v = (pt1.x - pt0.x)*div;
+	float u = cross(q, vs2)*div;
+	float v = cross(vs1, q)*div;
+	float deltaX_u = (pt2.y - pt0.y)*div;
+	float deltaX_v = (pt1.y - pt0.y)*div;
+	float deltaY_u = (pt2.x - pt0.x)*div;
+	float deltaY_v = (pt1.x - pt0.x)*div;
 	float tmp_u; float tmp_v;
 	for(DWORD y = ymin; y <= ymax; ++y){
 		tmp_u = u; tmp_v = v;
@@ -928,7 +934,7 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 				DWORD idx = y*renderBuffers.width+x;
 				float depth = 1/(w*invZ[0] + u*invZ[1] + v*invZ[2]);	//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				DWORD inc_depth = depth*DEPTH_DIVISOR;
+				float inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= renderBuffers.depthBuffer[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
@@ -950,10 +956,70 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 				#endif
 			}
 			else if(wasIn) break;
-	        u += deltaX_u; v -= deltaX_v;
+	        u += deltaX_u;
+			v -= deltaX_v;
 		}
-		u = tmp_u; v = tmp_v;
-		u -= deltaY_u; v += deltaY_v;
+		u = tmp_u;
+		v = tmp_v;
+		u -= deltaY_u;
+		v += deltaY_v;
+	}
+}
+
+void drawTriangleFilledDepthOnly(RenderBuffers& renderBuffers, Triangle& tri)noexcept{
+	fvec3 pt0 = tri.points[0]; fvec3 pt1 = tri.points[1]; fvec3 pt2 = tri.points[2];
+	pt0.x = ((pt0.x*0.5)+0.5)*renderBuffers.width; pt1.x = ((pt1.x*0.5f)+0.5)*renderBuffers.width; pt2.x = ((pt2.x*0.5)+0.5)*renderBuffers.width;
+	pt0.y = ((pt0.y*0.5)+0.5)*renderBuffers.height; pt1.y = ((pt1.y*0.5f)+0.5)*renderBuffers.height; pt2.y = ((pt2.y*0.5)+0.5)*renderBuffers.height;
+
+	DWORD ymin = min(pt0.y, min(pt1.y, pt2.y));
+	DWORD ymax = max(pt0.y, max(pt1.y, pt2.y));
+	DWORD xmin = min(pt0.x, min(pt1.x, pt2.x));
+	DWORD xmax = max(pt0.x, max(pt1.x, pt2.x));
+
+	fvec2 vs1 = {pt1.x - pt0.x, pt1.y - pt0.y};
+	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
+	float div = 1/cross(vs1, vs2);
+
+	//Berechne u und v initial und inkrementiere dann nur noch entsprechend
+	fvec2 q = {xmin - pt0.x, ymin - pt0.y};
+	float u = cross(q, vs2)*div;
+	float v = cross(vs1, q)*div;
+	float deltaX_u = (pt2.y - pt0.y)*div;
+	float deltaX_v = (pt1.y - pt0.y)*div;
+	float deltaY_u = (pt2.x - pt0.x)*div;
+	float deltaY_v = (pt1.x - pt0.x)*div;
+	float tmp_u; float tmp_v;
+	for(DWORD y = ymin; y <= ymax; ++y){
+		tmp_u = u; tmp_v = v;
+		bool wasIn = false;
+		for(DWORD x = xmin; x <= xmax; ++x){
+			//w -> pt0, u -> pt1, v -> pt2
+			float w = 1-u-v;
+			if((v >= 0)&&(u >= 0)&&(w >= 0)){
+				wasIn = true;
+				DWORD idx = y*renderBuffers.width+x;
+				float depth = w*pt0.z + u*pt1.z + v*pt2.z;
+				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
+				float inc_depth = depth*DEPTH_DIVISOR;
+				if(inc_depth <= renderBuffers.depthBuffer[idx]){
+					#ifdef PERFORMANCE_ANALYZER
+					_perfAnalyzer.pixelsDrawn++;
+					#endif
+					renderBuffers.depthBuffer[idx] = inc_depth;
+					renderBuffers.fragmentFlags[idx] = 1;
+				}
+				#ifdef PERFORMANCE_ANALYZER
+				else _perfAnalyzer.pixelsCulled++;
+				#endif
+			}
+			else if(wasIn) break;
+	        u += deltaX_u;
+			v -= deltaX_v;
+		}
+		u = tmp_u;
+		v = tmp_v;
+		u -= deltaY_u;
+		v += deltaY_v;
 	}
 }
 
@@ -963,13 +1029,15 @@ void drawTriangleFilledNew(RenderBuffers& renderBuffers, float* attributesBuffer
 	pt0.x = ((pt0.x*0.5)+0.5)*renderBuffers.width; pt1.x = ((pt1.x*0.5f)+0.5)*renderBuffers.width; pt2.x = ((pt2.x*0.5)+0.5)*renderBuffers.width;
 	pt0.y = ((pt0.y*0.5)+0.5)*renderBuffers.height; pt1.y = ((pt1.y*0.5f)+0.5)*renderBuffers.height; pt2.y = ((pt2.y*0.5)+0.5)*renderBuffers.height;
 
-	int pt0x = pt0.x; int pt0y = pt0.y;
-	int pt1x = pt1.x; int pt1y = pt1.y;
-	int pt2x = pt2.x; int pt2y = pt2.y;
+	int pt0x = pt0.x;
+	int pt0y = pt0.y;
+	int pt1x = pt1.x;
+	int pt1y = pt1.y;
+	int pt2x = pt2.x;
+	int pt2y = pt2.y;
 	if(pt0y > pt1y) std::swap(pt0x, pt1x), std::swap(pt0y, pt1y);
 	if(pt0y > pt2y) std::swap(pt0x, pt2x), std::swap(pt0y, pt2y);
 	if(pt1y > pt2y) std::swap(pt1x, pt2x), std::swap(pt1y, pt2y);
-	if(pt0y == pt2y) return;
 
 	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
 	float attr[attributesCount*3];
@@ -1012,7 +1080,7 @@ void drawTriangleFilledNew(RenderBuffers& renderBuffers, float* attributesBuffer
 				DWORD idx = y*renderBuffers.width+xBeg;
 				float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 				//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-				DWORD inc_depth = depth*DEPTH_DIVISOR;
+				float inc_depth = depth*DEPTH_DIVISOR;
 				if(inc_depth <= renderBuffers.depthBuffer[idx]){
 					#ifdef PERFORMANCE_ANALYZER
 					_perfAnalyzer.pixelsDrawn++;
@@ -1058,7 +1126,7 @@ void drawTriangleFilledNew(RenderBuffers& renderBuffers, float* attributesBuffer
 			DWORD idx = y*renderBuffers.width+xBeg;
 			float depth = 1/(m1*invZ[0] + m2*invZ[1] + m3*invZ[2]);		//TODO Iterativ lösbar?
 			//TODO depth buffer endlich eine Range geben damit eine erwartete Genauigkeit erfasst werden kann
-			DWORD inc_depth = depth*DEPTH_DIVISOR;
+			float inc_depth = depth*DEPTH_DIVISOR;
 			if(inc_depth <= renderBuffers.depthBuffer[idx]){
 				#ifdef PERFORMANCE_ANALYZER
 				_perfAnalyzer.pixelsDrawn++;
@@ -1123,7 +1191,9 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 	float out_attr[attributesCount][3];
 	fvec3 vec;
 	WORD attributeOffset = 0;
+	const DWORD attributesCountPerTriangle = attributesCount*3;
 	for(BYTE i=0; i < temp_count; ++i){
+		const DWORD currentAttributeLocation = i*attributesCountPerTriangle;
 		BYTE in = 0;
 		BYTE out = 0;
 		for(BYTE j=0; j < 3; ++j){
@@ -1134,11 +1204,11 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 			float dist = dot(vec, p.normal);
 			if(dist < 0){
 				out_v[out] = buffer[i].points[j];
-				for(BYTE k=0; k < attributesCount; ++k) out_attr[k][out] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
+				for(BYTE k=0; k < attributesCount; ++k) out_attr[k][out] = attributesBuffer[currentAttributeLocation+attributesCount*j+k];
 				++out;
 			}else{
 				in_v[in] = buffer[i].points[j];
-				for(BYTE k=0; k < attributesCount; ++k) in_attr[k][in] = attributesBuffer[i*attributesCount*3+attributesCount*j+k];
+				for(BYTE k=0; k < attributesCount; ++k) in_attr[k][in] = attributesBuffer[currentAttributeLocation+attributesCount*j+k];
 				++in;
 			}
 			attributeOffset += attributesCount;
@@ -1146,8 +1216,8 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 		switch(in){
 			case 0:{	//Dreieck liegt komplett ausserhalb, es muss entfernt werden
 				buffer[i] = buffer[temp_count-1];
-				for(BYTE j=0; j < attributesCount*3; ++j){
-					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				for(BYTE j=0; j < attributesCountPerTriangle; ++j){
+					attributesBuffer[currentAttributeLocation+j] = attributesBuffer[(temp_count-1)*attributesCountPerTriangle+j];
 				}
 				--temp_count;
 				--i;
@@ -1157,58 +1227,37 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 			case 1:{	//Das aktuelle Dreieck kann einfach geändert werden
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[i].points[1]);
 				for(BYTE k=0; k < attributesCount; ++k){
-					attributesBuffer[i*attributesCount*3+attributesCount+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
-					// buffer[i].attribute[k][1].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
-					// buffer[i].attribute[k][1].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
-					// buffer[i].attribute[k][1].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
-					// buffer[i].attribute[k][1].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
+					attributesBuffer[currentAttributeLocation+attributesCount+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
 				}
 				t = rayPlaneIntersectionFast(p, in_v[0], out_v[1], buffer[i].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
-					attributesBuffer[i*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][1]*t;
-					// buffer[i].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][1].x*t;
-					// buffer[i].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][1].y*t;
-					// buffer[i].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][1].z*t;
-					// buffer[i].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][1].w*t;
-					attributesBuffer[i*attributesCount*3+k] = in_attr[k][0];
-					// buffer[i].attribute[k][0] = in_attr[k][0];
+					attributesBuffer[currentAttributeLocation+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][1]*t;
+					attributesBuffer[currentAttributeLocation+k] = in_attr[k][0];
 				}
 				buffer[i].points[0] = in_v[0];
 				break;
 			}
 			case 2:{	//2 neue Dreiecke müssen hinzugefügt werden und das aktuelle entfernt
 				buffer[i] = buffer[temp_count-1];
-				for(BYTE j=0; j < attributesCount*3; ++j){
-					attributesBuffer[i*attributesCount*3+j] = attributesBuffer[(temp_count-1)*attributesCount*3+j];
+				for(BYTE j=0; j < attributesCountPerTriangle; ++j){
+					attributesBuffer[currentAttributeLocation+j] = attributesBuffer[(temp_count-1)*attributesCountPerTriangle+j];
 				}
 				--temp_count;
 				--i;
 				--count;
 				float t = rayPlaneIntersectionFast(p, in_v[0], out_v[0], buffer[tmp_off].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
-					attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
-					// buffer[tmp_off].attribute[k][2].x = in_attr[k][0].x*(1-t)+out_attr[k][0].x*t;
-					// buffer[tmp_off].attribute[k][2].y = in_attr[k][0].y*(1-t)+out_attr[k][0].y*t;
-					// buffer[tmp_off].attribute[k][2].z = in_attr[k][0].z*(1-t)+out_attr[k][0].z*t;
-					// buffer[tmp_off].attribute[k][2].w = in_attr[k][0].w*(1-t)+out_attr[k][0].w*t;
-					attributesBuffer[tmp_off*attributesCount*3+k] = in_attr[k][0];
-					attributesBuffer[tmp_off*attributesCount*3+attributesCount+k] = in_attr[k][1];
-					// buffer[tmp_off].attribute[k][0] = in_attr[k][0];
-					// buffer[tmp_off].attribute[k][1] = in_attr[k][1];
+					attributesBuffer[tmp_off*attributesCountPerTriangle+attributesCount*2+k] = in_attr[k][0]*(1-t)+out_attr[k][0]*t;
+					attributesBuffer[tmp_off*attributesCountPerTriangle+k] = in_attr[k][0];
+					attributesBuffer[tmp_off*attributesCountPerTriangle+attributesCount+k] = in_attr[k][1];
 				}
 				buffer[tmp_off].points[0] = in_v[0];
 				buffer[tmp_off].points[1] = in_v[1];
 				t = rayPlaneIntersectionFast(p, in_v[1], out_v[0], buffer[tmp_off+1].points[2]);
 				for(BYTE k=0; k < attributesCount; ++k){
-					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount*2+k] = in_attr[k][1]*(1-t)+out_attr[k][0]*t;
-					// buffer[tmp_off+1].attribute[k][2].x = in_attr[k][1].x*(1-t)+out_attr[k][0].x*t;
-					// buffer[tmp_off+1].attribute[k][2].y = in_attr[k][1].y*(1-t)+out_attr[k][0].y*t;
-					// buffer[tmp_off+1].attribute[k][2].z = in_attr[k][1].z*(1-t)+out_attr[k][0].z*t;
-					// buffer[tmp_off+1].attribute[k][2].w = in_attr[k][1].w*(1-t)+out_attr[k][0].w*t;
-					attributesBuffer[(tmp_off+1)*attributesCount*3+k] = attributesBuffer[tmp_off*attributesCount*3+attributesCount*2+k];
-					attributesBuffer[(tmp_off+1)*attributesCount*3+attributesCount+k] = in_attr[k][1];
-					// buffer[tmp_off+1].attribute[k][0] = buffer[tmp_off].attribute[k][2];
-					// buffer[tmp_off+1].attribute[k][1] = in_attr[k][1];
+					attributesBuffer[(tmp_off+1)*attributesCountPerTriangle+attributesCount*2+k] = in_attr[k][1]*(1-t)+out_attr[k][0]*t;
+					attributesBuffer[(tmp_off+1)*attributesCountPerTriangle+k] = attributesBuffer[tmp_off*attributesCountPerTriangle+attributesCount*2+k];
+					attributesBuffer[(tmp_off+1)*attributesCountPerTriangle+attributesCount+k] = in_attr[k][1];
 				}
 				buffer[tmp_off+1].points[0] = buffer[tmp_off].points[2];
 				buffer[tmp_off+1].points[1] = in_v[1];
@@ -1220,8 +1269,8 @@ void clipPlane(plane& p, Triangle* buffer, float* attributesBuffer, BYTE attribu
 	}
 	for(BYTE i=0; i < count-temp_count; ++i){
 		buffer[temp_count+i] = buffer[offset+i];
-		for(BYTE j=0; j < attributesCount*3; ++j){
-			attributesBuffer[(temp_count+i)*attributesCount*3+j] = attributesBuffer[(offset+i)*attributesCount*3+j];
+		for(BYTE j=0; j < attributesCountPerTriangle; ++j){
+			attributesBuffer[(temp_count+i)*attributesCountPerTriangle+j] = attributesBuffer[(offset+i)*attributesCountPerTriangle+j];
 		}
 	}
 	return;
@@ -1237,11 +1286,12 @@ BYTE clipping(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attrib
 	BYTE count = 1;
 	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 
-	plane p = {}; p.normal = {0, 0, 1}; p.pos = {0, 0, 0};
-	// normalize(pz.normal);
+	plane p = {};
+	p.normal = {0, 0, 1};
+	p.pos = {0, 0, 0};
 	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
-	p.normal = {XMIN*aspect_ratio, 0, 1}; p.pos = {0, 0, 0};
+	p.normal = {XMIN*aspect_ratio, 0, 1};
 	p.normal = normalize(p.normal);
 	clipPlane(p, buffer, attributesBuffer, attributesCount, count);
 
@@ -1260,6 +1310,137 @@ BYTE clipping(RenderBuffers& renderBuffers, float* attributesBuffer, BYTE attrib
 	return count;
 }
 
+bool cmpLess(float val, float region)noexcept{
+	return val <= region;
+}
+bool cmpLarg(float val, float region)noexcept{
+	return val >= region;
+}
+
+void clipEdgeX(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
+	BYTE tmpCount = count;
+	BYTE newOffset = count;
+	BYTE offset = count;
+	for(BYTE i=0; i < tmpCount; ++i){
+		BYTE in = 0;
+		BYTE out = 0;
+		fvec3 inPts[3];
+		fvec3 outPts[3];
+		for(BYTE j=0; j < 3; ++j){
+			if(cmpFunc(buffer[i].points[j].x, regionSize)) inPts[in++] = buffer[i].points[j];
+			else outPts[out++] = buffer[i].points[j];
+		}
+		switch(in){
+			case 0:
+				buffer[i] = buffer[tmpCount-1];
+				tmpCount--;
+				i--;
+				count--;
+				break;
+			case 1:{
+				float t = (regionSize-inPts[0].x)/(outPts[0].x-inPts[0].x);
+				fvec3 pt1 = {regionSize, lerp(inPts[0].y, outPts[0].y, t), lerp(inPts[0].z, outPts[0].z, t)};
+				t = (regionSize-inPts[0].x)/(outPts[1].x-inPts[0].x);
+				fvec3 pt2 = {regionSize, lerp(inPts[0].y, outPts[1].y, t), lerp(inPts[0].z, outPts[1].z, t)};
+				buffer[i].points[0] = inPts[0];
+				buffer[i].points[2] = pt1;
+				buffer[i].points[1] = pt2;
+				break;
+			}
+			case 2:
+				buffer[i] = buffer[tmpCount-1];
+				tmpCount--;
+				i--;
+				count--;
+				float t = (regionSize-inPts[0].x)/(outPts[0].x-inPts[0].x);
+				fvec3 pt1 = {regionSize, lerp(inPts[0].y, outPts[0].y, t), lerp(inPts[0].z, outPts[0].z, t)};
+				t = (regionSize-inPts[1].x)/(outPts[0].x-inPts[1].x);
+				fvec3 pt2 = {regionSize, lerp(inPts[1].y, outPts[0].y, t), lerp(inPts[1].z, outPts[0].z, t)};
+				buffer[newOffset].points[0] = inPts[0];
+				buffer[newOffset].points[2] = pt1;
+				buffer[newOffset].points[1] = inPts[1];
+				buffer[newOffset+1].points[1] = inPts[1];
+				buffer[newOffset+1].points[0] = pt1;
+				buffer[newOffset+1].points[2] = pt2;
+				newOffset += 2;
+				count += 2;
+				break;
+		}
+	}
+	for(BYTE i=0; i < count-tmpCount; ++i){
+		buffer[tmpCount+i] = buffer[offset+i];
+	}
+}
+
+void clipEdgeY(Triangle* buffer, BYTE& count, float regionSize, bool(*cmpFunc)(float, float)noexcept)noexcept{
+	BYTE tmpCount = count;
+	BYTE newOffset = count;
+	BYTE offset = count;
+	for(BYTE i=0; i < tmpCount; ++i){
+		BYTE in = 0;
+		BYTE out = 0;
+		fvec3 inPts[3];
+		fvec3 outPts[3];
+		for(BYTE j=0; j < 3; ++j){
+			if(cmpFunc(buffer[i].points[j].y, regionSize)) inPts[in++] = buffer[i].points[j];
+			else outPts[out++] = buffer[i].points[j];
+		}
+		switch(in){
+			case 0:
+				buffer[i] = buffer[tmpCount-1];
+				tmpCount--;
+				i--;
+				count--;
+				break;
+			case 1:{
+				float t = (regionSize-inPts[0].y)/(outPts[0].y-inPts[0].y);
+				fvec3 pt1 = {lerp(inPts[0].x, outPts[0].x, t), regionSize, lerp(inPts[0].z, outPts[0].z, t)};
+				t = (regionSize-inPts[0].y)/(outPts[1].y-inPts[0].y);
+				fvec3 pt2 = {lerp(inPts[0].x, outPts[1].x, t), regionSize, lerp(inPts[0].z, outPts[1].z, t)};
+				buffer[i].points[0] = inPts[0];
+				buffer[i].points[2] = pt1;
+				buffer[i].points[1] = pt2;
+				break;
+			}
+			case 2:
+				buffer[i] = buffer[tmpCount-1];
+				tmpCount--;
+				i--;
+				count--;
+				float t = (regionSize-inPts[0].y)/(outPts[0].y-inPts[0].y);
+				fvec3 pt1 = {lerp(inPts[0].x, outPts[0].x, t), regionSize, lerp(inPts[0].z, outPts[0].z, t)};
+				t = (regionSize-inPts[1].y)/(outPts[0].y-inPts[1].y);
+				fvec3 pt2 = {lerp(inPts[1].x, outPts[0].x, t), regionSize, lerp(inPts[1].z, outPts[0].z, t)};
+				buffer[newOffset].points[0] = inPts[0];
+				buffer[newOffset].points[2] = pt1;
+				buffer[newOffset].points[1] = inPts[1];
+				buffer[newOffset+1].points[1] = inPts[1];
+				buffer[newOffset+1].points[0] = pt1;
+				buffer[newOffset+1].points[2] = pt2;
+				newOffset += 2;
+				count += 2;
+				break;
+		}
+	}
+	for(BYTE i=0; i < count-tmpCount; ++i){
+		buffer[tmpCount+i] = buffer[offset+i];
+	}
+}
+
+#define CLIPPINGREGIONSIZE 400
+const float INVCLIPPINGREGIONSIZE = 1.f/CLIPPINGREGIONSIZE;
+BYTE clippingOrthographic(RenderBuffers& renderBuffers, Triangle* triangles)noexcept{
+	BYTE count = 1;
+
+	const float clippingRegionExtend = CLIPPINGREGIONSIZE*0.8;
+	clipEdgeX(triangles, count, clippingRegionExtend, cmpLess);
+	clipEdgeX(triangles, count, -clippingRegionExtend, cmpLarg);
+	clipEdgeY(triangles, count, clippingRegionExtend, cmpLess);
+	clipEdgeY(triangles, count, -clippingRegionExtend, cmpLarg);
+
+	return count;
+}
+
 struct Camera{
 	float focal_length;
 	fvec3 pos;
@@ -1269,12 +1450,12 @@ struct Camera{
 typedef fvec3 (*vertexShaderFunction)(fvec3&, float*)noexcept;
 
 //TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
+//TODO Man sollte die Rotationsmatrix übergeben oder einfach in Camera speichern, damit die nicht immer wieder hier neu berechnet wird
 void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1283,13 +1464,15 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	Triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen könnten
-	float attributesBuffer[32*attributesCount*3];
+	const DWORD totalAttributesCount = attributesCount*3;
+	float attributesBuffer[32*totalAttributesCount];
     for(DWORD i=startIdx; i < endIdx; ++i){
+		const DWORD currentAttributeLocation = i*totalAttributesCount;
 		Triangle& tri = buffer[0];
     	tri = tris[i];
-		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
-		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
-		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
+		tri.points[0] = vertexShader(tri.points[0], &attributes[currentAttributeLocation]);
+		tri.points[1] = vertexShader(tri.points[1], &attributes[currentAttributeLocation+attributesCount]);
+		tri.points[2] = vertexShader(tri.points[2], &attributes[currentAttributeLocation+attributesCount*2]);
 		float d[3];
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
@@ -1310,8 +1493,9 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
 #ifdef CULLFRONTFACES
     	if(dot(tri.points[0], normal) >= 0) continue;
 #endif
-		for(int j=0; j < attributesCount*3; ++j) attributesBuffer[j] = attributes[i*attributesCount*3+j];
+		for(int j=0; j < attributesCount*3; ++j) attributesBuffer[j] = attributes[currentAttributeLocation+j];
     	BYTE count = clipping(renderBuffers, attributesBuffer, attributesCount, buffer);
+		const float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0];
 			fvec3 pt2 = buffer[j].points[1];
@@ -1326,9 +1510,9 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
 			buffer[j].points[1].z = pt2.z;
 			buffer[j].points[2].z = pt3.z;
 			#ifdef NEWTRIANGLEDRAWINGALGORITHM
-			drawTriangleFilledNew(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
+			drawTriangleFilledNew(renderBuffers, attributesBuffer+j*totalAttributesCount, attributesCount, buffer[j]);
 			#else
-			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*attributesCount*3, attributesCount, buffer[j]);
+			drawTriangleFilledOld(renderBuffers, attributesBuffer+j*totalAttributesCount, attributesCount, buffer[j]);
 			#endif
 #ifdef PERFORMANCE_ANALYZER
     		_perfAnalyzer.drawnTriangles += 1;
@@ -1343,7 +1527,6 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attri
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
 	float rotm[3][3];
-	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
 	float cos_rotx = cos(cam.rot.x);
 	float sin_roty = sin(cam.rot.y);
@@ -1379,6 +1562,7 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attri
     	if(dot(tri.points[0], normal) >= 0) continue;
 #endif
     	BYTE count = clipping(renderBuffers, nullptr, 0, buffer);
+		const float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
     	for(BYTE j=0; j < count; ++j){
     		fvec3 pt1 = buffer[j].points[0];
 			fvec3 pt2 = buffer[j].points[1]; 
@@ -1401,8 +1585,62 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attri
     return;
 }
 
-void rasterizeTriangleModel(RenderBuffers& renderBuffers, float* attributes, BYTE attributesCount, TriangleModel& model, Camera& cam, vertexShaderFunction vertexShader)noexcept{
-	rasterize(renderBuffers, model.triangles, attributes, attributesCount, 0, model.triangleCount, cam, vertexShader);
+void rasterizeShadowMap(RenderBuffers& renderBuffers, Triangle* tris, DWORD startIdx, DWORD endIdx, Camera& cam)noexcept{
+#ifdef PERFORMANCE_ANALYZER
+	_perfAnalyzer.totalTriangles += endIdx - startIdx;
+#endif
+	float rotm[3][3];
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	float sin_roty = sin(cam.rot.y);
+	float cos_roty = cos(cam.rot.y);
+    rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
+    rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
+    rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	Triangle buffer[32];	//Speichert Dreiecke die durch das clipping entstehen könnten
+    for(DWORD i=startIdx; i < endIdx; ++i){
+		Triangle& tri = buffer[0];
+    	tri = tris[i];
+		float d[3];
+    	for(BYTE j=0; j < 3; ++j){
+			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
+			fvec3 v = mulVec3Mat3x3(d, rotm);
+    	    tri.points[j] = v;
+    	}
+    	fvec3 l01 = {tri.points[1].x-tri.points[0].x, tri.points[1].y-tri.points[0].y, tri.points[1].z-tri.points[0].z};
+    	fvec3 l02 = {tri.points[2].x-tri.points[0].x, tri.points[2].y-tri.points[0].y, tri.points[2].z-tri.points[0].z};
+    	fvec3 normal = cross(l01, l02);
+#ifdef CULLBACKFACESSHADOW
+    	if(dot(tri.points[0], normal) <= 0) continue;
+#endif
+#ifdef CULLFRONTFACESSHADOW
+    	if(dot(tri.points[0], normal) >= 0) continue;
+#endif
+    	BYTE count = clippingOrthographic(renderBuffers, buffer);
+    	for(BYTE j=0; j < count; ++j){
+    		fvec3 pt1 = buffer[j].points[0];
+			fvec3 pt2 = buffer[j].points[1];
+			fvec3 pt3 = buffer[j].points[2];
+    		buffer[j].points[0].x = pt1.x*INVCLIPPINGREGIONSIZE;
+    		buffer[j].points[1].x = pt2.x*INVCLIPPINGREGIONSIZE;
+    		buffer[j].points[2].x = pt3.x*INVCLIPPINGREGIONSIZE;
+			buffer[j].points[0].y = pt1.y*INVCLIPPINGREGIONSIZE;
+			buffer[j].points[1].y = pt2.y*INVCLIPPINGREGIONSIZE;
+			buffer[j].points[2].y = pt3.y*INVCLIPPINGREGIONSIZE;
+    		buffer[j].points[0].z = pt1.z;
+			buffer[j].points[1].z = pt2.z;
+			buffer[j].points[2].z = pt3.z;
+			#ifdef NEWTRIANGLEDRAWINGALGORITHM
+			drawTriangleFilledNew(renderBuffers, attributesBuffer+j*totalAttributesCount, attributesCount, buffer[j]);
+			#else
+			drawTriangleFilledDepthOnly(renderBuffers, buffer[j]);
+			#endif
+#ifdef PERFORMANCE_ANALYZER
+    		_perfAnalyzer.drawnTriangles += 1;
+#endif
+    	}
+    }
+    return;
 }
 
 //TODO alle weiteren Funktionen sollten in eine andere Datei, da diese ja nichts mehr direkt mit dem rendering zu tun haben

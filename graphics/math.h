@@ -4,6 +4,8 @@
 
 #define PI 3.14159265359
 
+// #define BRANCHLESSMINMAX
+
 struct ivec2{
 	int x;
 	int y;
@@ -41,11 +43,12 @@ constexpr fvec3 normalize(const fvec3& vec)noexcept{
 	float invLength = 1.f/length(vec);
 	return {vec.x*invLength, vec.y*invLength, vec.z*invLength};
 }
-//TODO Rückgabewert lieber machen, da es dann besser zu den anderen Funktionen passt
+
 constexpr fvec2 normalize(const fvec2& vec)noexcept{
 	float length = 1.f/sqrt(vec.x*vec.x + vec.y*vec.y);
 	return {vec.x*length, vec.y*length};
 }
+
 constexpr float dot(const fvec3& a, const fvec3& b)noexcept{return (a.x * b.x + a.y * b.y + a.z * b.z);}
 constexpr float dot(const fvec2& a, const fvec2& b)noexcept{return (a.x * b.x + a.y * b.y);}
 constexpr float cross(const fvec2& a, const fvec2& b)noexcept{return (a.x * b.y - a.y * b.x);}
@@ -54,30 +57,42 @@ constexpr fvec3 cross(const fvec3& a, const fvec3& b)noexcept{return {a.y*b.z-a.
 constexpr float deg2rad(const float deg)noexcept{return deg*PI/180;}
 constexpr float rad2deg(const float rad)noexcept{return rad*180/PI;}
 
-constexpr float min(float a, float b)noexcept{
-//	return a*(a<b)+b*(b<=a);
+constexpr float min(const float a, const float b)noexcept{
+	#ifdef BRANCHLESSMINMAX
+	return a*(a<b)+b*(b<=a);
+	#else
 	return a < b ? a : b;
+	#endif
 }
-constexpr float max(float a, float b)noexcept{
-//	return a*(a>b)+b*(b>=a);
+constexpr float max(const float a, const float b)noexcept{
+	#ifdef BRANCHLESSMINMAX
+	return a*(a>b)+b*(b>=a);
+	#else
 	return a > b ? a : b;
+	#endif
 }
-constexpr int min(int a, int b)noexcept{
-//	return a*(a<b)+b*(b<=a);
+constexpr int min(const int a, const int b)noexcept{
+	#ifdef BRANCHLESSMINMAX
+	return a*(a<b)+b*(b<=a);
+	#else
 	return a < b ? a : b;
+	#endif
 }
-constexpr int max(int a, int b)noexcept{
-//	return a*(a>b)+b*(b>=a);
+constexpr int max(const int a, const int b)noexcept{
+	#ifdef BRANCHLESSMINMAX
+	return a*(a>b)+b*(b>=a);
+	#else
 	return a > b ? a : b;
+	#endif
 }
 
-constexpr float clamp(float val, float minVal, float maxVal)noexcept{
+constexpr float clamp(const float val, const float minVal, const float maxVal)noexcept{
 	if(val < minVal) return minVal;
 	if(val > maxVal) return maxVal;
 	return val;
 }
 
-constexpr int clamp(int val, int minVal, int maxVal)noexcept{
+constexpr int clamp(const int val, const int minVal, const int maxVal)noexcept{
 	if(val < minVal) return minVal;
 	if(val > maxVal) return maxVal;
 	return val;
@@ -116,17 +131,17 @@ unsigned long nextrand()noexcept{
     return _rand;
 }
 
-constexpr float lerp(float a, float b, float t)noexcept{
+constexpr float lerp(const float a, const float b, const float t)noexcept{
     return a+t*(b-a);
 }
 
 //Gibt 0 zurück, falls die Zahl positive ist, sonst 1
-constexpr BYTE sign(float val)noexcept{
+constexpr BYTE sign(const float val)noexcept{
 	return ((*(DWORD*)&val)>>31);
 }
 
 //Testet ob die float Zahl negative ist und gibt entweder -1 oder 1 zurück
-constexpr float negSign(float val)noexcept{
+constexpr float negSign(const float val)noexcept{
 	DWORD buffer = 0b00111111100000000000000000000000;	//Binäre Darstellung einer float 1
 	buffer |= ((*(DWORD*)&val)&0b1000'0000'0000'0000'0000'0000'0000'0000);
 	return *(float*)&buffer;

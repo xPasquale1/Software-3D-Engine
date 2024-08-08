@@ -186,7 +186,11 @@ enum KEYBOARDBUTTONS : unsigned long long{
 	KEY_ESC = 1ULL << 39,
 	KEY_TAB = 1ULL << 40,
 	KEY_ENTER = 1ULL << 41,
-	KEY_BACK = 1ULL << 42
+	KEY_BACK = 1ULL << 42,
+	KEY_UP = 1ULL << 43,
+	KEY_DOWN = 1ULL << 44,
+	KEY_LEFT = 1ULL << 45,
+	KEY_RIGHT = 1ULL << 46
 };
 struct Keyboard{
 	unsigned long long buttons = KEY_NONE;
