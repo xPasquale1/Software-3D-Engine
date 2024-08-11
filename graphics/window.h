@@ -22,7 +22,7 @@ struct Colorbuffer{
 	DWORD* data = nullptr;
 };
 
-ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height){
+ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height)noexcept{
 	buffer.width = width;
 	buffer.height = height;
 	buffer.data = new(std::nothrow) DWORD[width*height];
@@ -30,7 +30,25 @@ ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height){
 	return ERR_SUCCESS; 
 }
 
-void destroyColorbuffer(Colorbuffer& buffer){
+void destroyColorbuffer(Colorbuffer& buffer)noexcept{
+	delete[] buffer.data;
+}
+
+struct Floatbuffer{
+	WORD width;
+	WORD height;
+	float* data = nullptr;
+};
+
+ErrCode createFloatbuffer(Floatbuffer& buffer, WORD width, WORD height)noexcept{
+	buffer.width = width;
+	buffer.height = height;
+	buffer.data = new(std::nothrow) float[width*height];
+	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
+	return ERR_SUCCESS;
+}
+
+void destroyFloatbuffer(Floatbuffer& buffer)noexcept{
 	delete[] buffer.data;
 }
 
@@ -306,9 +324,9 @@ ErrCode drawCircle(Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD color
 }
 
 struct Image{
+	WORD width = 0;			//x-Dimension
+	WORD height = 0;		//y-Dimension
 	DWORD* data = nullptr;
-	WORD width = 0;		//x-Dimension
-	WORD height = 0;	//y-Dimension
 };
 
 ErrCode createImage(Image& image, WORD width, WORD height)noexcept{
@@ -393,7 +411,7 @@ void flipImageVertically(Image& image)noexcept{
 //TODO Warum hat das ErrCode?
 //TODO Kopiere nicht das gesamte Image, sondern auch das sollte man angeben können
 //TODO up-/downscaling methoden wie nearest, bilinear,...
-ErrCode copyImageToColorbuffer(Colorbuffer& buffer, Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
+ErrCode copyImageToColorbuffer(Colorbuffer& buffer, const Image& image, WORD start_x, WORD start_y, WORD end_x, WORD end_y)noexcept{
 	for(int y=start_y; y < end_y; ++y){
 		WORD ry = (float)(y-start_y)/(end_y-start_y)*image.height;
 		for(int x=start_x; x < end_x; ++x){
@@ -501,7 +519,7 @@ DWORD drawFontString(Colorbuffer& buffer, Font& font, const char* string, DWORD 
 	return offset;
 }
 
-ErrCode _defaultEvent(void*)noexcept{return ERR_SUCCESS;}
+ErrCode _defaultButtonEvent(void*)noexcept{return ERR_SUCCESS;}
 enum BUTTONFLAGS{
 	BUTTONFLAG_NONE=0,
 	BUTTONFLAG_VISIBLE=1,
@@ -512,7 +530,7 @@ enum BUTTONFLAGS{
 	BUTTONFLAG_DISABLED=32
 };
 struct Button{
-	ErrCode (*event)(void*)noexcept = _defaultEvent;	//Funktionspointer zu einer Funktion die gecallt werden soll wenn der Button gedrückt wird
+	ErrCode (*event)(void*)noexcept = _defaultButtonEvent;
 	std::string text;
 	Image* image = nullptr;
 	Image* disabledImage = nullptr;
@@ -545,7 +563,7 @@ void buttonsClicked(Button* buttons, WORD button_count)noexcept{
 		if(delta.x >= 0 && delta.x <= b.size.x && delta.y >= 0 && delta.y <= b.size.y){
 			if(getButtonFlag(b, BUTTONFLAG_CAN_HOVER)) b.flags |= BUTTONFLAG_HOVER;
 			if(getButton(mouse, MOUSEBUTTON_LMB) && !getButtonFlag(b, BUTTONFLAG_PRESSED)){
-				ErrCheck(b.event(b.data));
+				ErrCheck(b.event(b.data), "Button-Event");
 				b.flags |= BUTTONFLAG_PRESSED;
 			}
 			else if(!getButton(mouse, MOUSEBUTTON_LMB)) b.flags &= ~BUTTONFLAG_PRESSED;
@@ -617,19 +635,20 @@ enum MENUFLAGS{
 #define MAX_STRINGS 20
 #define MAX_IMAGES 5
 struct Menu{
-	Image* images[MAX_IMAGES];		//Sind für die Buttons
+	Image images[MAX_IMAGES];		//Sind für die Buttons
 	BYTE imageCount = 0;
 	Button buttons[MAX_BUTTONS];
 	BYTE buttonCount = 0;
 	BYTE flags = MENUFLAG_OPEN;
 	ivec2 pos = {};					//TODO Position in Bildschirmpixelkoordinaten
+	ivec2 size = {};				//TODO Größe in Bildschirmkoordinaten
 	Label labels[MAX_STRINGS];
 	BYTE labelCount = 0;
 };
 
 void destroyMenu(Menu& menu)noexcept{
 	for(WORD i=0; i < menu.imageCount; ++i){
-		destroyImage(*menu.images[i]);
+		destroyImage(menu.images[i]);
 	}
 }
 
@@ -693,6 +712,44 @@ void updateFloatSliders(Colorbuffer& buffer, Font& font, FloatSlider* sliders, W
 		drawRectangle(buffer, sliders[i].pos.x, sliders[i].pos.y, sliders[i].size.x, sliders[i].size.y, sliders[i].color);
 		drawCircle(buffer, sliders[i].pos.x+sliders[i].sliderPos, sliders[i].pos.y+sliders[i].size.y/2, sliders[i].sliderRadius, sliders[i].color);
 		drawFontString(buffer, font, floatToString(sliders[i].value).c_str(), sliders[i].pos.x+sliders[i].size.x+sliders[i].sliderRadius, sliders[i].pos.y+sliders[i].size.y/2-font.font_size/2);
+	}
+}
+
+enum CHECKBOXFLAGS{
+	CHECKBOXFLAG_NONE=0,
+	CHECKBOXFLAG_CHECKED=1
+};
+
+ErrCode _defaultCheckboxEvent(void*)noexcept{return ERR_SUCCESS;}
+struct Checkbox{
+	ivec2 pos = {0, 0};
+	ivec2 size = {20, 20};
+	BYTE flags = CHECKBOXFLAG_NONE;
+	std::string label;
+	DWORD color = RGBA(64, 64, 64);
+	DWORD checkedColor = RGBA(128, 128, 128);
+	ErrCode (*event)(void*)noexcept = _defaultCheckboxEvent;
+	void* data = nullptr;
+};
+
+constexpr void setCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{box.flags |= flag;}
+constexpr void toggleCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{box.flags ^= flag;}
+constexpr void resetCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{box.flags &= ~flag;}
+constexpr bool getCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{return (box.flags&flag);}
+
+void updateCheckBoxs(Colorbuffer& buffer, Font& font, Checkbox* boxes, WORD boxCount)noexcept{
+	for(WORD i=0; i < boxCount; ++i){
+		if(getButton(mouse, MOUSEBUTTON_LMB) && !getButton(mouse, MOUSEBUTTON_PREV_LMB)){
+			WORD x = mouse.pos.x-boxes[i].pos.x;
+			WORD y = mouse.pos.y-boxes[i].pos.y;
+			if(x <= boxes[i].size.x && y <= boxes[i].size.y){
+				toggleCheckBoxFlag(boxes[i], CHECKBOXFLAG_CHECKED);
+				ErrCheck(boxes[i].event(boxes[i].data), "Checkbox-Event");
+			}
+		}
+		drawRectangle(buffer, boxes[i].pos.x, boxes[i].pos.y, boxes[i].size.x, boxes[i].size.y, boxes[i].color);
+		if(getCheckBoxFlag(boxes[i], CHECKBOXFLAG_CHECKED)) drawRectangle(buffer, boxes[i].pos.x+boxes[i].size.x/4, boxes[i].pos.y+boxes[i].size.y/4, boxes[i].size.x/2, boxes[i].size.y/2, boxes[i].checkedColor);
+		drawFontString(buffer, font, boxes[i].label.c_str(), boxes[i].pos.x+boxes[i].size.x, boxes[i].pos.y+boxes[i].size.y/2-font.font_size/2);
 	}
 }
 
@@ -804,7 +861,7 @@ void clearRenderBuffers(RenderBuffers& renderBuffers)noexcept{
 }
 
 //TODO Attribute für always_inline?
-inline DWORD getAttrLoc(DWORD totalBufferSize, BYTE location)noexcept{
+inline constexpr DWORD getAttrLoc(DWORD totalBufferSize, BYTE location)noexcept{
 	return totalBufferSize*location;
 }
 
@@ -927,7 +984,7 @@ void drawTriangleFilledOld(RenderBuffers& renderBuffers, float* attributesBuffer
 	fvec2 vs2 = {pt2.x - pt0.x, pt2.y - pt0.y};
 	float div = 1/cross(vs1, vs2);
 
-	const float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
+	float invZ[3] = {1/pt0.z, 1/pt1.z, 1/pt2.z};
 	float attr[attributesCount*3];
 	DWORD attribIdx = 0;
 	for(BYTE i=0; i < 3; ++i){

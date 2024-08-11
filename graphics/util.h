@@ -265,3 +265,9 @@ DWORD compress(BYTE* input, DWORD size, BYTE* output){
 DWORD decompress(BYTE* input, DWORD size, BYTE* output){
 	return 0;
 }
+
+struct ShaderExecuter{
+	WORD startIdx;
+	WORD endIdx;
+	std::thread thread;
+};

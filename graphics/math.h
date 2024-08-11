@@ -1,5 +1,6 @@
 #pragma once
 
+#include <algorithm>
 #include "util.h"
 
 #define PI 3.14159265359
@@ -160,4 +161,44 @@ constexpr float negSign(const float val)noexcept{
 	DWORD buffer = 0b00111111100000000000000000000000;	//Binäre Darstellung einer float 1
 	buffer |= ((*(DWORD*)&val)&0b1000'0000'0000'0000'0000'0000'0000'0000);
 	return *(float*)&buffer;
+}
+
+//TODO Die Indexberechnung lann optimiert werden
+void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
+	DWORD totalBufferSize = width*height;
+	DWORD idx = 0;
+	for(WORD y=0; y < height; ++y){
+		for(WORD x=0; x < width; ++x, ++idx){
+			float value = 0;
+			//TODO SWORD statt int ging nicht... hä?
+			for(int dy=-blurSize; dy <= blurSize; ++dy){
+				int sampleIdx = (y+dy)*width+x;
+				for(int dx=-blurSize; dx <= blurSize; ++dx, ++sampleIdx){
+					value += data[sampleIdx%totalBufferSize];
+				}
+			}
+			data[idx] = value/pow(blurSize*2+1, 2);
+		}
+	}
+}
+
+void medianBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
+	DWORD totalBufferSize = width*height;
+	DWORD idx = 0;
+	int bufferSize = pow(blurSize*2+1, 2);
+	float buffer[bufferSize];
+	for(WORD y=0; y < height; ++y){
+		for(WORD x=0; x < width; ++x, ++idx){
+			float value = 0;
+			//TODO SWORD statt int ging nicht... hä?
+			int sampleIdx = 0;
+			for(int dy=-blurSize; dy <= blurSize; ++dy){
+				for(int dx=-blurSize; dx <= blurSize; ++dx){
+					buffer[sampleIdx++] = data[((y+dy)*width+x+dx)%totalBufferSize];
+				}
+			}
+			std::sort(buffer, buffer+bufferSize);
+			data[idx] = buffer[sampleIdx/2];
+		}
+	}
 }

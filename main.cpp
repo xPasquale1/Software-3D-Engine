@@ -21,7 +21,7 @@
 
 bool _running = true;
 Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
-Camera shadowCamera = {1., {-687.447, -543.786, -676.166}, {-0.794004, 0.469997}};
+Camera shadowCamera = {1., {-1055.7, -452.036, 25.834}, {-1.561, 0.304497}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt)noexcept;
@@ -29,25 +29,182 @@ void update(float dt)noexcept;
 enum RENDERMODES{
 	RENDERMODE_SHADED_MODE,
 	RENDERMODE_WIREFRAME_MODE,
+	RENDERMODE_SHADOW_DEPTH,
 	RENDERMODE_DEPTH_MODE,
-	RENDERMODE_NORMAL_MODE,
-	RENDERMODE_SSAO_MODE,
-	RENDERMODE_SSR_MODE,
-	RENDERMODE_SSGI_MODE
+	RENDERMODE_NORMAL_MODE
 };
 
 RENDERMODES renderMode;
+
+//Sliders
+FloatSlider shadowSlider[1];
+WORD shadowSliderCount = 0;
+FloatSlider ssaoSlider[4];
+WORD ssaoSliderCount = 0;
+FloatSlider ssgiSlider[2];
+WORD ssgiSliderCount = 0;
+FloatSlider ssrSlider[2];
+WORD ssrSliderCount = 0;
+FloatSlider ssrcSlider[2];
+WORD ssrcSliderCount = 0;
+FloatSlider resolutionScaleSlider;
+
+//Checkboxen
+Checkbox checkboxes[5];		//Schatten, SSR, SSAO, SSGI, SSRC
+WORD checkboxCount = 0;
 
 Menu settingsMenu;
 // Menü Funktionen
 ErrCode setRenderMode(void* mode)noexcept{
 	renderMode = *(RENDERMODES*)mode;
+	switch(renderMode){
+		case RENDERMODE_WIREFRAME_MODE:
+		case RENDERMODE_DEPTH_MODE:
+		case RENDERMODE_SHADOW_DEPTH:
+		case RENDERMODE_NORMAL_MODE:{
+			ssaoSliderCount = 0;
+			ssgiSliderCount = 0;
+			ssrSliderCount = 0;
+			checkboxCount = 0;
+			break;
+		}
+		case RENDERMODE_SHADED_MODE:{
+			//Schatten
+			ivec2 position = {10, settingsMenu.size.y};
+			position.y += 10;
+			checkboxes[0].pos = position;
+			checkboxes[0].size = {30, 30};
+			checkboxes[0].label = "Shadows";
+			position.y += checkboxes[0].size.y;
+			if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
+				position.y += 22;
+				shadowSlider[0].pos = {position.x, position.y};
+				shadowSlider[0].size = {200, 6};
+				shadowSlider[0].sliderRadius = 12;
+				shadowSlider[0].minValue = -10;
+				shadowSlider[0].maxValue = 10;
+				shadowSlider[0].value = 3;
+				shadowSlider[0].sliderPos = getFloatSliderPosFromValue(shadowSlider[0]);
+				shadowSliderCount = 1;
+				position.y += 12;
+			}else shadowSliderCount = 0;
+			position.y += 10;
+			checkboxes[1].pos = position;
+			checkboxes[1].size = {30, 30};
+			checkboxes[1].label = "SSR";
+			position.y += checkboxes[1].size.y;
+			if(getCheckBoxFlag(checkboxes[1], CHECKBOXFLAG_CHECKED)){
+				position.y += 22;
+				ssrSlider[0].pos = {position.x, position.y};
+				ssrSlider[0].size = {200, 6};
+				ssrSlider[0].sliderRadius = 12;
+				ssrSlider[0].value = 10;
+				ssrSlider[0].sliderPos = getFloatSliderPosFromValue(ssrSlider[0]);
+				position.y += ssrSlider[0].sliderRadius*2+10;
+				ssrSlider[1].pos = {position.x, position.y};
+				ssrSlider[1].size = {200, 6};
+				ssrSlider[1].sliderRadius = 12;
+				ssrSlider[1].value = 20;
+				ssrSlider[1].sliderPos = getFloatSliderPosFromValue(ssrSlider[1]);
+				ssrSliderCount = 2;
+				position.y += 12;
+			}else ssrSliderCount = 0;
+			position.y += 10;
+			checkboxes[2].pos = position;
+			checkboxes[2].size = {30, 30};
+			checkboxes[2].label = "SSAO";
+			position.y += checkboxes[2].size.y;
+			if(getCheckBoxFlag(checkboxes[2], CHECKBOXFLAG_CHECKED)){
+				position.y += 22;
+				ssaoSlider[0].pos = {position.x, position.y};
+				ssaoSlider[0].size = {200, 6};
+				ssaoSlider[0].sliderRadius = 12;
+				ssaoSlider[0].minValue = 1;
+				ssaoSlider[0].maxValue = 64;
+				ssaoSlider[0].value = 8;
+				ssaoSlider[0].sliderPos = getFloatSliderPosFromValue(ssaoSlider[0]);
+				position.y += ssaoSlider[0].sliderRadius*2+10;
+				ssaoSlider[1].pos = {position.x, position.y};
+				ssaoSlider[1].size = {200, 6};
+				ssaoSlider[1].sliderRadius = 12;
+				ssaoSlider[1].minValue = 2;
+				ssaoSlider[1].maxValue = 20;
+				ssaoSlider[1].value = 8;
+				ssaoSlider[1].sliderPos = getFloatSliderPosFromValue(ssaoSlider[1]);
+				position.y += ssaoSlider[0].sliderRadius*2+10;
+				ssaoSlider[2].pos = {position.x, position.y};
+				ssaoSlider[2].size = {200, 6};
+				ssaoSlider[2].sliderRadius = 12;
+				ssaoSlider[2].minValue = 0;
+				ssaoSlider[2].maxValue = 10;
+				ssaoSlider[2].value = 2;
+				ssaoSlider[2].sliderPos = getFloatSliderPosFromValue(ssaoSlider[2]);
+				position.y += ssaoSlider[0].sliderRadius*2+10;
+				ssaoSlider[3].pos = {position.x, position.y};
+				ssaoSlider[3].size = {200, 6};
+				ssaoSlider[3].sliderRadius = 12;
+				ssaoSlider[3].minValue = 1;
+				ssaoSlider[3].maxValue = 30;
+				ssaoSlider[3].value = 13;
+				ssaoSlider[3].sliderPos = getFloatSliderPosFromValue(ssaoSlider[3]);
+				ssaoSliderCount = 4;
+				position.y += 12;
+			}else ssaoSliderCount = 0;
+			position.y += 10;
+			checkboxes[3].pos = position;
+			checkboxes[3].size = {30, 30};
+			checkboxes[3].label = "SSGI";
+			position.y += checkboxes[3].size.y;
+			if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
+				position.y += 22;
+				ssgiSlider[0].pos = {position.x, position.y};
+				ssgiSlider[0].size = {200, 6};
+				ssgiSlider[0].sliderRadius = 12;
+				ssgiSlider[0].minValue = 4;
+				ssgiSlider[0].maxValue = 64;
+				ssgiSlider[0].value = 16;
+				ssgiSlider[0].sliderPos = getFloatSliderPosFromValue(ssgiSlider[0]);
+				position.y += ssgiSlider[0].sliderRadius*2+10;
+				ssgiSlider[1].pos = {position.x, position.y};
+				ssgiSlider[1].size = {200, 6};
+				ssgiSlider[1].sliderRadius = 12;
+				ssgiSlider[1].minValue = 0;
+				ssgiSlider[1].maxValue = 3;
+				ssgiSlider[1].value = 1;
+				ssgiSlider[1].sliderPos = getFloatSliderPosFromValue(ssgiSlider[1]);
+				ssgiSliderCount = 2;
+				position.y += 12;
+			}else ssgiSliderCount = 0;
+			position.y += 10;
+			checkboxes[4].pos = position;
+			checkboxes[4].size = {30, 30};
+			checkboxes[4].label = "SSRC";
+			position.y += checkboxes[4].size.y;
+			if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
+				position.y += 22;
+				ssrcSlider[0].pos = {position.x, position.y};
+				ssrcSlider[0].size = {200, 6};
+				ssrcSlider[0].sliderRadius = 12;
+				ssrcSlider[0].minValue = 8;
+				ssrcSlider[0].maxValue = 512;
+				ssrcSlider[0].value = 64;
+				ssrcSlider[0].sliderPos = getFloatSliderPosFromValue(ssrcSlider[0]);
+				position.y += ssrcSlider[0].sliderRadius*2+10;
+				ssrcSlider[1].pos = {position.x, position.y};
+				ssrcSlider[1].size = {200, 6};
+				ssrcSlider[1].sliderRadius = 12;
+				ssrcSlider[1].minValue = 0;
+				ssrcSlider[1].maxValue = 4;
+				ssrcSlider[1].value = 1;
+				ssrcSlider[1].sliderPos = getFloatSliderPosFromValue(ssrcSlider[1]);
+				ssrcSliderCount = 2;
+				position.y += 12;
+			}else ssrcSliderCount = 0;
+			break;
+		}
+	}
 	return ERR_SUCCESS;
 }
-
-//Sliders
-FloatSlider debugSlider[8];
-WORD sliderCount = 0;
 
 #define SPEED 0.25
 
@@ -55,7 +212,8 @@ Window window;
 Font font;
 
 RenderBuffers renderBuffers;
-Colorbuffer colorBuffers[3];
+Colorbuffer colorBuffers[2];	//0 = SSGI
+Floatbuffer dataBuffers[2];		//0 = Schatten, 1 Indirekte Beleuchtung
 float resolutionScale = 0.5;
 
 DWORD frameCounter = 0;
@@ -89,7 +247,7 @@ void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
 #define RANDOMNORMALSCOUNT 211
 fvec3 randomNormalVectorBuffer[RANDOMNORMALSCOUNT];
 
-fvec3 generateRandomNormalInHemisphere(fvec3& normal)noexcept{
+fvec3 generateRandomNormalInHemisphere(const fvec3& normal)noexcept{
 	fvec3 random = randomNormalVectorBuffer[nextrand()%RANDOMNORMALSCOUNT];
     if(dot(normal, random) < 0){
 		random.x = -random.x;
@@ -150,7 +308,8 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
 			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
 			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
-			float lightStrength = clamp(dot(worldNormal, invSunDir), 0.f, 1.f);
+			float lightStrength = 1.f;
+			// clamp(dot(worldNormal, invSunDir), 0.f, 1.f);
 
 			fvec3 viewPos = worldPosToViewSpaceOrtho(worldPixelPosition, rotm, shadowCam.pos, shadowDepthBuffer.width, shadowDepthBuffer.height);
 			DWORD uvx = (DWORD)viewPos.x;
@@ -165,7 +324,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			for(SBYTE dy=-1; dy <= 1; ++dy){
 				for(SBYTE dx=-1; dx <= 1; ++dx){
 					float shadowDepth = shadowDepthBuffer.data[((uvy+dy)*shadowDepthBuffer.width+uvx+dx)%totalShadowSize];
-					if(viewPos.z*DEPTH_DIVISOR-debugSlider[7].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
+					if(viewPos.z*DEPTH_DIVISOR-shadowSlider[0].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
 				}
 			}
 			shadowColor /= 9;
@@ -191,13 +350,56 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			// }
 			
 			lightStrength *= shadowColor;
-			renderBuffers.frameBuffer[idx] = RGBA(255*lightStrength, 255*lightStrength, 255*lightStrength);
+			lightStrength = clamp(lightStrength, 0.f, 1.f);
+			dataBuffers[0].data[idx] = lightStrength;
 		}
 	}
 }
 
-//TODO Setzt vorraus, dass colorBuffers und renderBuffers die gleiche Auflösung haben
-void ssgi(RenderBuffers& renderBuffers, Camera& cam)noexcept{
+float raytrace(fvec3 position, const fvec3 normal, float rotm[3][3], float aspectRatio, WORD samples, BYTE bounces, const int maxSteps, const float stepSize, DWORD totalBufferSize)noexcept{
+	if(bounces == 0) return 0.f;
+	float lightStrength = 0.f;
+	BYTE hits = 0;
+	for(WORD i=0; i < samples; ++i){
+		fvec3 samplePos = position;
+		fvec3 direction = generateRandomNormalInHemisphere(normal);
+		for(int step=0; step < maxSteps; ++step){
+			samplePos.x -= direction.x * stepSize;
+			samplePos.y -= direction.y * stepSize;
+			samplePos.z -= direction.z * stepSize;
+
+			fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, cam.pos, aspectRatio, renderBuffers.width, renderBuffers.height);
+			WORD screenX = (WORD)screenCoords.x;
+			WORD screenY = (WORD)screenCoords.y;
+
+			if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) break;
+
+			DWORD sampleIdx = screenY*renderBuffers.width+screenX;
+			float depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
+			if(depthDiff >= 20.f*DEPTH_DIVISOR) break;
+			if(depthDiff > 2.f*DEPTH_DIVISOR){
+				fvec3 pos;
+				pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
+				pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
+				pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
+
+				fvec3 n;
+				n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
+				n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
+				n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
+				float ndotl = dot(direction, normal);
+				lightStrength += raytrace(pos, n, rotm, aspectRatio, 16, bounces-1, maxSteps, stepSize, totalBufferSize)*ndotl;
+				lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
+				hits++;
+				break;
+			}
+		}
+	}
+	if(hits == 0) return 0.f;
+	return lightStrength/hits;
+}
+
+void ssrc(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 	float rotm[3][3];
 	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
 	float sin_rotx = sin(cam.rot.x);
@@ -208,10 +410,75 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam)noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
-	const int ssgiSamples = 8;
+	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
+	const int probeCount = ssrcSlider[0].value;
+	const int yInc = renderBuffers.height/probeCount;
+	const int xInc = renderBuffers.width/probeCount;
+	float radianceBuffer[probeCount*probeCount];
+	for(DWORD y=yInc/2; y < renderBuffers.height; y+=yInc){
+		for(DWORD x=xInc/2; x < renderBuffers.width; x+=xInc){
+			DWORD idx = y*renderBuffers.width+x;
+			fvec3 worldNormal;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
+
+			fvec3 worldPixelPosition;
+			worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
+			worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
+			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
+
+			const float stepSize = 6;
+			const int maxSteps = 40;
+			const WORD ssgiSamples = 16;
+			const BYTE bounces = ssrcSlider[1].value;
+			dataBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
+		}
+	}
+	for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
+		for(WORD y=yInc/2; y < renderBuffers.height-yInc; y+=yInc){
+			WORD yStartIdx = (y/yInc)*yInc+yInc/2;
+			WORD yEndIdx = (y/yInc)*yInc+yInc+yInc/2;
+			float startValue = dataBuffers[1].data[yStartIdx*renderBuffers.width+x];
+			float endValue = dataBuffers[1].data[yEndIdx*renderBuffers.width+x];
+			for(WORD i=yStartIdx+1; i < yEndIdx; ++i){
+				float t = (float)(i-yStartIdx)/(yEndIdx-yStartIdx);
+				float value = lerp(startValue, endValue, t);
+				dataBuffers[1].data[i*renderBuffers.width+x] = value;
+			}
+		}
+	}
+	for(WORD y=yInc/2; y < renderBuffers.height-yInc; ++y){
+		for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
+			WORD xStartIdx = (x/xInc)*xInc+xInc/2;
+			WORD xEndIdx = (x/xInc)*xInc+xInc+xInc/2;
+			float startValue = dataBuffers[1].data[y*renderBuffers.width+xStartIdx];
+			float endValue = dataBuffers[1].data[y*renderBuffers.width+xEndIdx];
+			for(WORD i=xStartIdx+1; i < xEndIdx; ++i){
+				float t = (float)(i-xStartIdx)/(xEndIdx-xStartIdx);
+				float value = lerp(startValue, endValue, t);
+				dataBuffers[1].data[y*renderBuffers.width+i] = value;
+			}
+		}
+	}
+}
+
+//TODO Setzt vorraus, dass colorBuffers und renderBuffers die gleiche Auflösung haben
+void ssgi(RenderBuffers& renderBuffers, Camera& cam, DWORD startIdx, DWORD endIdx)noexcept{
+	float rotm[3][3];
+	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	float sin_roty = sin(cam.rot.y);
+	float cos_roty = cos(cam.rot.y);
+    rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
+    rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
+    rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
-	for(DWORD idx=0; idx < totalBufferSize; ++idx){
+	// DWORD middelPixel = (renderBuffers.height/2)*renderBuffers.width+renderBuffers.width/2;
+	for(DWORD idx=startIdx; idx < endIdx; ++idx){
+	// for(DWORD idx=middelPixel; idx < middelPixel+1; ++idx){
 		fvec3 worldNormal;
 		worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
 		worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
@@ -222,42 +489,11 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 		worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
 		worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
 
-		DWORD red = 0;
-		DWORD green = 0;
-		DWORD blue = 0;
-		for(int i=0; i < ssgiSamples; ++i){
-			fvec3 dir = generateRandomNormalInHemisphere(worldNormal);
-			const float stepSize = 10;
-			const int maxSteps = 60;
-			const float maxDepth = 20*DEPTH_DIVISOR;
-			fvec3 samplePos = worldPixelPosition;
-
-			for(int step=0; step < maxSteps; ++step){
-				samplePos.x -= dir.x * stepSize;
-				samplePos.y -= dir.y * stepSize;
-				samplePos.z -= dir.z * stepSize;
-
-				fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
-				WORD screenX = (WORD)screenCoords.x;
-				WORD screenY = (WORD)screenCoords.y;
-
-				if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) break;
-
-				float depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[screenY*renderBuffers.width+screenX];
-				if(depthDiff >= maxDepth) break;
-				if(depthDiff > 0){
-					DWORD reflectionColor = renderBuffers.frameBuffer[screenY*renderBuffers.width+screenX];
-					red += R(reflectionColor);
-					green += G(reflectionColor);
-					blue += B(reflectionColor);
-					break;
-				}
-			}
-		}
-		red /= ssgiSamples;
-		green /= ssgiSamples;
-		blue /= ssgiSamples;
-		colorBuffers[0].data[idx] = RGBA(red, green, blue);
+		const float stepSize = 6;
+		const int maxSteps = 40;
+		const WORD ssgiSamples = ssgiSlider[0].value;
+		const BYTE bounces = ssgiSlider[1].value;
+		dataBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
 	}
 }
 
@@ -273,10 +509,10 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
-	const int ssaoSamples = debugSlider[3].value;
-	const float ssaoMaxLength = debugSlider[4].value;
-	const float minDepth = debugSlider[5].value*DEPTH_DIVISOR;
-	const float maxDepth = debugSlider[6].value*DEPTH_DIVISOR;
+	const int ssaoSamples = ssaoSlider[0].value;
+	const float ssaoMaxLength = ssaoSlider[1].value;
+	const float minDepth = ssaoSlider[2].value*DEPTH_DIVISOR;
+	const float maxDepth = ssaoSlider[3].value*DEPTH_DIVISOR;
 	
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
 	for(DWORD idx=0; idx < totalBufferSize; ++idx){
@@ -347,9 +583,9 @@ void ssr(RenderBuffers& renderBuffers, Camera& cam)noexcept{
 		fvec3 reflDir = reflect(viewDir, worldNormal);
 
         bool hit = false;
-        const float stepSize = debugSlider[1].value;
+        const float stepSize = ssrSlider[0].value;
         const int maxSteps = 120;
-		const float maxDepth = debugSlider[2].value*DEPTH_DIVISOR;
+		const float maxDepth = ssrSlider[1].value*DEPTH_DIVISOR;
 		const float reflectionAmount = 0.4f;
 		const float albedoAmount = 1.f-reflectionAmount;
 
@@ -453,16 +689,17 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
+	for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
+		if(ErrCheck(createFloatbuffer(dataBuffers[i], renderBuffers.width, renderBuffers.height), "Floatbuffer erstellen") != ERR_SUCCESS) return -1;
+	}
 
 	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != ERR_SUCCESS) return -1;
-	font.font_size = 40/window.pixelSize;
+	font.font_size = 28;
 
 	//TODO dynamisch
-	#define MODELSTORAGECOUNT 1000
+	#define MODELSTORAGECOUNT 50
 	TriangleModel* models = new(std::nothrow) TriangleModel[MODELSTORAGECOUNT];
-	for(int i=0; i < MODELSTORAGECOUNT; ++i){
-		models[i].attributesCount = 8;
-	}
+	for(int i=0; i < MODELSTORAGECOUNT; ++i) models[i].attributesCount = 8;
 	DWORD modelCount = 0;
 	Material* materials = new(std::nothrow) Material[MODELSTORAGECOUNT];
 	DWORD materialCount = 0;
@@ -478,7 +715,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// ErrCheck(openExplorer(filepath, sizeof(filepath), "OBJ Wavefront Format .obj\0*.obj\0"), "Explorer öffnen");
 	// std::cout << filepath << std::endl;
 
-	if(ErrCheck(loadObj("objects/SSAO_test.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
@@ -498,139 +735,70 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	GetWindowRect(window.handle, &rect);
 	SetCursorPos(window.windowWidth/2+rect.left, window.windowHeight/2+rect.top);
 
-	ivec2 buttonPos = {20/window.pixelSize, 80/window.pixelSize};
-	ivec2 buttonSize = {280/window.pixelSize, 40/window.pixelSize};
+	ivec2 buttonPos = {20, 20};
+	ivec2 buttonSize = {160, 30};
+
+	resolutionScaleSlider.pos = {buttonSize.x+20+20, 20};
+	resolutionScaleSlider.size = {200, 6};
+	resolutionScaleSlider.sliderRadius = 12;
+	resolutionScaleSlider.minValue = 0.1;
+	resolutionScaleSlider.maxValue = 2;
+	resolutionScaleSlider.value = 0.5;
+	resolutionScaleSlider.sliderPos = getFloatSliderPosFromValue(resolutionScaleSlider);
 
 	settingsMenu.buttons[0].size = buttonSize;
 	settingsMenu.buttons[0].pos = buttonPos;
 	settingsMenu.buttons[0].event = setRenderMode;
-	settingsMenu.buttons[0].text = "WIREFRAME";
+	settingsMenu.buttons[0].text = "Wireframe";
 	const RENDERMODES wireframeMode = RENDERMODE_WIREFRAME_MODE;
 	settingsMenu.buttons[0].data = (void*)&wireframeMode;
-	settingsMenu.buttons[0].textsize = 36/window.pixelSize;
+	settingsMenu.buttons[0].textsize = 24;
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	buttonPos.y += buttonSize.y+5;
 	settingsMenu.buttons[1].size = buttonSize;
 	settingsMenu.buttons[1].pos = buttonPos;
 	settingsMenu.buttons[1].event = setRenderMode;
-	settingsMenu.buttons[1].text = "SHADED";
+	settingsMenu.buttons[1].text = "Shaded";
 	const RENDERMODES shadedMode = RENDERMODE_SHADED_MODE;
 	settingsMenu.buttons[1].data = (void*)&shadedMode;
-	settingsMenu.buttons[1].textsize = 36/window.pixelSize;
+	settingsMenu.buttons[1].textsize = 24;
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	buttonPos.y += buttonSize.y+5;
 	settingsMenu.buttons[2].size = buttonSize;
 	settingsMenu.buttons[2].pos = buttonPos;
 	settingsMenu.buttons[2].event = setRenderMode;
-	settingsMenu.buttons[2].text = "DEPTH";
+	settingsMenu.buttons[2].text = "Depth";
 	const RENDERMODES depthMode = RENDERMODE_DEPTH_MODE;
 	settingsMenu.buttons[2].data = (void*)&depthMode;
-	settingsMenu.buttons[2].textsize = 36/window.pixelSize;
+	settingsMenu.buttons[2].textsize = 24;
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	buttonPos.y += buttonSize.y+5;
 	settingsMenu.buttons[3].size = buttonSize;
 	settingsMenu.buttons[3].pos = buttonPos;
 	settingsMenu.buttons[3].event = setRenderMode;
-	settingsMenu.buttons[3].text = "NORMAL";
+	settingsMenu.buttons[3].text = "Normals";
 	const RENDERMODES normalMode = RENDERMODE_NORMAL_MODE;
 	settingsMenu.buttons[3].data = (void*)&normalMode;
-	settingsMenu.buttons[3].textsize = 36/window.pixelSize;
+	settingsMenu.buttons[3].textsize = 24;
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
+	buttonPos.y += buttonSize.y+5;
 	settingsMenu.buttons[4].size = buttonSize;
 	settingsMenu.buttons[4].pos = buttonPos;
 	settingsMenu.buttons[4].event = setRenderMode;
-	settingsMenu.buttons[4].text = "SSAO";
-	const RENDERMODES button4Mode = RENDERMODE_SSAO_MODE;
-	settingsMenu.buttons[4].data = (void*)&button4Mode;
-	settingsMenu.buttons[4].textsize = 36/window.pixelSize;
+	settingsMenu.buttons[4].text = "Shadowdepth";
+	const RENDERMODES shadowDepthMode = RENDERMODE_SHADOW_DEPTH;
+	settingsMenu.buttons[4].data = (void*)&shadowDepthMode;
+	settingsMenu.buttons[4].textsize = 24;
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
-	settingsMenu.buttons[5].size = buttonSize;
-	settingsMenu.buttons[5].pos = buttonPos;
-	settingsMenu.buttons[5].event = setRenderMode;
-	settingsMenu.buttons[5].text = "SSR";
-	const RENDERMODES button5Mode = RENDERMODE_SSR_MODE;
-	settingsMenu.buttons[5].data = (void*)&button5Mode;
-	settingsMenu.buttons[5].textsize = 36/window.pixelSize;
+	settingsMenu.buttonCount = 5;
+	settingsMenu.size = {buttonSize.x, buttonPos.y+buttonSize.y};
 
-	buttonPos.y += buttonSize.y+10/window.pixelSize;
-	settingsMenu.buttons[6].size = buttonSize;
-	settingsMenu.buttons[6].pos = buttonPos;
-	settingsMenu.buttons[6].event = setRenderMode;
-	settingsMenu.buttons[6].text = "SSGI";
-	const RENDERMODES button6Mode = RENDERMODE_SSGI_MODE;
-	settingsMenu.buttons[6].data = (void*)&button6Mode;
-	settingsMenu.buttons[6].textsize = 36/window.pixelSize;
-	settingsMenu.buttonCount = 7;
+	for(int i=0; i < sizeof(checkboxes)/sizeof(Checkbox); ++i){
+		checkboxes[i].data = (void*)&shadedMode;
+		checkboxes[i].event = setRenderMode;
+	}
 
-	buttonPos.y += buttonSize.y+34;
-	debugSlider[0].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[0].size = {200, 6};
-	debugSlider[0].sliderRadius = 12;
-	debugSlider[0].minValue = 0.1;
-	debugSlider[0].maxValue = 2.0;
-	debugSlider[0].value = 0.5;
-	debugSlider[0].sliderPos = getFloatSliderPosFromValue(debugSlider[0]);
-
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[1].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[1].size = {200, 6};
-	debugSlider[1].sliderRadius = 12;
-	debugSlider[1].value = 10;
-	debugSlider[1].sliderPos = getFloatSliderPosFromValue(debugSlider[1]);
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[2].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[2].size = {200, 6};
-	debugSlider[2].sliderRadius = 12;
-	debugSlider[2].value = 20;
-	debugSlider[2].sliderPos = getFloatSliderPosFromValue(debugSlider[2]);
-
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[3].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[3].size = {200, 6};
-	debugSlider[3].sliderRadius = 12;
-	debugSlider[3].minValue = 1;
-	debugSlider[3].maxValue = 64;
-	debugSlider[3].value = 8;
-	debugSlider[3].sliderPos = getFloatSliderPosFromValue(debugSlider[3]);
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[4].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[4].size = {200, 6};
-	debugSlider[4].sliderRadius = 12;
-	debugSlider[4].minValue = 2;
-	debugSlider[4].maxValue = 20;
-	debugSlider[4].value = 8;
-	debugSlider[4].sliderPos = getFloatSliderPosFromValue(debugSlider[4]);
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[5].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[5].size = {200, 6};
-	debugSlider[5].sliderRadius = 12;
-	debugSlider[5].minValue = 0;
-	debugSlider[5].maxValue = 10;
-	debugSlider[5].value = 2;
-	debugSlider[5].sliderPos = getFloatSliderPosFromValue(debugSlider[5]);
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[6].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[6].size = {200, 6};
-	debugSlider[6].sliderRadius = 12;
-	debugSlider[6].minValue = 1;
-	debugSlider[6].maxValue = 30;
-	debugSlider[6].value = 13;
-	debugSlider[6].sliderPos = getFloatSliderPosFromValue(debugSlider[6]);
-
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	buttonPos.y += debugSlider[0].sliderRadius*2+10;
-	debugSlider[7].pos = {buttonPos.x, buttonPos.y};
-	debugSlider[7].size = {200, 6};
-	debugSlider[7].sliderRadius = 12;
-	debugSlider[7].minValue = -1;
-	debugSlider[7].maxValue = 99;
-	debugSlider[7].value = 0;
-	debugSlider[7].sliderPos = getFloatSliderPosFromValue(debugSlider[7]);
-	sliderCount = 8;
+	setRenderMode((void*)&shadedMode);
 
 	for(WORD i=0; i < RANDOMNORMALSCOUNT; ++i){
 		while(1){
@@ -638,7 +806,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 			float b = nextrand()/2147483648.f-1;
 			float c = nextrand()/2147483648.f-1;
 			if(a*a+b*b+c*c <= 1){
-				randomNormalVectorBuffer[i] = {a, b, c};
+				randomNormalVectorBuffer[i] = normalize({a, b, c});
 				break;
 			}
 		}
@@ -658,8 +826,10 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 		switch(renderMode){
 			case RENDERMODE_WIREFRAME_MODE:{
-				// for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(renderBuffers, models[i]);
-
+				for(DWORD i=0; i < modelCount; ++i) drawTriangleModelOutline(renderBuffers, models[i]);
+				break;
+			}
+			case RENDERMODE_SHADOW_DEPTH:{
 				for(DWORD i=0; i < modelCount; ++i){
 					rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
 				}
@@ -672,16 +842,21 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 						renderBuffers.frameBuffer[y*renderBuffers.width+x] = RGBA(color, color, color);
 					}
 				}
-				// std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
-				// std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
+				std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
+				std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
 				break;
 			}
 			case RENDERMODE_SHADED_MODE:{
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
-				for(DWORD i=0; i < modelCount; ++i){
-					rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
+				if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
+					for(DWORD i=0; i < modelCount; ++i) rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
+					shadowMappingShader(renderBuffers, shadowDepthBuffer, cam, shadowCamera);
+					for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
+						float strength = dataBuffers[0].data[i];
+						DWORD color = renderBuffers.frameBuffer[i];
+						renderBuffers.frameBuffer[i] = RGBA(R(color)*strength, G(color)*strength, B(color)*strength);
+					}
 				}
-				shadowMappingShader(renderBuffers, shadowDepthBuffer, cam, shadowCamera);
 				break;
 			}
 			case RENDERMODE_DEPTH_MODE:{
@@ -692,61 +867,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < modelCount; ++i) drawNormalBuffer(renderBuffers, models[i], defaultTexture);
 				break;
 			}
-			// #define SSAOFILTER
-			case RENDERMODE_SSAO_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
-				ssao(renderBuffers);
-				performancePreFilter = getTimerMicros(_perfAnalyzer.timer[1])/1000.f;
-				#ifdef SSAOFILTER
-				for(DWORD y=0; y < renderBuffers.height; ++y){
-					for(DWORD x=0; x < renderBuffers.width; ++x){
-						DWORD idx = y*renderBuffers.width+x;
-						colorBuffers[1].data[idx] = 0;
-						for(int dy=-2; dy < 2; ++dy){
-							for(int dx=-2; dx < 2; ++dx){
-								DWORD sampleIdx = ((y+dy)*renderBuffers.width+dx+x)%(renderBuffers.width*renderBuffers.height);
-								colorBuffers[1].data[idx] += R(colorBuffers[0].data[sampleIdx]);
-							}
-						}
-						colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], colorBuffers[1].data[idx]/16);
-					}
-				}
-				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
-					DWORD color = renderBuffers.frameBuffer[i];
-					float factor = R(colorBuffers[0].data[i])/255.f;
-					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
-				}
-				#else
-				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
-					DWORD color = renderBuffers.frameBuffer[i];
-					float factor = (R(colorBuffers[0].data[i])+R(colorBuffers[1].data[i]))/510.f;
-					colorBuffers[1].data[i] = colorBuffers[0].data[i];
-					renderBuffers.frameBuffer[i] = RGBA(R(color)*factor, G(color)*factor, B(color)*factor);
-				}
-				#endif
-				break;
-			}
-			case RENDERMODE_SSR_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
-				ssr(renderBuffers, cam);
-				break;
-			}
-			case RENDERMODE_SSGI_MODE:{
-				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
-				// pointLightShader(renderBuffers);
-				ssgi(renderBuffers, cam);
-				for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
-					renderBuffers.frameBuffer[i] = colorBuffers[0].data[i];
-				}
-				break;
-			}
 		}
 
-		Image dummyImage;
-		dummyImage.width = renderBuffers.width;
-		dummyImage.height = renderBuffers.height;
-		dummyImage.data = renderBuffers.frameBuffer;
-		copyImageToColorbuffer(window.framebuffer, dummyImage, 0, 0, window.windowWidth, window.windowHeight);
+		copyImageToColorbuffer(window.framebuffer, {renderBuffers.width, renderBuffers.height, renderBuffers.frameBuffer}, 0, 0, window.windowWidth, window.windowHeight);
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])*0.001f) + "ms";
 		drawFontString(window.framebuffer, font, val.c_str(), 5, 2);
@@ -772,6 +895,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
+	for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i) destroyFloatbuffer(dataBuffers[i]);
 	destroyRenderBuffers(renderBuffers);
 	destroyDepthbuffer(shadowDepthBuffer);
 	destroyFont(font);
@@ -787,7 +911,7 @@ void update(const float dt)noexcept{
 	const float speedDt = SPEED*dt;
 	if(!getMenuFlag(settingsMenu, MENUFLAG_OPEN)){
 
-		if(renderMode != RENDERMODE_WIREFRAME_MODE){
+		if(renderMode != RENDERMODE_SHADOW_DEPTH){
 			cam.pos.x -= getButton(keyboard, KEY_W)*sin_rotx*speedDt;
 			cam.pos.z += getButton(keyboard, KEY_W)*cos_rotx*speedDt;
 			cam.pos.x += getButton(keyboard, KEY_S)*sin_rotx*speedDt;
@@ -814,14 +938,26 @@ void update(const float dt)noexcept{
 	}else{
 		updateMenu(window.framebuffer, settingsMenu, font);
 		float preResolutionScale = resolutionScale;
-		updateFloatSliders(window.framebuffer, font, debugSlider, sliderCount);
-		resolutionScale = debugSlider[0].value;
+		updateFloatSliders(window.framebuffer, font, &resolutionScaleSlider, 1);
+		resolutionScale = resolutionScaleSlider.value;
 		if(resolutionScale != preResolutionScale){
 			resizeRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
 			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 				destroyColorbuffer(colorBuffers[i]);
 				createColorbuffer(colorBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
 			}
+			for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
+				destroyFloatbuffer(dataBuffers[i]);
+				createFloatbuffer(dataBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
+			}
+		}
+		if(renderMode == RENDERMODE_SHADED_MODE){
+			updateCheckBoxs(window.framebuffer, font, checkboxes, sizeof(checkboxes)/sizeof(Checkbox));
+			updateFloatSliders(window.framebuffer, font, shadowSlider, shadowSliderCount);
+			updateFloatSliders(window.framebuffer, font, ssrSlider, ssrSliderCount);
+			updateFloatSliders(window.framebuffer, font, ssaoSlider, ssaoSliderCount);
+			updateFloatSliders(window.framebuffer, font, ssgiSlider, ssgiSliderCount);
+			updateFloatSliders(window.framebuffer, font, ssrcSlider, ssrcSliderCount);
 		}
 	}
 	if(getButton(mouse, MOUSEBUTTON_LMB)) setButton(mouse, MOUSEBUTTON_PREV_LMB);
@@ -849,6 +985,10 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 			for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 				destroyColorbuffer(colorBuffers[i]);
 				ErrCheck(createColorbuffer(colorBuffers[i], width*resolutionScale, height*resolutionScale), "Colorbuffer erstellen");
+			}
+			for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
+				destroyFloatbuffer(dataBuffers[i]);
+				ErrCheck(createFloatbuffer(dataBuffers[i], width*resolutionScale, height*resolutionScale), "Floatbuffer erstellen");
 			}
 			break;
 		}
