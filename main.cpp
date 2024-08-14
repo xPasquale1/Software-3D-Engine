@@ -41,11 +41,11 @@ FloatSlider shadowSlider[1];
 WORD shadowSliderCount = 0;
 FloatSlider ssaoSlider[4];
 WORD ssaoSliderCount = 0;
-FloatSlider ssgiSlider[2];
+FloatSlider ssgiSlider[4];
 WORD ssgiSliderCount = 0;
 FloatSlider ssrSlider[2];
 WORD ssrSliderCount = 0;
-FloatSlider ssrcSlider[2];
+FloatSlider ssrcSlider[5];
 WORD ssrcSliderCount = 0;
 FloatSlider resolutionScaleSlider;
 
@@ -79,12 +79,6 @@ ErrCode setRenderMode(void* mode)noexcept{
 			if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
 				shadowSlider[0].pos = {position.x, position.y};
-				shadowSlider[0].size = {200, 6};
-				shadowSlider[0].sliderRadius = 12;
-				shadowSlider[0].minValue = -10;
-				shadowSlider[0].maxValue = 10;
-				shadowSlider[0].value = 3;
-				shadowSlider[0].sliderPos = getFloatSliderPosFromValue(shadowSlider[0]);
 				shadowSliderCount = 1;
 				position.y += 12;
 			}else shadowSliderCount = 0;
@@ -96,16 +90,8 @@ ErrCode setRenderMode(void* mode)noexcept{
 			if(getCheckBoxFlag(checkboxes[1], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
 				ssrSlider[0].pos = {position.x, position.y};
-				ssrSlider[0].size = {200, 6};
-				ssrSlider[0].sliderRadius = 12;
-				ssrSlider[0].value = 10;
-				ssrSlider[0].sliderPos = getFloatSliderPosFromValue(ssrSlider[0]);
 				position.y += ssrSlider[0].sliderRadius*2+10;
 				ssrSlider[1].pos = {position.x, position.y};
-				ssrSlider[1].size = {200, 6};
-				ssrSlider[1].sliderRadius = 12;
-				ssrSlider[1].value = 20;
-				ssrSlider[1].sliderPos = getFloatSliderPosFromValue(ssrSlider[1]);
 				ssrSliderCount = 2;
 				position.y += 12;
 			}else ssrSliderCount = 0;
@@ -117,36 +103,12 @@ ErrCode setRenderMode(void* mode)noexcept{
 			if(getCheckBoxFlag(checkboxes[2], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
 				ssaoSlider[0].pos = {position.x, position.y};
-				ssaoSlider[0].size = {200, 6};
-				ssaoSlider[0].sliderRadius = 12;
-				ssaoSlider[0].minValue = 1;
-				ssaoSlider[0].maxValue = 64;
-				ssaoSlider[0].value = 8;
-				ssaoSlider[0].sliderPos = getFloatSliderPosFromValue(ssaoSlider[0]);
 				position.y += ssaoSlider[0].sliderRadius*2+10;
 				ssaoSlider[1].pos = {position.x, position.y};
-				ssaoSlider[1].size = {200, 6};
-				ssaoSlider[1].sliderRadius = 12;
-				ssaoSlider[1].minValue = 2;
-				ssaoSlider[1].maxValue = 20;
-				ssaoSlider[1].value = 8;
-				ssaoSlider[1].sliderPos = getFloatSliderPosFromValue(ssaoSlider[1]);
 				position.y += ssaoSlider[0].sliderRadius*2+10;
 				ssaoSlider[2].pos = {position.x, position.y};
-				ssaoSlider[2].size = {200, 6};
-				ssaoSlider[2].sliderRadius = 12;
-				ssaoSlider[2].minValue = 0;
-				ssaoSlider[2].maxValue = 10;
-				ssaoSlider[2].value = 2;
-				ssaoSlider[2].sliderPos = getFloatSliderPosFromValue(ssaoSlider[2]);
 				position.y += ssaoSlider[0].sliderRadius*2+10;
 				ssaoSlider[3].pos = {position.x, position.y};
-				ssaoSlider[3].size = {200, 6};
-				ssaoSlider[3].sliderRadius = 12;
-				ssaoSlider[3].minValue = 1;
-				ssaoSlider[3].maxValue = 30;
-				ssaoSlider[3].value = 13;
-				ssaoSlider[3].sliderPos = getFloatSliderPosFromValue(ssaoSlider[3]);
 				ssaoSliderCount = 4;
 				position.y += 12;
 			}else ssaoSliderCount = 0;
@@ -158,21 +120,13 @@ ErrCode setRenderMode(void* mode)noexcept{
 			if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
 				ssgiSlider[0].pos = {position.x, position.y};
-				ssgiSlider[0].size = {200, 6};
-				ssgiSlider[0].sliderRadius = 12;
-				ssgiSlider[0].minValue = 4;
-				ssgiSlider[0].maxValue = 64;
-				ssgiSlider[0].value = 16;
-				ssgiSlider[0].sliderPos = getFloatSliderPosFromValue(ssgiSlider[0]);
 				position.y += ssgiSlider[0].sliderRadius*2+10;
 				ssgiSlider[1].pos = {position.x, position.y};
-				ssgiSlider[1].size = {200, 6};
-				ssgiSlider[1].sliderRadius = 12;
-				ssgiSlider[1].minValue = 0;
-				ssgiSlider[1].maxValue = 3;
-				ssgiSlider[1].value = 1;
-				ssgiSlider[1].sliderPos = getFloatSliderPosFromValue(ssgiSlider[1]);
-				ssgiSliderCount = 2;
+				position.y += ssgiSlider[0].sliderRadius*2+10;
+				ssgiSlider[2].pos = {position.x, position.y};
+				position.y += ssgiSlider[0].sliderRadius*2+10;
+				ssgiSlider[3].pos = {position.x, position.y};
+				ssgiSliderCount = 4;
 				position.y += 12;
 			}else ssgiSliderCount = 0;
 			position.y += 10;
@@ -183,21 +137,15 @@ ErrCode setRenderMode(void* mode)noexcept{
 			if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
 				ssrcSlider[0].pos = {position.x, position.y};
-				ssrcSlider[0].size = {200, 6};
-				ssrcSlider[0].sliderRadius = 12;
-				ssrcSlider[0].minValue = 8;
-				ssrcSlider[0].maxValue = 512;
-				ssrcSlider[0].value = 64;
-				ssrcSlider[0].sliderPos = getFloatSliderPosFromValue(ssrcSlider[0]);
 				position.y += ssrcSlider[0].sliderRadius*2+10;
 				ssrcSlider[1].pos = {position.x, position.y};
-				ssrcSlider[1].size = {200, 6};
-				ssrcSlider[1].sliderRadius = 12;
-				ssrcSlider[1].minValue = 0;
-				ssrcSlider[1].maxValue = 4;
-				ssrcSlider[1].value = 1;
-				ssrcSlider[1].sliderPos = getFloatSliderPosFromValue(ssrcSlider[1]);
-				ssrcSliderCount = 2;
+				position.y += ssrcSlider[0].sliderRadius*2+10;
+				ssrcSlider[2].pos = {position.x, position.y};
+				position.y += ssrcSlider[0].sliderRadius*2+10;
+				ssrcSlider[3].pos = {position.x, position.y};
+				position.y += ssrcSlider[0].sliderRadius*2+10;
+				ssrcSlider[4].pos = {position.x, position.y};
+				ssrcSliderCount = 5;
 				position.y += 12;
 			}else ssrcSliderCount = 0;
 			break;
@@ -315,10 +263,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			DWORD uvx = (DWORD)viewPos.x;
 			DWORD uvy = (DWORD)viewPos.y;
 
-			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height){
-				renderBuffers.frameBuffer[idx] = RGBA(255, 0, 0);
-				continue;
-			}
+			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height) continue;
 
 			float shadowColor = 0;
 			for(SBYTE dy=-1; dy <= 1; ++dy){
@@ -387,8 +332,8 @@ float raytrace(fvec3 position, const fvec3 normal, float rotm[3][3], float aspec
 				n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
 				n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
 				n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
-				float ndotl = dot(direction, normal);
-				lightStrength += raytrace(pos, n, rotm, aspectRatio, 16, bounces-1, maxSteps, stepSize, totalBufferSize)*ndotl;
+				float ndotl = dot(direction, normal)*2;
+				lightStrength += raytrace(pos, n, rotm, aspectRatio, samples/2, bounces-1, maxSteps, stepSize, totalBufferSize)*ndotl;
 				lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
 				hits++;
 				break;
@@ -411,53 +356,95 @@ void ssrc(RenderBuffers& renderBuffers, Camera& cam)noexcept{
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
-	const int probeCount = ssrcSlider[0].value;
-	const int yInc = renderBuffers.height/probeCount;
-	const int xInc = renderBuffers.width/probeCount;
-	float radianceBuffer[probeCount*probeCount];
-	for(DWORD y=yInc/2; y < renderBuffers.height; y+=yInc){
-		for(DWORD x=xInc/2; x < renderBuffers.width; x+=xInc){
-			DWORD idx = y*renderBuffers.width+x;
-			fvec3 worldNormal;
-			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
-			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
-			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
+	const int probesCount = ssrcSlider[0].value;
+	const int yInc = renderBuffers.height/probesCount;
+	const int xInc = renderBuffers.width/probesCount;
+	float radianceBuffer[probesCount*probesCount];
+	const BYTE bounces = ssrcSlider[1].value;
+	const float stepSize = ssrcSlider[2].value;
+	const int maxSteps = ssrcSlider[3].value;
 
-			fvec3 worldPixelPosition;
-			worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
-			worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
-			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
+	for(BYTE b=0; b < bounces; ++b){
+		for(DWORD y=yInc/2; y < renderBuffers.height; y+=yInc){
+			for(DWORD x=xInc/2; x < renderBuffers.width; x+=xInc){
+				DWORD idx = y*renderBuffers.width+x;
+				fvec3 worldNormal;
+				worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
+				worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
+				worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
 
-			const float stepSize = 6;
-			const int maxSteps = 40;
-			const WORD ssgiSamples = 16;
-			const BYTE bounces = ssrcSlider[1].value;
-			dataBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
-		}
-	}
-	for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
-		for(WORD y=yInc/2; y < renderBuffers.height-yInc; y+=yInc){
-			WORD yStartIdx = (y/yInc)*yInc+yInc/2;
-			WORD yEndIdx = (y/yInc)*yInc+yInc+yInc/2;
-			float startValue = dataBuffers[1].data[yStartIdx*renderBuffers.width+x];
-			float endValue = dataBuffers[1].data[yEndIdx*renderBuffers.width+x];
-			for(WORD i=yStartIdx+1; i < yEndIdx; ++i){
-				float t = (float)(i-yStartIdx)/(yEndIdx-yStartIdx);
-				float value = lerp(startValue, endValue, t);
-				dataBuffers[1].data[i*renderBuffers.width+x] = value;
+				fvec3 worldPixelPosition;
+				worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
+				worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
+				worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
+
+				const WORD samples = ssrcSlider[4].value;
+
+				float lightStrength = 0.f;
+				for(WORD i=0; i < samples; ++i){
+					fvec3 samplePos = worldPixelPosition;
+					fvec3 direction = generateRandomNormalInHemisphere(worldNormal);
+					bool hit = false;
+					for(int step=0; step < maxSteps; ++step){
+						samplePos.x -= direction.x * stepSize;
+						samplePos.y -= direction.y * stepSize;
+						samplePos.z -= direction.z * stepSize;
+
+						fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
+						WORD screenX = (WORD)screenCoords.x;
+						WORD screenY = (WORD)screenCoords.y;
+
+						if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) break;
+
+						DWORD sampleIdx = screenY*renderBuffers.width+screenX;
+						float depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
+						if(depthDiff >= 20.f*DEPTH_DIVISOR) break;
+						if(depthDiff > 2.f*DEPTH_DIVISOR){
+							fvec3 pos;
+							pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
+							pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
+							pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
+
+							fvec3 n;
+							n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
+							n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
+							n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
+							float ndotl = dot(direction, worldNormal)*2;
+							lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
+							lightStrength += dataBuffers[1].data[sampleIdx]*ndotl;
+							hit = true;
+							break;
+						}
+					}
+					// if(!hit) lightStrength += 1.f;
+				}
+				dataBuffers[1].data[idx] += lightStrength/samples;
 			}
 		}
-	}
-	for(WORD y=yInc/2; y < renderBuffers.height-yInc; ++y){
 		for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
-			WORD xStartIdx = (x/xInc)*xInc+xInc/2;
-			WORD xEndIdx = (x/xInc)*xInc+xInc+xInc/2;
-			float startValue = dataBuffers[1].data[y*renderBuffers.width+xStartIdx];
-			float endValue = dataBuffers[1].data[y*renderBuffers.width+xEndIdx];
-			for(WORD i=xStartIdx+1; i < xEndIdx; ++i){
-				float t = (float)(i-xStartIdx)/(xEndIdx-xStartIdx);
-				float value = lerp(startValue, endValue, t);
-				dataBuffers[1].data[y*renderBuffers.width+i] = value;
+			for(WORD y=yInc/2; y < renderBuffers.height-yInc; y+=yInc){
+				WORD yStartIdx = (y/yInc)*yInc+yInc/2;
+				WORD yEndIdx = (y/yInc)*yInc+yInc+yInc/2;
+				float startValue = dataBuffers[1].data[yStartIdx*renderBuffers.width+x];
+				float endValue = dataBuffers[1].data[yEndIdx*renderBuffers.width+x];
+				for(WORD i=yStartIdx+1; i < yEndIdx; ++i){
+					float t = (float)(i-yStartIdx)/(yEndIdx-yStartIdx);
+					float value = lerp(startValue, endValue, smoothstep(t));
+					dataBuffers[1].data[i*renderBuffers.width+x] = value;
+				}
+			}
+		}
+		for(WORD y=yInc/2; y < renderBuffers.height-yInc; ++y){
+			for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
+				WORD xStartIdx = (x/xInc)*xInc+xInc/2;
+				WORD xEndIdx = (x/xInc)*xInc+xInc+xInc/2;
+				float startValue = dataBuffers[1].data[y*renderBuffers.width+xStartIdx];
+				float endValue = dataBuffers[1].data[y*renderBuffers.width+xEndIdx];
+				for(WORD i=xStartIdx+1; i < xEndIdx; ++i){
+					float t = (float)(i-xStartIdx)/(xEndIdx-xStartIdx);
+					float value = lerp(startValue, endValue, smoothstep(t));
+					dataBuffers[1].data[y*renderBuffers.width+i] = value;
+				}
 			}
 		}
 	}
@@ -489,8 +476,8 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam, DWORD startIdx, DWORD endId
 		worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
 		worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
 
-		const float stepSize = 6;
-		const int maxSteps = 40;
+		const float stepSize = ssgiSlider[2].value;
+		const int maxSteps = ssgiSlider[3].value;
 		const WORD ssgiSamples = ssgiSlider[0].value;
 		const BYTE bounces = ssgiSlider[1].value;
 		dataBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
@@ -549,7 +536,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
 			if(depthDiff <= minDepth || depthDiff >= maxDepth) strength++;
 		}
 		strength /= ssaoSamples;
-		colorBuffers[0].data[idx] = R(colorBuffers[0].data[idx], 255*strength);
+		dataBuffers[1].data[idx] = strength;
 	}
 }
 
@@ -694,7 +681,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	}
 
 	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != ERR_SUCCESS) return -1;
-	font.font_size = 28;
+	font.font_size = 26;
 
 	//TODO dynamisch
 	#define MODELSTORAGECOUNT 50
@@ -715,7 +702,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// ErrCheck(openExplorer(filepath, sizeof(filepath), "OBJ Wavefront Format .obj\0*.obj\0"), "Explorer öffnen");
 	// std::cout << filepath << std::endl;
 
-	if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
@@ -793,6 +781,99 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	settingsMenu.buttonCount = 5;
 	settingsMenu.size = {buttonSize.x, buttonPos.y+buttonSize.y};
 
+	shadowSlider[0].size = {200, 6};
+	shadowSlider[0].sliderRadius = 12;
+	shadowSlider[0].minValue = -10;
+	shadowSlider[0].maxValue = 10;
+	shadowSlider[0].value = 3;
+	shadowSlider[0].sliderPos = getFloatSliderPosFromValue(shadowSlider[0]);
+	ssrSlider[0].size = {200, 6};
+	ssrSlider[0].sliderRadius = 12;
+	ssrSlider[0].value = 10;
+	ssrSlider[0].sliderPos = getFloatSliderPosFromValue(ssrSlider[0]);
+	ssrSlider[1].size = {200, 6};
+	ssrSlider[1].sliderRadius = 12;
+	ssrSlider[1].value = 20;
+	ssrSlider[1].sliderPos = getFloatSliderPosFromValue(ssrSlider[1]);
+	ssaoSlider[0].size = {200, 6};
+	ssaoSlider[0].sliderRadius = 12;
+	ssaoSlider[0].minValue = 1;
+	ssaoSlider[0].maxValue = 64;
+	ssaoSlider[0].value = 8;
+	ssaoSlider[0].sliderPos = getFloatSliderPosFromValue(ssaoSlider[0]);
+	ssaoSlider[1].size = {200, 6};
+	ssaoSlider[1].sliderRadius = 12;
+	ssaoSlider[1].minValue = 2;
+	ssaoSlider[1].maxValue = 20;
+	ssaoSlider[1].value = 8;
+	ssaoSlider[1].sliderPos = getFloatSliderPosFromValue(ssaoSlider[1]);
+	ssaoSlider[2].size = {200, 6};
+	ssaoSlider[2].sliderRadius = 12;
+	ssaoSlider[2].minValue = 0;
+	ssaoSlider[2].maxValue = 10;
+	ssaoSlider[2].value = 2;
+	ssaoSlider[2].sliderPos = getFloatSliderPosFromValue(ssaoSlider[2]);
+	ssaoSlider[3].size = {200, 6};
+	ssaoSlider[3].sliderRadius = 12;
+	ssaoSlider[3].minValue = 1;
+	ssaoSlider[3].maxValue = 30;
+	ssaoSlider[3].value = 13;
+	ssaoSlider[3].sliderPos = getFloatSliderPosFromValue(ssaoSlider[3]);
+	ssgiSlider[0].size = {200, 6};
+	ssgiSlider[0].sliderRadius = 12;
+	ssgiSlider[0].minValue = 4;
+	ssgiSlider[0].maxValue = 64;
+	ssgiSlider[0].value = 16;
+	ssgiSlider[0].sliderPos = getFloatSliderPosFromValue(ssgiSlider[0]);
+	ssgiSlider[1].size = {200, 6};
+	ssgiSlider[1].sliderRadius = 12;
+	ssgiSlider[1].minValue = 0;
+	ssgiSlider[1].maxValue = 3;
+	ssgiSlider[1].value = 1;
+	ssgiSlider[1].sliderPos = getFloatSliderPosFromValue(ssgiSlider[1]);
+	ssgiSlider[2].size = {200, 6};
+	ssgiSlider[2].sliderRadius = 12;
+	ssgiSlider[2].minValue = 0.5;
+	ssgiSlider[2].maxValue = 12;
+	ssgiSlider[2].value = 6;
+	ssgiSlider[2].sliderPos = getFloatSliderPosFromValue(ssgiSlider[2]);
+	ssgiSlider[3].size = {200, 6};
+	ssgiSlider[3].sliderRadius = 12;
+	ssgiSlider[3].minValue = 8;
+	ssgiSlider[3].maxValue = 120;
+	ssgiSlider[3].value = 40;
+	ssgiSlider[3].sliderPos = getFloatSliderPosFromValue(ssgiSlider[3]);
+	ssrcSlider[0].size = {200, 6};
+	ssrcSlider[0].sliderRadius = 12;
+	ssrcSlider[0].minValue = 8;
+	ssrcSlider[0].maxValue = 512;
+	ssrcSlider[0].value = 64;
+	ssrcSlider[0].sliderPos = getFloatSliderPosFromValue(ssrcSlider[0]);
+	ssrcSlider[1].size = {200, 6};
+	ssrcSlider[1].sliderRadius = 12;
+	ssrcSlider[1].minValue = 0;
+	ssrcSlider[1].maxValue = 4;
+	ssrcSlider[1].value = 1;
+	ssrcSlider[1].sliderPos = getFloatSliderPosFromValue(ssrcSlider[1]);
+	ssrcSlider[2].size = {200, 6};
+	ssrcSlider[2].sliderRadius = 12;
+	ssrcSlider[2].minValue = 0.5;
+	ssrcSlider[2].maxValue = 12;
+	ssrcSlider[2].value = 6;
+	ssrcSlider[2].sliderPos = getFloatSliderPosFromValue(ssrcSlider[2]);
+	ssrcSlider[3].size = {200, 6};
+	ssrcSlider[3].sliderRadius = 12;
+	ssrcSlider[3].minValue = 8;
+	ssrcSlider[3].maxValue = 120;
+	ssrcSlider[3].value = 40;
+	ssrcSlider[3].sliderPos = getFloatSliderPosFromValue(ssrcSlider[3]);
+	ssrcSlider[4].size = {200, 6};
+	ssrcSlider[4].sliderRadius = 12;
+	ssrcSlider[4].minValue = 4;
+	ssrcSlider[4].maxValue = 128;
+	ssrcSlider[4].value = 32;
+	ssrcSlider[4].sliderPos = getFloatSliderPosFromValue(ssrcSlider[4]);
+
 	for(int i=0; i < sizeof(checkboxes)/sizeof(Checkbox); ++i){
 		checkboxes[i].data = (void*)&shadedMode;
 		checkboxes[i].event = setRenderMode;
@@ -842,20 +923,35 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 						renderBuffers.frameBuffer[y*renderBuffers.width+x] = RGBA(color, color, color);
 					}
 				}
-				std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
-				std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
+				// std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
+				// std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
 				break;
 			}
 			case RENDERMODE_SHADED_MODE:{
+				DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
+
+				for(DWORD i=0; i < totalBufferSize; ++i) dataBuffers[1].data[i] = 0.f;
 				if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
 					for(DWORD i=0; i < modelCount; ++i) rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
 					shadowMappingShader(renderBuffers, shadowDepthBuffer, cam, shadowCamera);
-					for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i){
-						float strength = dataBuffers[0].data[i];
-						DWORD color = renderBuffers.frameBuffer[i];
-						renderBuffers.frameBuffer[i] = RGBA(R(color)*strength, G(color)*strength, B(color)*strength);
-					}
+				}
+				if(getCheckBoxFlag(checkboxes[1], CHECKBOXFLAG_CHECKED)) ssr(renderBuffers, cam);
+				if(getCheckBoxFlag(checkboxes[2], CHECKBOXFLAG_CHECKED)){
+					ssao(renderBuffers);
+				}
+				if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
+					ssgi(renderBuffers, cam, 0, totalBufferSize);
+				}
+				if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
+					ssrc(renderBuffers, cam);
+				}
+				for(DWORD i=0; i < totalBufferSize; ++i){
+					float direct = dataBuffers[0].data[i];
+					float indirect = dataBuffers[1].data[i];
+					float strength = clamp(direct + indirect, 0.f, 1.f);
+					DWORD color = renderBuffers.frameBuffer[i];
+					renderBuffers.frameBuffer[i] = RGBA(R(color)*strength, G(color)*strength, B(color)*strength);
 				}
 				break;
 			}
@@ -873,18 +969,18 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])*0.001f) + "ms";
 		drawFontString(window.framebuffer, font, val.c_str(), 5, 2);
-		val = floatToString(performancePreFilter) + "ms";
+		val = "Total Triangles: ";
+		val += longToString(_perfAnalyzer.totalTriangles);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size+4);
-		val = longToString(_perfAnalyzer.totalTriangles);
+		val = "Drawn Triangles: ";
+		val += longToString(_perfAnalyzer.drawnTriangles);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*2+6);
-		val = longToString(_perfAnalyzer.drawnTriangles);
+		val = "Pixels drawn: ";
+		val += longToString(_perfAnalyzer.pixelsDrawn);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*3+8);
-		val = longToString(_perfAnalyzer.pixelsDrawn);
+		val = "Pixels culled: ";
+		val += longToString(_perfAnalyzer.pixelsCulled);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*4+10);
-		val = longToString(_perfAnalyzer.pixelsCulled);
-		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*5+12);
-		val = longToString(_perfAnalyzer.pointlessTriangles);
-		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*6+14);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 

@@ -151,6 +151,10 @@ constexpr float lerp(const float a, const float b, const float t)noexcept{
     return a+t*(b-a);
 }
 
+constexpr float smoothstep(const float t)noexcept{
+	return t*t*(3.f-2.f*t);
+}
+
 //Gibt 0 zurück, falls die Zahl positive ist, sonst 1
 constexpr BYTE sign(const float val)noexcept{
 	return ((*(DWORD*)&val)>>31);
