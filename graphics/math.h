@@ -5,6 +5,7 @@
 
 #define PI 3.14159265359
 #define FLOAT_MAX 3.40282346638528859811704183484516925e+38F
+#define FLOAT_MIN 1.17549435082228750796873653722224568e-38F
 
 // #define BRANCHLESSMINMAX
 
@@ -151,6 +152,11 @@ constexpr float lerp(const float a, const float b, const float t)noexcept{
     return a+t*(b-a);
 }
 
+constexpr fvec3 lerp(const fvec3& a, const fvec3& b, const float t)noexcept{
+	fvec3 ba = {b.x - a.x, b.y - a.y, b.z - a.z};
+	return {a.x + t*ba.x, a.y + t*ba.y, a.z + t*ba.z};
+}
+
 constexpr float smoothstep(const float t)noexcept{
 	return t*t*(3.f-2.f*t);
 }
@@ -165,6 +171,17 @@ constexpr float negSign(const float val)noexcept{
 	DWORD buffer = 0b00111111100000000000000000000000;	//Binäre Darstellung einer float 1
 	buffer |= ((*(DWORD*)&val)&0b1000'0000'0000'0000'0000'0000'0000'0000);
 	return *(float*)&buffer;
+}
+
+float closestPointOnLineSegmentT(const fvec3& point, const fvec3& start, const fvec3& end)noexcept{
+	fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
+	return dot(point, diff)/dot(diff, diff);
+}
+
+fvec3 closestPointOnLineSegment(const fvec3& point, const fvec3& start, const fvec3& end)noexcept{
+	fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
+	float t = dot(point, diff)/dot(diff, diff);
+    return lerp(start, end, clamp(t, 0.f, 1.f));
 }
 
 //TODO Die Indexberechnung lann optimiert werden

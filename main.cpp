@@ -15,13 +15,13 @@
 
 // #define NEWTRIANGLEDRAWINGALGORITHM
 #define CULLBACKFACES
-#define CULLBACKFACESSHADOW
-// #define CULLFRONTFACESSHADOW
+// #define CULLBACKFACESSHADOW
+#define CULLFRONTFACESSHADOW
 #include "graphics/window.h"
 
 bool _running = true;
-Camera cam = {1., {-293.917, -197.536, -18.5511}, {-1.493, 0.411999}};
-Camera shadowCamera = {1., {-1055.7, -452.036, 25.834}, {-1.561, 0.304497}};
+Camera cam = {1., {70.3199, -215.036, 163.83}, {-1.482, 0.144999}};
+Camera shadowCamera = {1., {-109.7, -1122.79, 1147.08}, {-3.04176, 0.697247}};
 
 LRESULT mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
 void update(float dt)noexcept;
@@ -45,7 +45,7 @@ FloatSlider ssgiSlider[4];
 WORD ssgiSliderCount = 0;
 FloatSlider ssrSlider[2];
 WORD ssrSliderCount = 0;
-FloatSlider ssrcSlider[5];
+FloatSlider ssrcSlider[7];
 WORD ssrcSliderCount = 0;
 FloatSlider resolutionScaleSlider;
 
@@ -78,8 +78,11 @@ ErrCode setRenderMode(void* mode)noexcept{
 			position.y += checkboxes[0].size.y;
 			if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
-				shadowSlider[0].pos = {position.x, position.y};
-				shadowSliderCount = 1;
+				shadowSliderCount = sizeof(shadowSlider)/sizeof(FloatSlider);
+				for(int i=0; i < shadowSliderCount; ++i){
+					shadowSlider[i].pos = {position.x, position.y};
+					if(i != shadowSliderCount-1) position.y += shadowSlider[i].sliderRadius*2+10;
+				}
 				position.y += 12;
 			}else shadowSliderCount = 0;
 			position.y += 10;
@@ -89,10 +92,11 @@ ErrCode setRenderMode(void* mode)noexcept{
 			position.y += checkboxes[1].size.y;
 			if(getCheckBoxFlag(checkboxes[1], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
-				ssrSlider[0].pos = {position.x, position.y};
-				position.y += ssrSlider[0].sliderRadius*2+10;
-				ssrSlider[1].pos = {position.x, position.y};
-				ssrSliderCount = 2;
+				ssrSliderCount = sizeof(ssrSlider)/sizeof(FloatSlider);
+				for(int i=0; i < ssrSliderCount; ++i){
+					ssrSlider[i].pos = {position.x, position.y};
+					if(i != ssrSliderCount-1) position.y += ssrSlider[i].sliderRadius*2+10;
+				}
 				position.y += 12;
 			}else ssrSliderCount = 0;
 			position.y += 10;
@@ -102,14 +106,11 @@ ErrCode setRenderMode(void* mode)noexcept{
 			position.y += checkboxes[2].size.y;
 			if(getCheckBoxFlag(checkboxes[2], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
-				ssaoSlider[0].pos = {position.x, position.y};
-				position.y += ssaoSlider[0].sliderRadius*2+10;
-				ssaoSlider[1].pos = {position.x, position.y};
-				position.y += ssaoSlider[0].sliderRadius*2+10;
-				ssaoSlider[2].pos = {position.x, position.y};
-				position.y += ssaoSlider[0].sliderRadius*2+10;
-				ssaoSlider[3].pos = {position.x, position.y};
-				ssaoSliderCount = 4;
+				ssaoSliderCount = sizeof(ssaoSlider)/sizeof(FloatSlider);
+				for(int i=0; i < ssaoSliderCount; ++i){
+					ssaoSlider[i].pos = {position.x, position.y};
+					if(i != ssaoSliderCount-1) position.y += ssaoSlider[i].sliderRadius*2+10;
+				}
 				position.y += 12;
 			}else ssaoSliderCount = 0;
 			position.y += 10;
@@ -119,14 +120,11 @@ ErrCode setRenderMode(void* mode)noexcept{
 			position.y += checkboxes[3].size.y;
 			if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
-				ssgiSlider[0].pos = {position.x, position.y};
-				position.y += ssgiSlider[0].sliderRadius*2+10;
-				ssgiSlider[1].pos = {position.x, position.y};
-				position.y += ssgiSlider[0].sliderRadius*2+10;
-				ssgiSlider[2].pos = {position.x, position.y};
-				position.y += ssgiSlider[0].sliderRadius*2+10;
-				ssgiSlider[3].pos = {position.x, position.y};
-				ssgiSliderCount = 4;
+				ssgiSliderCount = sizeof(ssgiSlider)/sizeof(FloatSlider);
+				for(int i=0; i < ssgiSliderCount; ++i){
+					ssgiSlider[i].pos = {position.x, position.y};
+					if(i != ssgiSliderCount-1) position.y += ssgiSlider[i].sliderRadius*2+10;
+				}
 				position.y += 12;
 			}else ssgiSliderCount = 0;
 			position.y += 10;
@@ -136,16 +134,11 @@ ErrCode setRenderMode(void* mode)noexcept{
 			position.y += checkboxes[4].size.y;
 			if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
-				ssrcSlider[0].pos = {position.x, position.y};
-				position.y += ssrcSlider[0].sliderRadius*2+10;
-				ssrcSlider[1].pos = {position.x, position.y};
-				position.y += ssrcSlider[0].sliderRadius*2+10;
-				ssrcSlider[2].pos = {position.x, position.y};
-				position.y += ssrcSlider[0].sliderRadius*2+10;
-				ssrcSlider[3].pos = {position.x, position.y};
-				position.y += ssrcSlider[0].sliderRadius*2+10;
-				ssrcSlider[4].pos = {position.x, position.y};
-				ssrcSliderCount = 5;
+				ssrcSliderCount = sizeof(ssrcSlider)/sizeof(FloatSlider);
+				for(int i=0; i < ssrcSliderCount; ++i){
+					ssrcSlider[i].pos = {position.x, position.y};
+					if(i != ssrcSliderCount-1) position.y += ssrcSlider[i].sliderRadius*2+10;
+				}
 				position.y += 12;
 			}else ssrcSliderCount = 0;
 			break;
@@ -166,15 +159,16 @@ float resolutionScale = 0.5;
 
 DWORD frameCounter = 0;
 
+ColorPoint* globalPoints = nullptr;
+DWORD globalPointCount = 0;
+
 fvec3 waterVertexShader(fvec3& point, float* attributes)noexcept{
 	point.x += cos(attributes[5]*5+frameCounter*0.2)*20;
 	point.y += sin(attributes[5]*5+frameCounter*0.2)*20;
 	return point;
 }
 
-fvec3 vertexShader(fvec3& point, float* attributes)noexcept{
-	return point;
-}
+fvec3 vertexShader(fvec3& point, float* attributes)noexcept{return point;}
 
 void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
@@ -263,14 +257,33 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			DWORD uvx = (DWORD)viewPos.x;
 			DWORD uvy = (DWORD)viewPos.y;
 
-			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height) continue;
+			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height){
+				dataBuffers[0].data[idx] = 0.f;
+				continue;
+			}
 
 			float shadowColor = 0;
+			bool valid = true;
 			for(SBYTE dy=-1; dy <= 1; ++dy){
+				if(!valid) break;
+				WORD yIdx = uvy+dy;
+				if(yIdx >= shadowDepthBuffer.height){
+					valid = false;
+					break;
+				}
 				for(SBYTE dx=-1; dx <= 1; ++dx){
-					float shadowDepth = shadowDepthBuffer.data[((uvy+dy)*shadowDepthBuffer.width+uvx+dx)%totalShadowSize];
+					WORD xIdx = uvx+dx;
+					if(xIdx >= shadowDepthBuffer.width){
+						valid = false;
+						break;
+					}
+					float shadowDepth = shadowDepthBuffer.data[yIdx*shadowDepthBuffer.width+xIdx];
 					if(viewPos.z*DEPTH_DIVISOR-shadowSlider[0].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
 				}
+			}
+			if(!valid){
+				dataBuffers[0].data[idx] = 0.f;
+				continue;
 			}
 			shadowColor /= 9;
 			
@@ -344,113 +357,180 @@ float raytrace(fvec3 position, const fvec3 normal, float rotm[3][3], float aspec
 	return lightStrength/hits;
 }
 
-void ssrc(RenderBuffers& renderBuffers, Camera& cam)noexcept{
+struct RadianceProbe{
+	fvec3 pos;
+	float lightStrength = 0;
+	DWORD idx;
+};
+
+void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, fvec3 lightPos)noexcept{
 	float rotm[3][3];
 	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
-	float sin_rotx = sin(cam.rot.x);
-	float cos_rotx = cos(cam.rot.x);
-	float sin_roty = sin(cam.rot.y);
-	float cos_roty = cos(cam.rot.y);
+	float sin_rotx = sin(camera.rot.x);
+	float cos_rotx = cos(camera.rot.x);
+	float sin_roty = sin(camera.rot.y);
+	float cos_roty = cos(camera.rot.y);
     rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
     rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
     rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
 	
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
-	const int probesCount = ssrcSlider[0].value;
-	const int yInc = renderBuffers.height/probesCount;
-	const int xInc = renderBuffers.width/probesCount;
-	float radianceBuffer[probesCount*probesCount];
+	const int probesCountSlider = ssrcSlider[0].value;
+	const int yInc = std::ceil((float)renderBuffers.height/probesCountSlider);
+	const int xInc = std::ceil((float)renderBuffers.width/probesCountSlider);
 	const BYTE bounces = ssrcSlider[1].value;
 	const float stepSize = ssrcSlider[2].value;
 	const int maxSteps = ssrcSlider[3].value;
+	const float minDepth = ssrcSlider[5].value*DEPTH_DIVISOR;
+	const float maxDepth = ssrcSlider[6].value*DEPTH_DIVISOR;
+
+	RadianceProbe probes[probesCountSlider*probesCountSlider];
+	DWORD probesCount = 0;
+	#define HASHGRIDSIZEX 64
+	#define HASHGRIDSIZEY 64
+	#define RADIUS 2
+	DWORD hashGrid[probesCountSlider/4*HASHGRIDSIZEX*HASHGRIDSIZEY];		//TODO Sollte noch richtig berechnet werden
+	WORD hashGridProbeCount[HASHGRIDSIZEX*HASHGRIDSIZEY];
+	for(DWORD i=0; i < HASHGRIDSIZEX*HASHGRIDSIZEY; ++i) hashGridProbeCount[i] = 0;
+	for(DWORD y=yInc/2; y < renderBuffers.height; y+=yInc){
+		for(DWORD x=xInc/2; x < renderBuffers.width; x+=xInc){
+			DWORD idx = y*renderBuffers.width+x;
+			probes[probesCount].idx = idx;
+			probes[probesCount].pos.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
+			probes[probesCount].pos.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
+			probes[probesCount].pos.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
+			WORD i = (y*HASHGRIDSIZEY)/renderBuffers.height;
+			WORD j = (x*HASHGRIDSIZEX)/renderBuffers.width;
+			DWORD hashIdx = i*HASHGRIDSIZEX+j;
+			WORD count = hashGridProbeCount[hashIdx];
+			hashGrid[hashIdx*probesCountSlider/4+count] = probesCount;
+			hashGridProbeCount[hashIdx] += 1;
+			probesCount++;
+		}
+	}
 
 	for(BYTE b=0; b < bounces; ++b){
-		for(DWORD y=yInc/2; y < renderBuffers.height; y+=yInc){
-			for(DWORD x=xInc/2; x < renderBuffers.width; x+=xInc){
+		for(DWORD p=0; p < probesCount; ++p){
+			const DWORD idx = probes[p].idx;
+			fvec3 worldNormal;
+			worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
+			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
+			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
+
+			fvec3 worldPixelPosition = probes[p].pos;
+
+			const WORD samples = ssrcSlider[4].value;
+
+			float lightStrength = 0.f;
+			for(WORD i=0; i < samples; ++i){
+				fvec3 samplePos = worldPixelPosition;
+				fvec3 preSamplePos = samplePos;
+				fvec3 direction = generateRandomNormalInHemisphere(worldNormal);
+				for(int step=0; step < maxSteps; ++step){
+					samplePos.x -= direction.x*stepSize;
+					samplePos.y -= direction.y*stepSize;
+					samplePos.z -= direction.z*stepSize;
+					// globalPoints[globalPointCount].pos = samplePos;
+					// globalPoints[globalPointCount].color = RGBA(0, 255, 0);
+					// globalPointCount++;
+
+					fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, camera.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
+					WORD screenX = (WORD)screenCoords.x;
+					WORD screenY = (WORD)screenCoords.y;
+
+					//Worldspace tracing
+					if(screenX >= renderBuffers.width || screenY >= renderBuffers.height){
+						for(int i=step; i < maxSteps; ++i){
+							// globalPoints[globalPointCount].pos = samplePos;
+							// globalPoints[globalPointCount].color = RGBA(255, 0, 0);
+							// globalPointCount++;
+							float dist = getSDFDistanceFromPosition(sceneSdf, samplePos);
+							if(dist <= 8){
+								if(dist < 0) break;
+								//Schattenray
+								samplePos = preSamplePos;
+								fvec3 reflDir = direction;
+								direction = normalize({lightPos.x-samplePos.x, lightPos.y-samplePos.y, lightPos.z-samplePos.z});
+								for(int j=i; j < maxSteps; ++j){
+									// globalPoints[globalPointCount].pos = samplePos;
+									// globalPoints[globalPointCount].color = RGBA(0, 0, 255);
+									// globalPointCount++;
+									float dist = getSDFDistanceFromPosition(sceneSdf, samplePos);
+									if(dist <= 8){
+										if(dist < 0){
+											float ndotl = dot(reflDir, worldNormal)*2;
+											lightStrength += ndotl;
+										}
+										break;
+									}
+									samplePos.x += direction.x*dist;
+									samplePos.y += direction.y*dist;
+									samplePos.z += direction.z*dist;
+								}
+								break;
+							}
+							preSamplePos = samplePos;
+							samplePos.x -= direction.x*dist;
+							samplePos.y -= direction.y*dist;
+							samplePos.z -= direction.z*dist;
+						}
+						break;
+					}
+
+					DWORD sampleIdx = screenY*renderBuffers.width+screenX;
+					float depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
+					if(depthDiff >= maxDepth) break;	//TODO sollte auch gegen das Distance Field tracen
+					if(depthDiff > minDepth){
+						fvec3 pos;
+						pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
+						pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
+						pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
+
+						fvec3 n;
+						n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
+						n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
+						n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
+						float ndotl = dot(direction, worldNormal)*2;
+						lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
+						lightStrength += dataBuffers[1].data[sampleIdx]*ndotl;
+						break;
+					}
+				}
+			}
+			probes[p].lightStrength = lightStrength/samples;
+		}
+		for(WORD y=0; y < renderBuffers.height; ++y){
+			for(WORD x=0; x < renderBuffers.width; ++x){
 				DWORD idx = y*renderBuffers.width+x;
-				fvec3 worldNormal;
-				worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
-				worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
-				worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
-
-				fvec3 worldPixelPosition;
-				worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
-				worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
-				worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
-
-				const WORD samples = ssrcSlider[4].value;
-
-				float lightStrength = 0.f;
-				for(WORD i=0; i < samples; ++i){
-					fvec3 samplePos = worldPixelPosition;
-					fvec3 direction = generateRandomNormalInHemisphere(worldNormal);
-					bool hit = false;
-					for(int step=0; step < maxSteps; ++step){
-						samplePos.x -= direction.x * stepSize;
-						samplePos.y -= direction.y * stepSize;
-						samplePos.z -= direction.z * stepSize;
-
-						fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, cam.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
-						WORD screenX = (WORD)screenCoords.x;
-						WORD screenY = (WORD)screenCoords.y;
-
-						if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) break;
-
-						DWORD sampleIdx = screenY*renderBuffers.width+screenX;
-						float depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
-						if(depthDiff >= 20.f*DEPTH_DIVISOR) break;
-						if(depthDiff > 2.f*DEPTH_DIVISOR){
-							fvec3 pos;
-							pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
-							pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
-							pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
-
-							fvec3 n;
-							n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
-							n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
-							n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
-							float ndotl = dot(direction, worldNormal)*2;
-							lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
-							lightStrength += dataBuffers[1].data[sampleIdx]*ndotl;
-							hit = true;
-							break;
+				fvec3 worldPosition;
+				worldPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
+				worldPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
+				worldPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
+				float totalWeight = 0;
+				float lightStrength = 0;
+				for(int i=-RADIUS; i <= RADIUS; ++i){
+					for(int j=-RADIUS; j <= RADIUS; ++j){
+						WORD dy = (y*HASHGRIDSIZEY)/renderBuffers.height;
+						WORD dx = (x*HASHGRIDSIZEX)/renderBuffers.width;
+						DWORD hashIdx = (dy-i)*HASHGRIDSIZEX+dx+j;
+						if(hashIdx >= HASHGRIDSIZEX*HASHGRIDSIZEY) continue;
+						WORD count = hashGridProbeCount[hashIdx];
+						for(WORD l=0; l < count; ++l){
+							DWORD probeIdx = hashGrid[hashIdx*probesCountSlider/4+l];
+							float dist = length({probes[probeIdx].pos.x - worldPosition.x, probes[probeIdx].pos.y - worldPosition.y, probes[probeIdx].pos.z - worldPosition.z});
+							dist = max(10.f, dist);
+							float weigth = 1/(dist*dist);
+							lightStrength += probes[probeIdx].lightStrength*weigth;
+							totalWeight += weigth;
 						}
 					}
-					// if(!hit) lightStrength += 1.f;
 				}
-				dataBuffers[1].data[idx] += lightStrength/samples;
-			}
-		}
-		for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
-			for(WORD y=yInc/2; y < renderBuffers.height-yInc; y+=yInc){
-				WORD yStartIdx = (y/yInc)*yInc+yInc/2;
-				WORD yEndIdx = (y/yInc)*yInc+yInc+yInc/2;
-				float startValue = dataBuffers[1].data[yStartIdx*renderBuffers.width+x];
-				float endValue = dataBuffers[1].data[yEndIdx*renderBuffers.width+x];
-				for(WORD i=yStartIdx+1; i < yEndIdx; ++i){
-					float t = (float)(i-yStartIdx)/(yEndIdx-yStartIdx);
-					float value = lerp(startValue, endValue, smoothstep(t));
-					dataBuffers[1].data[i*renderBuffers.width+x] = value;
-				}
-			}
-		}
-		for(WORD y=yInc/2; y < renderBuffers.height-yInc; ++y){
-			for(WORD x=xInc/2; x < renderBuffers.width-xInc; x+=xInc){
-				WORD xStartIdx = (x/xInc)*xInc+xInc/2;
-				WORD xEndIdx = (x/xInc)*xInc+xInc+xInc/2;
-				float startValue = dataBuffers[1].data[y*renderBuffers.width+xStartIdx];
-				float endValue = dataBuffers[1].data[y*renderBuffers.width+xEndIdx];
-				for(WORD i=xStartIdx+1; i < xEndIdx; ++i){
-					float t = (float)(i-xStartIdx)/(xEndIdx-xStartIdx);
-					float value = lerp(startValue, endValue, smoothstep(t));
-					dataBuffers[1].data[y*renderBuffers.width+i] = value;
-				}
+				dataBuffers[1].data[idx] = lightStrength/totalWeight;
 			}
 		}
 	}
 }
 
-//TODO Setzt vorraus, dass colorBuffers und renderBuffers die gleiche Auflösung haben
 void ssgi(RenderBuffers& renderBuffers, Camera& cam, DWORD startIdx, DWORD endIdx)noexcept{
 	float rotm[3][3];
 	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
@@ -484,7 +564,6 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam, DWORD startIdx, DWORD endId
 	}
 }
 
-//TODO Setzt vorraus, dass colorBuffers und renderBuffers die gleiche Auflösung haben
 void ssao(RenderBuffers& renderBuffers)noexcept{
 	float rotm[3][3];
 	float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
@@ -668,6 +747,8 @@ void drawNormalBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image&
 	normalBufferShader(renderBuffers);
 }
 
+float pointScaling(WORD radius, float depth)noexcept{return max(radius-depth*0.005+0.005, 1.f);}
+
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
 	if(ErrCheck(initApp(), "App initialisieren") != ERR_SUCCESS) return -1;
 
@@ -708,8 +789,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
-		DWORD idx = 0;
-		for(DWORD j=0; j < model.triangleCount; ++j, ++idx){
+		for(DWORD j=0; j < model.triangleCount; ++j){
 			for(BYTE k=0; k < 3; ++k){
 				float* positionLocation = getAttrLoc(model, j, k, POSITIONATTRIBUTEOFFSET);
 				positionLocation[0] = model.triangles[j].points[k].x;
@@ -859,20 +939,32 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	ssrcSlider[2].sliderRadius = 12;
 	ssrcSlider[2].minValue = 0.5;
 	ssrcSlider[2].maxValue = 12;
-	ssrcSlider[2].value = 6;
+	ssrcSlider[2].value = 10;
 	ssrcSlider[2].sliderPos = getFloatSliderPosFromValue(ssrcSlider[2]);
 	ssrcSlider[3].size = {200, 6};
 	ssrcSlider[3].sliderRadius = 12;
 	ssrcSlider[3].minValue = 8;
-	ssrcSlider[3].maxValue = 120;
-	ssrcSlider[3].value = 40;
+	ssrcSlider[3].maxValue = 160;
+	ssrcSlider[3].value = 80;
 	ssrcSlider[3].sliderPos = getFloatSliderPosFromValue(ssrcSlider[3]);
 	ssrcSlider[4].size = {200, 6};
 	ssrcSlider[4].sliderRadius = 12;
 	ssrcSlider[4].minValue = 4;
-	ssrcSlider[4].maxValue = 128;
-	ssrcSlider[4].value = 32;
+	ssrcSlider[4].maxValue = 512;
+	ssrcSlider[4].value = 64;
 	ssrcSlider[4].sliderPos = getFloatSliderPosFromValue(ssrcSlider[4]);
+	ssrcSlider[5].size = {200, 6};
+	ssrcSlider[5].sliderRadius = 12;
+	ssrcSlider[5].minValue = 0.5;
+	ssrcSlider[5].maxValue = 8;
+	ssrcSlider[5].value = 2;
+	ssrcSlider[5].sliderPos = getFloatSliderPosFromValue(ssrcSlider[5]);
+	ssrcSlider[6].size = {200, 6};
+	ssrcSlider[6].sliderRadius = 12;
+	ssrcSlider[6].minValue = 1;
+	ssrcSlider[6].maxValue = 80;
+	ssrcSlider[6].value = 20;
+	ssrcSlider[6].sliderPos = getFloatSliderPosFromValue(ssrcSlider[6]);
 
 	for(int i=0; i < sizeof(checkboxes)/sizeof(Checkbox); ++i){
 		checkboxes[i].data = (void*)&shadedMode;
@@ -883,9 +975,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	for(WORD i=0; i < RANDOMNORMALSCOUNT; ++i){
 		while(1){
-			float a = nextrand()/2147483648.f-1;
-			float b = nextrand()/2147483648.f-1;
-			float c = nextrand()/2147483648.f-1;
+			float a = nextrand()/2147483648.f-1.f;
+			float b = nextrand()/2147483648.f-1.f;
+			float c = nextrand()/2147483648.f-1.f;
 			if(a*a+b*b+c*c <= 1){
 				randomNormalVectorBuffer[i] = normalize({a, b, c});
 				break;
@@ -895,6 +987,15 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	Depthbuffer shadowDepthBuffer;
 	if(ErrCheck(createDepthbuffer(shadowDepthBuffer, 1024, 1024), "Shadowmap erstellen") != ERR_SUCCESS) return -1;
+
+	SDF sceneSdf;
+	createSDF(sceneSdf, {-400, -500, -400}, {800, 550, 800}, 50, 50, 100);
+	calculateSDFBounds(sceneSdf, models, modelCount, {20, 20, 20});
+	setSDFValues(sceneSdf, 1000000.f);
+	for(DWORD i=0; i < modelCount; ++i) calculateSDFFromMesh(sceneSdf, models[i]);
+	float rotDir = 0;
+
+	globalPoints = new ColorPoint[10000];
 
 	while(_running){
 		getMessages(window);
@@ -923,8 +1024,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 						renderBuffers.frameBuffer[y*renderBuffers.width+x] = RGBA(color, color, color);
 					}
 				}
-				// std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
-				// std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
+				std::cout << shadowCamera.pos.x << ", " << shadowCamera.pos.y << ", " << shadowCamera.pos.z << std::endl;
+				std::cout << shadowCamera.rot.x << ", " << shadowCamera.rot.y << std::endl;
 				break;
 			}
 			case RENDERMODE_SHADED_MODE:{
@@ -944,8 +1045,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 					ssgi(renderBuffers, cam, 0, totalBufferSize);
 				}
 				if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
-					ssrc(renderBuffers, cam);
+					ssrc(renderBuffers, cam, sceneSdf, shadowCamera.pos);
 				}
+				// boxBlur(dataBuffers[1].data, dataBuffers[1].width, dataBuffers[1].height, 3);
 				for(DWORD i=0; i < totalBufferSize; ++i){
 					float direct = dataBuffers[0].data[i];
 					float indirect = dataBuffers[1].data[i];
@@ -965,6 +1067,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 			}
 		}
 
+		// drawSDF(renderBuffers, sceneSdf, 3, cam, pointScaling);
+		// drawPoints(renderBuffers, globalPoints, 0, globalPointCount, 3, cam, pointScaling);
+
 		copyImageToColorbuffer(window.framebuffer, {renderBuffers.width, renderBuffers.height, renderBuffers.frameBuffer}, 0, 0, window.windowWidth, window.windowHeight);
 
 		std::string val = floatToString(getTimerMicros(_perfAnalyzer.timer[0])*0.001f) + "ms";
@@ -981,6 +1086,9 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		val = "Pixels culled: ";
 		val += longToString(_perfAnalyzer.pixelsCulled);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*4+10);
+		val = "Punkteanzahl: ";
+		val += longToString(globalPointCount);
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*5+12);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 
@@ -992,6 +1100,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
 	for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i) destroyFloatbuffer(dataBuffers[i]);
+	delete[] globalPoints;
+	destroySDF(sceneSdf);
 	destroyRenderBuffers(renderBuffers);
 	destroyDepthbuffer(shadowDepthBuffer);
 	destroyFont(font);
