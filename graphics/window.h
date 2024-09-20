@@ -14,6 +14,8 @@
 	haben nicht immer einen pointer der vllt nicht gebraucht wird, da es keine attribute gibt
 	TODO Applikation ist ja eigentlich nur noch da wegen Direct2D... vllt kann man einfach init/deinit Funktionen machen und die Anwender müssen sich selbst merken
 	was für einen State die Applikation hat
+	TODO GPUs arbeiten eigentlich mit Quads, nicht Pixelen direkt, man könnte also einen Lower Res Depthbuffer bauen, welcher für jedes Quad den max. Depthwert speichert
+	und dann sucht man den max. Wert für das QUad und verlgeicht, damit kann man direkt 4 Pixel auf einmal discarden, falls der Depthtest failed
 */
 
 struct Colorbuffer{
@@ -318,6 +320,21 @@ ErrCode drawCircle(const Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD
 	for(SWORD i=-radius; i < radius; ++i){
 		for(SWORD j=-radius; j < radius; ++j){
 			if(j*j+i*i <= radius*radius) buffer.data[(i+y)*buffer.width+j+x] = color;
+		}
+	}
+	return ERR_SUCCESS;
+}
+
+ErrCode drawCircleSave(const Colorbuffer& buffer, WORD x, WORD y, WORD radius, DWORD color)noexcept{
+	DWORD totalBufferSize = buffer.width*buffer.height;
+	for(SWORD i=-radius; i < radius; ++i){
+		for(SWORD j=-radius; j < radius; ++j){
+			if(j*j+i*i <= radius*radius){
+				DWORD dy = i+y;
+				DWORD dx = j+x;
+				if(dx >= buffer.width || dy >= buffer.height) continue;
+				buffer.data[dy*buffer.width+dx] = color;
+			}
 		}
 	}
 	return ERR_SUCCESS;
@@ -737,7 +754,7 @@ constexpr void toggleCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{box
 constexpr void resetCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{box.flags &= ~flag;}
 constexpr bool getCheckBoxFlag(Checkbox& box, CHECKBOXFLAGS flag)noexcept{return (box.flags&flag);}
 
-void updateCheckBoxs(Colorbuffer& buffer, Font& font, Checkbox* boxes, WORD boxCount)noexcept{
+void updateCheckBoxes(Colorbuffer& buffer, Font& font, Checkbox* boxes, WORD boxCount)noexcept{
 	for(WORD i=0; i < boxCount; ++i){
 		if(getButton(mouse, MOUSEBUTTON_LMB) && !getButton(mouse, MOUSEBUTTON_PREV_LMB)){
 			WORD x = mouse.pos.x-boxes[i].pos.x;
@@ -1526,6 +1543,7 @@ typedef fvec3 (*vertexShaderFunction)(fvec3&, float*)noexcept;
 
 //TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
 //TODO Man sollte die Rotationsmatrix übergeben oder einfach in Camera speichern, damit die nicht immer wieder hier neu berechnet wird
+//TODO Backface + Frontfaceculling sollten ifs sein, die man wärend der runtime ändern kann
 void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
@@ -1731,8 +1749,45 @@ void drawPoints(RenderBuffers& renderBuffers, ColorPoint* points, DWORD startIdx
 					DWORD dy = j+y;
 					if(dx >= renderBuffers.width || dy >= renderBuffers.height) continue;
 					DWORD idx = dy*renderBuffers.width+dx;
+					#ifdef POINTSTESTDEPTH
+					if(renderBuffers.depthBuffer[idx] < v.z*DEPTH_DIVISOR) continue;
+					#endif
+					renderBuffers.frameBuffer[idx] = points[i].color;
+				}
+			}
+		}
+    }
+    return;
+}
+
+void drawPointsDepth(RenderBuffers& renderBuffers, ColorPoint* points, DWORD startIdx, DWORD endIdx, WORD radius, Camera& cam, float(*pointScalingFunction)(WORD, float)noexcept)noexcept{
+	float rotm[3][3];
+	float sin_rotx = sin(cam.rot.x);
+	float cos_rotx = cos(cam.rot.x);
+	float sin_roty = sin(cam.rot.y);
+	float cos_roty = cos(cam.rot.y);
+    rotm[0][0] = cos_rotx; 				rotm[0][1] = 0; 		rotm[0][2] = sin_rotx;
+    rotm[1][0] = sin_rotx*sin_roty;		rotm[1][1] = cos_roty; 	rotm[1][2] = -sin_roty*cos_rotx;
+    rotm[2][0] = -sin_rotx*cos_roty;	rotm[2][1] = sin_roty; 	rotm[2][2] = cos_rotx*cos_roty;
+	const float aspect_ratio = (float)renderBuffers.height/renderBuffers.width;
+	const DWORD totalBufferWidth = renderBuffers.width*renderBuffers.height;
+    for(DWORD i=startIdx; i < endIdx; ++i){
+		fvec3 d = {points[i].pos.x-cam.pos.x, points[i].pos.y-cam.pos.y, points[i].pos.z-cam.pos.z};
+		fvec3 v = mulVec3Mat3x3(d, rotm);
+		if(v.z <= 1) continue;
+		DWORD x = (((v.x*(cam.focal_length/v.z)*aspect_ratio)*0.5)+0.5)*renderBuffers.width;
+		DWORD y = ((v.y*(cam.focal_length/v.z)*0.5)+0.5)*renderBuffers.height;
+		const float r = pointScalingFunction(radius, v.z);
+		for(SWORD j=-r; j < r; ++j){
+			for(SWORD k=-r; k < r; ++k){
+				if(k*k+j*j < r*r){
+					DWORD dx = k+x;
+					DWORD dy = j+y;
+					if(dx >= renderBuffers.width || dy >= renderBuffers.height) continue;
+					DWORD idx = dy*renderBuffers.width+dx;
 					if(renderBuffers.depthBuffer[idx] < v.z*DEPTH_DIVISOR) continue;
 					renderBuffers.frameBuffer[idx] = points[i].color;
+					renderBuffers.depthBuffer[idx] = v.z*DEPTH_DIVISOR;
 				}
 			}
 		}
@@ -2262,6 +2317,8 @@ struct SDF{
 	DWORD dy;
 	DWORD dz;
 	float* data = nullptr;	//Daten erst über X, dann Y, dann Z
+	BYTE* ids = nullptr;	//ID für jeden Datenpunkt
+	DWORD* color = nullptr;	//Farbe für jeden Datenpunkt
 };
 
 ErrCode createSDF(SDF& sdf, fvec3 pos, fvec3 size, DWORD dx, DWORD dy, DWORD dz)noexcept{
@@ -2271,12 +2328,18 @@ ErrCode createSDF(SDF& sdf, fvec3 pos, fvec3 size, DWORD dx, DWORD dy, DWORD dz)
 	sdf.dy = dy;
 	sdf.dz = dz;
 	sdf.data = new(std::nothrow) float[dx*dy*dz];
+	sdf.ids = new(std::nothrow) BYTE[dx*dy*dz];
+	sdf.color = new(std::nothrow) DWORD[dx*dy*dz];
 	if(sdf.data == nullptr) return ERR_BAD_ALLOC;
+	if(sdf.ids == nullptr) return ERR_BAD_ALLOC;
+	if(sdf.color == nullptr) return ERR_BAD_ALLOC;
 	return ERR_SUCCESS;
 }
 
 void destroySDF(SDF& sdf)noexcept{
 	delete[] sdf.data;
+	delete[] sdf.ids;
+	delete[] sdf.color;
 }
 
 void setSDFValues(SDF& sdf, float value)noexcept{
@@ -2334,26 +2397,105 @@ float pointToTriangleDistance(const fvec3& p, Triangle& tri){
 	return min(dist3, min(dist2, dist1));
 }
 
-void calculateSDFFromMesh(SDF& sdf, const TriangleModel& model)noexcept{
-	float dx = sdf.size.x/sdf.dx;
+void calculateSDFFromMesh(SDF& sdf, const TriangleModel& model, BYTE id)noexcept{
+    float dx = sdf.size.x/sdf.dx;
 	float dy = sdf.size.y/sdf.dy;
 	float dz = sdf.size.z/sdf.dz;
-	fvec3 pos = sdf.pos;
-	DWORD idx = 0;
-	for(DWORD i=0; i < sdf.dz; ++i){
-		pos.z = sdf.pos.z + i * dz;
-		for(DWORD j=0; j < sdf.dy; ++j){
-			pos.y = sdf.pos.y + j * dy;
-			for(DWORD k=0; k < sdf.dx; ++k){
-				pos.x = sdf.pos.x + k * dx;
-				for(DWORD l=0; l < model.triangleCount; ++l){
-					float dst = pointToTriangleDistance(pos, model.triangles[l]);
-					if(dst < sdf.data[idx]) sdf.data[idx] = dst;
+	BYTE* marked = new BYTE[sdf.dx*sdf.dy*sdf.dz]{0};
+	uivec3* bfsBuffer = new uivec3[sdf.dx*sdf.dy*sdf.dz*4];		//TODO Solle ein Vektor werden oder so
+	DWORD startIdx = 0;
+	DWORD endIdx = 0;
+	for(DWORD i=0; i < model.triangleCount; ++i){
+		fvec3 point1 = model.triangles[i].points[0];
+		fvec3 point2 = model.triangles[i].points[1];
+		fvec3 point3 = model.triangles[i].points[2];
+		fvec3 minExtend = {min(point1.x, min(point2.x, point3.x)), min(point1.y, min(point2.y, point3.y)), min(point1.z, min(point2.z, point3.z))};
+		fvec3 maxExtend = {max(point1.x, max(point2.x, point3.x)), max(point1.y, max(point2.y, point3.y)), max(point1.z, max(point2.z, point3.z))};
+		//TODO Könnte in ein DWORD transformiert werden, damit < 0 nicht mehr getestet werden muss
+		int minX = clamp((int)(((minExtend.x-sdf.pos.x)*sdf.dx)/sdf.size.x)-1, 0, sdf.dx-1);
+		int maxX = clamp((int)(((maxExtend.x-sdf.pos.x)*sdf.dx)/sdf.size.x)+1, 0, sdf.dx-1);
+		int minY = clamp((int)(((minExtend.y-sdf.pos.y)*sdf.dy)/sdf.size.y)-1, 0, sdf.dy-1);
+		int maxY = clamp((int)(((maxExtend.y-sdf.pos.y)*sdf.dy)/sdf.size.y)+1, 0, sdf.dy-1);
+		int minZ = clamp((int)(((minExtend.z-sdf.pos.z)*sdf.dz)/sdf.size.z)-1, 0, sdf.dz-1);
+		int maxZ = clamp((int)(((maxExtend.z-sdf.pos.z)*sdf.dz)/sdf.size.z)+1, 0, sdf.dz-1);
+		fvec3 pos;
+		for(int z=minZ; z <= maxZ; ++z){
+			pos.z = sdf.pos.z + z * dz;
+			for(int y=minY; y <= maxY; ++y){
+				pos.y = sdf.pos.y + y * dy;
+				for(int x=minX; x <= maxX; ++x){
+					pos.x = sdf.pos.x + x * dx;
+					DWORD idx = z*sdf.dy*sdf.dx+y*sdf.dx+x;
+					float dst = pointToTriangleDistance(pos, model.triangles[i]);
+            		if(dst < sdf.data[idx]){
+						sdf.data[idx] = dst;
+						sdf.color[idx] = model.material->textures[0].data[0];
+						sdf.ids[idx] = id;
+					}
+					if(marked[idx] == 0) bfsBuffer[endIdx++] = {(DWORD)x, (DWORD)y, (DWORD)z};
+					marked[idx] = 1;
 				}
-				idx++;
 			}
 		}
 	}
+	int dxDir[26] = {1, -1, 0, 0, 0, 0,  1, -1,  1, -1,  1, -1,  0, 0,  0, 0,  1, -1,  1, -1,  1, -1,  1, -1, 1, -1};
+	int dyDir[26] = {0, 0, 1, -1, 0, 0,  1, -1, -1,  1,  0,  0,  1, -1,  1, -1,  1, -1,  1, -1,  0,  0, -1,  1, 1, -1};
+	int dzDir[26] = {0, 0, 0, 0, 1, -1,  0,  0,  0,  0,  1, -1,  1,  1, -1, -1,  1,  1, -1, -1,  1,  1, -1, -1, 1, -1};
+	float distances[26] = {
+		dx, dx, dy, dy, dz, dz,
+		sqrt(dx*dx + dy*dy), sqrt(dx*dx + dy*dy),
+		sqrt(dx*dx + dz*dz), sqrt(dx*dx + dz*dz),
+		sqrt(dy*dy + dz*dz), sqrt(dy*dy + dz*dz),
+		sqrt(dx*dx + dy*dy), sqrt(dx*dx + dy*dy),
+		sqrt(dx*dx + dz*dz), sqrt(dx*dx + dz*dz),
+		sqrt(dx*dx + dy*dy + dz*dz), sqrt(dx*dx + dy*dy + dz*dz),
+		sqrt(dx*dx + dy*dy + dz*dz), sqrt(dx*dx + dy*dy + dz*dz),
+		sqrt(dx*dx + dy*dy + dz*dz), sqrt(dx*dx + dy*dy + dz*dz),
+		sqrt(dx*dx + dy*dy + dz*dz), sqrt(dx*dx + dy*dy + dz*dz),
+		sqrt(dx*dx + dy*dy + dz*dz), sqrt(dx*dx + dy*dy + dz*dz)
+	};
+	while(startIdx < endIdx){
+		uivec3 point = bfsBuffer[startIdx++];
+		for(int i=0; i < 26; ++i){
+			DWORD x = point.x + dxDir[i];
+            DWORD y = point.y + dyDir[i];
+            DWORD z = point.z + dzDir[i];
+			if(x >= sdf.dx || y >= sdf.dy || z >= sdf.dz) continue;
+			DWORD curIdx = point.z*sdf.dy*sdf.dx+point.y*sdf.dx+point.x;
+			DWORD newIdx = z*sdf.dy*sdf.dx+y*sdf.dx+x;
+			if(marked[newIdx] == 1) continue;
+			float dist = sdf.data[curIdx] + distances[i];
+			if(dist < sdf.data[newIdx]){
+				sdf.data[newIdx] = dist;
+				sdf.color[newIdx] = sdf.color[curIdx];
+				sdf.ids[newIdx] = sdf.ids[curIdx];
+				bfsBuffer[endIdx++] = {x, y, z};
+			}
+		}
+	}
+	delete[] marked;
+}
+
+void calculateSDFFromMeshOld(SDF& sdf, const TriangleModel& model)noexcept{
+    float dx = sdf.size.x/sdf.dx;
+    float dy = sdf.size.y/sdf.dy;
+    float dz = sdf.size.z/sdf.dz;
+    fvec3 pos = sdf.pos;
+    DWORD idx = 0;
+    for(DWORD i=0; i < sdf.dz; ++i){
+        pos.z = sdf.pos.z + i * dz;
+        for(DWORD j=0; j < sdf.dy; ++j){
+            pos.y = sdf.pos.y + j * dy;
+            for(DWORD k=0; k < sdf.dx; ++k){
+                pos.x = sdf.pos.x + k * dx;
+				for(DWORD l=0; l < model.triangleCount; ++l){
+                    float dst = pointToTriangleDistance(pos, model.triangles[l]);
+                    if(dst < sdf.data[idx]) sdf.data[idx] = dst;
+                }
+                idx++;
+            }
+        }
+    }
 }
 
 float getSDFDistanceFromPosition(SDF& sdf, const fvec3& position)noexcept{
@@ -2364,29 +2506,59 @@ float getSDFDistanceFromPosition(SDF& sdf, const fvec3& position)noexcept{
 	return sdf.data[z*sdf.dy*sdf.dx+y*sdf.dx+x];
 }
 
-void drawSDF(RenderBuffers& renderBuffers, SDF& sdf, WORD radius, Camera& cam, float (*pointScalingFunction)(WORD, float) noexcept)noexcept{
+DWORD getSDFColorFromPosition(SDF& sdf, const fvec3& position)noexcept{
+	DWORD x = (DWORD)((position.x-sdf.pos.x)*sdf.dx)/sdf.size.x;
+	DWORD y = (DWORD)((position.y-sdf.pos.y)*sdf.dy)/sdf.size.y;
+	DWORD z = (DWORD)((position.z-sdf.pos.z)*sdf.dz)/sdf.size.z;
+	if(x >= sdf.dx || y >= sdf.dy || z >= sdf.dz) return RGBA(0, 0, 0);
+	return sdf.color[z*sdf.dy*sdf.dx+y*sdf.dx+x];
+}
+
+constexpr DWORD colorPicker(BYTE id)noexcept{
+	switch(id%14){
+		case 0: return RGBA(128, 128, 128);
+		case 1: return RGBA(255, 0, 0);
+		case 2: return RGBA(0, 255, 0);
+		case 3: return RGBA(0, 0, 255);
+		case 4: return RGBA(255, 255, 0);
+		case 5: return RGBA(255, 0, 255);
+		case 6: return RGBA(0, 255, 255);
+		case 7: return RGBA(255, 255, 255);
+		case 8: return RGBA(128, 0, 0);
+		case 9: return RGBA(0, 128, 0);
+		case 10: return RGBA(0, 0, 128);
+		case 11: return RGBA(128, 128, 0);
+		case 12: return RGBA(128, 0, 128);
+		case 13: return RGBA(0, 128, 128);
+	}
+	return RGBA(128, 128, 128);
+}
+
+void drawSDF(RenderBuffers& renderBuffers, SDF& sdf, WORD radius, float maxVal, Camera& cam, float (*pointScalingFunction)(WORD, float) noexcept)noexcept{
 	ColorPoint* pts = new ColorPoint[sdf.dx*sdf.dy*sdf.dz];
 	DWORD count = 0;
 	float dx = sdf.size.x/sdf.dx;
 	float dy = sdf.size.y/sdf.dy;
 	float dz = sdf.size.z/sdf.dz;
-	fvec3 pos = sdf.pos;
-	DWORD idx = 0;
-	for(DWORD i=0; i < sdf.dz; ++i){
-		pos.z = sdf.pos.z + i * dz;
-		for(DWORD j=0; j < sdf.dy; ++j){
-			pos.y = sdf.pos.y + j * dy;
-			for(DWORD k=0; k < sdf.dx; ++k){
-				pos.x = sdf.pos.x + k * dx;
-				WORD color = 255-clamp(sdf.data[idx], 0.f, 255.f);
-				idx++;
-				if(color < 245) continue;
-				pts[count].pos = pos;
-				pts[count].color = RGBA(color, color, color);
-				count++;
+	fvec3 pos;
+	for(int z=0; z < sdf.dz; ++z){
+		pos.z = sdf.pos.z + z * dz;
+		for(int y=0; y < sdf.dy; ++y){
+			pos.y = sdf.pos.y + y * dy;
+			for(int x=0; x < sdf.dx; ++x){
+				pos.x = sdf.pos.x + x * dx;
+				DWORD idx = z*sdf.dy*sdf.dx+y*sdf.dx+x;
+				float value = sdf.data[idx];
+				if(value <= maxVal){
+					pts[count].pos = pos;
+					// pts[count].color = colorPicker(sdf.ids[idx]);
+					pts[count].color = sdf.color[idx];
+					count++;
+				}
 			}
 		}
 	}
-	drawPoints(renderBuffers, pts, 0, count, radius, cam, pointScalingFunction);
+	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i) renderBuffers.depthBuffer[i] = FLOAT_MAX;
+	drawPointsDepth(renderBuffers, pts, 0, count, radius, cam, pointScalingFunction);
 	delete[] pts;
 }

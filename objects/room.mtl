@@ -1,5 +1,5 @@
 # Blender MTL File: 'room.blend'
-# Material Count: 9
+# Material Count: 12
 
 newmtl Black
 Ns 225.000000
@@ -54,6 +54,14 @@ d 1.000000
 illum 2
 map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\room\\fabric_191_Albedo-1K.tex
 
+newmtl None
+Ns 500
+Ka 0.8 0.8 0.8
+Kd 0.8 0.8 0.8
+Ks 0.8 0.8 0.8
+d 1
+illum 2
+
 newmtl TVScreen
 Ns 225.000000
 Ka 1.000000 1.000000 1.000000
@@ -95,3 +103,23 @@ Ni 1.450000
 d 1.000000
 illum 2
 map_Kd D:\\Eclipse Workspace\\Software-3D-Engine\\textures\\room\\wood_floor_diff_1k.tex
+
+newmtl brown.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.080011 0.032304 0.000000
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2
+
+newmtl leaf.001
+Ns 225.000000
+Ka 1.000000 1.000000 1.000000
+Kd 0.000000 0.114935 0.000739
+Ks 0.500000 0.500000 0.500000
+Ke 0.000000 0.000000 0.000000
+Ni 1.450000
+d 1.000000
+illum 2

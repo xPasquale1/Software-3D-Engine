@@ -7,6 +7,8 @@
 #define FLOAT_MAX 3.40282346638528859811704183484516925e+38F
 #define FLOAT_MIN 1.17549435082228750796873653722224568e-38F
 
+//Branchless Code ist meist unnötig für moderne CPUs, da diese meist Instructionen für die Aufgabe haben,
+//es könnte aber schneller auf älteren CPUs/Mikrochips sein
 // #define BRANCHLESSMINMAX
 
 struct ivec2{
