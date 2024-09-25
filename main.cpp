@@ -8,7 +8,6 @@
 	der rasterizer ausserhalb des pixel arrays
 	TODO aktuell gibt es kein far clipping plane, daher wird nur ein teil der depth buffer Auflösung genutzt
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle verticies die zu groß sind? aufwand größer?)
-	TODO Shadow mapping oder ähnliches
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
 	TODO eigene alloc Funktion machen, die ErrCode zurück gibt
 */
@@ -17,7 +16,6 @@
 #define CULLBACKFACES
 // #define CULLBACKFACESSHADOW
 #define CULLFRONTFACESSHADOW
-// #define POINTSTESTDEPTH
 #include "graphics/window.h"
 
 bool _running = true;
@@ -159,7 +157,7 @@ Font font;
 
 RenderBuffers renderBuffers;
 Colorbuffer colorBuffers[2];	//0 = SSGI
-Floatbuffer dataBuffers[2];		//0 = Schatten; 1 = Indirekte Beleuchtung
+Floatbuffer lightingBuffers[2];		//0 = Schatten; 1 = Indirekte Beleuchtung
 float resolutionScale = 0.5;
 
 DWORD frameCounter = 0;
@@ -263,7 +261,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			DWORD uvy = (DWORD)viewPos.y;
 
 			if(uvx >= shadowDepthBuffer.width || uvy >= shadowDepthBuffer.height){
-				dataBuffers[0].data[idx] = 0.f;
+				lightingBuffers[0].data[idx] = 0.f;
 				continue;
 			}
 
@@ -287,7 +285,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 				}
 			}
 			if(!valid){
-				dataBuffers[0].data[idx] = 0.f;
+				lightingBuffers[0].data[idx] = 0.f;
 				continue;
 			}
 			shadowColor /= 9;
@@ -314,7 +312,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			
 			lightStrength *= shadowColor;
 			lightStrength = clamp(lightStrength, 0.f, 1.f);
-			dataBuffers[0].data[idx] = lightStrength;
+			lightingBuffers[0].data[idx] = lightStrength;
 		}
 	}
 }
@@ -352,7 +350,7 @@ float raytrace(fvec3 position, const fvec3 normal, float rotm[3][3], float aspec
 				n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
 				float ndotl = dot(direction, normal)*2;
 				lightStrength += raytrace(pos, n, rotm, aspectRatio, samples/2, bounces-1, maxSteps, stepSize, totalBufferSize)*ndotl;
-				lightStrength += dataBuffers[0].data[sampleIdx]*ndotl;
+				lightStrength += lightingBuffers[0].data[sampleIdx]*ndotl;
 				hits++;
 				break;
 			}
@@ -549,9 +547,9 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 						n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
 						n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
 						float ndotl = dot(direction, worldNormal);
-						lightStrength += dataBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
-						probes[p].lightStrengths[i] = dataBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
-						lightStrength += dataBuffers[1].data[sampleIdx] * ndotl * brdf * pdf;
+						lightStrength += lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
+						probes[p].lightStrengths[i] = lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
+						lightStrength += lightingBuffers[1].data[sampleIdx] * ndotl * brdf * pdf;
 						#ifdef VISUALIZESSRCSINGLERAY
 						globalPoints[globalPointCount].pos = samplePos;
 						globalPoints[globalPointCount].color = RGBA(255, 255, 255);
@@ -610,7 +608,7 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 						}
 					}
 				}
-				if(totalWeight > 0) dataBuffers[1].data[idx] = lightStrength/totalWeight;
+				if(totalWeight > 0) lightingBuffers[1].data[idx] = lightStrength/totalWeight;
 			}
 		}
 	}
@@ -647,7 +645,7 @@ void ssgi(RenderBuffers& renderBuffers, Camera& cam, DWORD startIdx, DWORD endId
 		const int maxSteps = ssgiSlider[3].value;
 		const WORD ssgiSamples = ssgiSlider[0].value;
 		const BYTE bounces = ssgiSlider[1].value;
-		dataBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
+		lightingBuffers[1].data[idx] = raytrace(worldPixelPosition, worldNormal, rotm, aspect_ratio, ssgiSamples, bounces, maxSteps, stepSize, totalBufferSize);
 	}
 }
 
@@ -705,7 +703,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
 			if(depthDiff <= minDepth || depthDiff >= maxDepth) strength++;
 		}
 		strength /= ssaoSamples;
-		dataBuffers[1].data[idx] = strength;
+		lightingBuffers[1].data[idx] = strength;
 	}
 }
 
@@ -925,6 +923,7 @@ void drawNormalBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image&
 float pointScaling(WORD radius, float depth)noexcept{return max(radius-depth*0.005+0.005, 1.f);}
 
 INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int nCmdShow){
+	Timer loadTimer;
 	if(ErrCheck(initApp(), "App initialisieren") != ERR_SUCCESS) return -1;
 
 	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != ERR_SUCCESS) return -1;
@@ -932,8 +931,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
-	for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
-		if(ErrCheck(createFloatbuffer(dataBuffers[i], renderBuffers.width, renderBuffers.height), "Floatbuffer erstellen") != ERR_SUCCESS) return -1;
+	for(int i=0; i < sizeof(lightingBuffers)/sizeof(Floatbuffer); ++i){
+		if(ErrCheck(createFloatbuffer(lightingBuffers[i], renderBuffers.width, renderBuffers.height), "Floatbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
 
 	if(ErrCheck(loadFont("fonts/asciiOutlined.tex", font, {82, 83}), "Font laden") != ERR_SUCCESS) return -1;
@@ -958,9 +957,11 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// ErrCheck(openExplorer(filepath, sizeof(filepath), "OBJ Wavefront Format .obj\0*.obj\0"), "Explorer öffnen");
 	// std::cout << filepath << std::endl;
 
+	resetTimer(loadTimer);
 	if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
+	std::cout << "Modell laden: " << getTimerMillis(loadTimer)/1000.f << "s" << std::endl;
 	#define POSITIONATTRIBUTEOFFSET 5
 	for(DWORD i=0; i < modelCount; ++i){
 		TriangleModel& model = models[i];
@@ -1179,10 +1180,10 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	createSDF(sceneSdf, {-400, -500, -400}, {800, 550, 800}, 200, 200, 400);
 	calculateSDFBounds(sceneSdf, models, modelCount, {20, 20, 20});
 	setSDFValues(sceneSdf, FLOAT_MAX);
-	Timer sdfTimer;
-	resetTimer(sdfTimer);
+	
+	resetTimer(loadTimer);
 	for(DWORD i=0; i < modelCount; ++i) calculateSDFFromMesh(sceneSdf, models[i], i+1);
-	std::cout << getTimerMillis(sdfTimer)/1000 << "s" << std::endl;
+	std::cout << "SDF Generation: " << getTimerMillis(loadTimer)/1000.f << "s" << std::endl;
 	float rotDir = 0;
 
 	globalPoints = new ColorPoint[20000000];
@@ -1225,7 +1226,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < modelCount; ++i) drawTriangleModel(renderBuffers, models[i], defaultTexture);
 
 				for(DWORD i=0; i < totalBufferSize; ++i){
-					dataBuffers[1].data[i] = 0.f;
+					lightingBuffers[1].data[i] = 0.f;
 				}
 				if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
 					for(DWORD i=0; i < modelCount; ++i) rasterizeShadowMap(shadowDepthBuffer, models[i].triangles, 0, models[i].triangleCount, shadowCamera);
@@ -1237,14 +1238,14 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				}
 				if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
 					ssgi(renderBuffers, cam, 0, totalBufferSize);
-					boxBlur(dataBuffers[1].data, dataBuffers[1].width, dataBuffers[1].height, 3);
+					boxBlur(lightingBuffers[1].data, lightingBuffers[1].width, lightingBuffers[1].height, 3);
 				}
 				if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
 					ssrc(renderBuffers, cam, sceneSdf, radianceProbes);
 				}
 				for(DWORD i=0; i < totalBufferSize; ++i){
-					float direct = dataBuffers[0].data[i];
-					float indirect = dataBuffers[1].data[i];
+					float direct = lightingBuffers[0].data[i];
+					float indirect = lightingBuffers[1].data[i];
 					const float ambient = 0.f;
 					float strength = clamp(direct + indirect + ambient, 0.f, 1.f);
 					DWORD color = renderBuffers.frameBuffer[i];
@@ -1295,7 +1296,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(DWORD i=0; i < modelCount; ++i) destroyTriangleModel(models[i]);
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
-	for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i) destroyFloatbuffer(dataBuffers[i]);
+	for(int i=0; i < sizeof(lightingBuffers)/sizeof(Floatbuffer); ++i) destroyFloatbuffer(lightingBuffers[i]);
 	delete[] globalPoints;
 	destroySDF(sceneSdf);
 	destroyRenderBuffers(renderBuffers);
@@ -1348,9 +1349,9 @@ void update(const float dt)noexcept{
 				destroyColorbuffer(colorBuffers[i]);
 				createColorbuffer(colorBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
 			}
-			for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
-				destroyFloatbuffer(dataBuffers[i]);
-				createFloatbuffer(dataBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
+			for(int i=0; i < sizeof(lightingBuffers)/sizeof(Floatbuffer); ++i){
+				destroyFloatbuffer(lightingBuffers[i]);
+				createFloatbuffer(lightingBuffers[i], window.windowWidth*resolutionScale, window.windowHeight*resolutionScale);
 			}
 		}
 		if(renderMode == RENDERMODE_SHADED_MODE){
@@ -1388,9 +1389,9 @@ LRESULT CALLBACK mainWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lPar
 				destroyColorbuffer(colorBuffers[i]);
 				ErrCheck(createColorbuffer(colorBuffers[i], width*resolutionScale, height*resolutionScale), "Colorbuffer erstellen");
 			}
-			for(int i=0; i < sizeof(dataBuffers)/sizeof(Floatbuffer); ++i){
-				destroyFloatbuffer(dataBuffers[i]);
-				ErrCheck(createFloatbuffer(dataBuffers[i], width*resolutionScale, height*resolutionScale), "Floatbuffer erstellen");
+			for(int i=0; i < sizeof(lightingBuffers)/sizeof(Floatbuffer); ++i){
+				destroyFloatbuffer(lightingBuffers[i]);
+				ErrCheck(createFloatbuffer(lightingBuffers[i], width*resolutionScale, height*resolutionScale), "Floatbuffer erstellen");
 			}
 			break;
 		}

@@ -15,7 +15,7 @@
 	TODO Applikation ist ja eigentlich nur noch da wegen Direct2D... vllt kann man einfach init/deinit Funktionen machen und die Anwender müssen sich selbst merken
 	was für einen State die Applikation hat
 	TODO GPUs arbeiten eigentlich mit Quads, nicht Pixelen direkt, man könnte also einen Lower Res Depthbuffer bauen, welcher für jedes Quad den max. Depthwert speichert
-	und dann sucht man den max. Wert für das QUad und verlgeicht, damit kann man direkt 4 Pixel auf einmal discarden, falls der Depthtest failed
+	und dann sucht man den max. Wert für das Quad und vergleicht, damit kann man direkt 4 Pixel auf einmal discarden, falls der Depthtest failed
 */
 
 struct Colorbuffer{
@@ -890,6 +890,7 @@ struct Triangle{
 //Speichert ein Material aus einer .mtl file
 struct Material{
 	std::string name;
+	DWORD baseColor = RGBA(0, 0, 0);
 	Image textures[1];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
 	BYTE textureCount = 0;
 };
@@ -2150,14 +2151,45 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
 				materials[materialCount-1].textureCount = 1;
+				//TODO Das ist nur eine Übergangslösung und sollte besser implementiert werden
+				DWORD redBuffer[256]{0};
+				DWORD greenBuffer[256]{0};
+				DWORD blueBuffer[256]{0};
+				DWORD redMax = 0;
+				BYTE redIdx = 0;
+				DWORD greenMax = 0;
+				BYTE greenIdx = 0;
+				DWORD blueMax = 0;
+				BYTE blueIdx = 0;
+				for(DWORD i=0; i < materials[materialCount-1].textures[0].width*materials[materialCount-1].textures[0].height; ++i){
+					redBuffer[R(materials[materialCount-1].textures[0].data[i])] += 1;
+					greenBuffer[G(materials[materialCount-1].textures[0].data[i])] += 1;
+					blueBuffer[B(materials[materialCount-1].textures[0].data[i])] += 1;
+				}
+				for(WORD i=0; i < 256; ++i){
+					if(redBuffer[i] > redMax){
+						redMax = redBuffer[i];
+						redIdx = i;
+					}
+					if(greenBuffer[i] > greenMax){
+						greenMax = greenBuffer[i];
+						greenIdx = i;
+					}
+					if(blueBuffer[i] > blueMax){
+						blueMax = blueBuffer[i];
+						blueIdx = i;
+					}
+				}
+				materials[materialCount-1].baseColor = RGBA(redIdx, greenIdx, blueIdx);
 				break;
 			}
-			case MTL_KD:{	//TODO wie das TODO oben drüber und auch das unten drunter (:
+			case MTL_KD:{	//TODO Wie das TODO oben und unten (:
 				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				float* values = (float*)data;
-				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
+				if(materials[materialCount-1].textureCount > 0) break;
 				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				materials[materialCount-1].textureCount = 1;
+				materials[materialCount-1].baseColor = RGBA(values[0]*255, values[1]*255, values[2]*255);
 				break;
 			}
 			case MTL_NS:	//TODO müssen alle noch implementiert werden
@@ -2429,7 +2461,7 @@ void calculateSDFFromMesh(SDF& sdf, const TriangleModel& model, BYTE id)noexcept
 					float dst = pointToTriangleDistance(pos, model.triangles[i]);
             		if(dst < sdf.data[idx]){
 						sdf.data[idx] = dst;
-						sdf.color[idx] = model.material->textures[0].data[0];
+						sdf.color[idx] = model.material->baseColor;		//TODO material könnte ein nullptr sein
 						sdf.ids[idx] = id;
 					}
 					if(marked[idx] == 0) bfsBuffer[endIdx++] = {(DWORD)x, (DWORD)y, (DWORD)z};
