@@ -7,9 +7,8 @@
 #define FLOAT_MAX 3.40282346638528859811704183484516925e+38F
 #define FLOAT_MIN 1.17549435082228750796873653722224568e-38F
 
-//Branchless Code ist meist unnötig für moderne CPUs, da diese meist Instructionen für die Aufgabe haben,
-//es könnte aber schneller auf älteren CPUs/Mikrochips sein
 // #define BRANCHLESSMINMAX
+// #define BRACHNLESSCLAMP
 
 struct ivec2{
 	int x;
@@ -40,18 +39,20 @@ struct fvec4{
 	float w;
 };
 
+constexpr float distance(const fvec2& a, const fvec2& b)noexcept{return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 constexpr float distance(const ivec2& a, const ivec2& b)noexcept{return sqrt((a.x-b.x)*(a.x-b.x)+(a.y-b.y)*(a.y-b.y));}
 
 constexpr float length(const fvec3& vec)noexcept{return sqrt(vec.x*vec.x + vec.y*vec.y + vec.z*vec.z);}
+constexpr float length(const fvec2& vec)noexcept{return sqrt(vec.x*vec.x + vec.y*vec.y);}
 
 constexpr fvec3 normalize(const fvec3& vec)noexcept{
-	float invLength = 1.f/length(vec);
+	const float invLength = 1.f/length(vec);
 	return {vec.x*invLength, vec.y*invLength, vec.z*invLength};
 }
 
 constexpr fvec2 normalize(const fvec2& vec)noexcept{
-	float length = 1.f/sqrt(vec.x*vec.x + vec.y*vec.y);
-	return {vec.x*length, vec.y*length};
+	const float invLength = 1.f/length(vec);
+	return {vec.x*invLength, vec.y*invLength};
 }
 
 constexpr float dot(const fvec3& a, const fvec3& b)noexcept{return (a.x * b.x + a.y * b.y + a.z * b.z);}
@@ -92,15 +93,27 @@ constexpr int max(const int a, const int b)noexcept{
 }
 
 constexpr float clamp(const float val, const float minVal, const float maxVal)noexcept{
+	#ifdef BRACHNLESSCLAMP
+	bool minBool = val < minVal;
+	bool maxBool = val > maxVal;
+	return minVal*minBool + maxVal*maxBool + val*!(minBool || maxBool);
+	#else
 	if(val < minVal) return minVal;
 	if(val > maxVal) return maxVal;
 	return val;
+	#endif
 }
 
 constexpr int clamp(const int val, const int minVal, const int maxVal)noexcept{
+	#ifdef BRACHNLESSCLAMP
+	bool minBool = val < minVal;
+	bool maxBool = val > maxVal;
+	return minVal*minBool + maxVal*maxBool + val*!(minBool || maxBool);
+	#else
 	if(val < minVal) return minVal;
 	if(val > maxVal) return maxVal;
 	return val;
+	#endif
 }
 
 //Interpoliere die Werte A und B linear für einen Punkt C
@@ -111,29 +124,26 @@ constexpr float interpolateLinear(float valA, float valB, fvec2 posA, fvec2 posB
 
 constexpr fvec3 mulVec3Mat3x3(const fvec3& vec, const float mat[3][3])noexcept{
 	fvec3 out = {0, 0, 0};
-	out.x += (mat[0][0]*vec.x);
-	out.x += (mat[0][1]*vec.y);
-	out.x += (mat[0][2]*vec.z);
-	out.y += (mat[1][0]*vec.x);
-	out.y += (mat[1][1]*vec.y);
-	out.y += (mat[1][2]*vec.z);
-	out.z += (mat[2][0]*vec.x);
-	out.z += (mat[2][1]*vec.y);
-	out.z += (mat[2][2]*vec.z);
+	out.x += mat[0][0]*vec.x;
+	out.x += mat[0][1]*vec.y;
+	out.x += mat[0][2]*vec.z;
+	out.y += mat[1][0]*vec.x;
+	out.y += mat[1][1]*vec.y;
+	out.y += mat[1][2]*vec.z;
+	out.z += mat[2][0]*vec.x;
+	out.z += mat[2][1]*vec.y;
+	out.z += mat[2][2]*vec.z;
 	return out;
 }
 
 constexpr fvec3 mulVec3InvMat3x3(const fvec3& vec, const float mat[3][3])noexcept{
-	fvec3 out = {0, 0, 0};
-	out.x += (mat[0][0]*vec.x);
-	out.x += (mat[1][0]*vec.y);
-	out.x += (mat[2][0]*vec.z);
-	out.y += (mat[0][1]*vec.x);
-	out.y += (mat[1][1]*vec.y);
-	out.y += (mat[2][1]*vec.z);
-	out.z += (mat[0][2]*vec.x);
-	out.z += (mat[1][2]*vec.y);
-	out.z += (mat[2][2]*vec.z);
+	fvec3 out = {mat[0][0]*vec.x, mat[0][1]*vec.x, mat[0][2]*vec.x};
+	out.x += mat[1][0]*vec.y;
+	out.y += mat[1][1]*vec.y;
+	out.z += mat[1][2]*vec.y;
+	out.x += mat[2][0]*vec.z;
+	out.y += mat[2][1]*vec.z;
+	out.z += mat[2][2]*vec.z;
 	return out;
 }
 
@@ -155,7 +165,7 @@ constexpr float lerp(const float a, const float b, const float t)noexcept{
 }
 
 constexpr fvec3 lerp(const fvec3& a, const fvec3& b, const float t)noexcept{
-	fvec3 ba = {b.x - a.x, b.y - a.y, b.z - a.z};
+	const fvec3 ba = {b.x - a.x, b.y - a.y, b.z - a.z};
 	return {a.x + t*ba.x, a.y + t*ba.y, a.z + t*ba.z};
 }
 
@@ -176,24 +186,23 @@ constexpr float negSign(const float val)noexcept{
 }
 
 float closestPointOnLineSegmentT(const fvec3& point, const fvec3& start, const fvec3& end)noexcept{
-	fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
+	const fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
 	return dot(point, diff)/dot(diff, diff);
 }
 
 fvec3 closestPointOnLineSegment(const fvec3& point, const fvec3& start, const fvec3& end)noexcept{
-	fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
+	const fvec3 diff = {end.x - start.x, end.y - start.y, end.z - start.z};
 	float t = dot(point, diff)/dot(diff, diff);
     return lerp(start, end, clamp(t, 0.f, 1.f));
 }
 
-//TODO Die Indexberechnung lann optimiert werden
+//TODO Die Indexberechnung kann optimiert werden
 void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
-	DWORD totalBufferSize = width*height;
+	const DWORD totalBufferSize = width*height;
 	DWORD idx = 0;
 	for(WORD y=0; y < height; ++y){
 		for(WORD x=0; x < width; ++x, ++idx){
 			float value = 0;
-			//TODO SWORD statt int ging nicht... hä?
 			for(int dy=-blurSize; dy <= blurSize; ++dy){
 				int sampleIdx = (y+dy)*width+x;
 				for(int dx=-blurSize; dx <= blurSize; ++dx, ++sampleIdx){
@@ -206,14 +215,13 @@ void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
 }
 
 void medianBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
-	DWORD totalBufferSize = width*height;
+	const DWORD totalBufferSize = width*height;
 	DWORD idx = 0;
 	int bufferSize = pow(blurSize*2+1, 2);
 	float buffer[bufferSize];
 	for(WORD y=0; y < height; ++y){
 		for(WORD x=0; x < width; ++x, ++idx){
 			float value = 0;
-			//TODO SWORD statt int ging nicht... hä?
 			int sampleIdx = 0;
 			for(int dy=-blurSize; dy <= blurSize; ++dy){
 				for(int dx=-blurSize; dx <= blurSize; ++dx){

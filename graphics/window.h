@@ -264,7 +264,7 @@ constexpr DWORD R(DWORD color, DWORD r)noexcept{return (color&0xFF00FFFF)|r<<16;
 constexpr DWORD G(DWORD color, DWORD g)noexcept{return (color&0xFFFF00FF)|g<<8;}
 constexpr DWORD B(DWORD color, DWORD b)noexcept{return (color&0xFFFFFF00)|b;}
 
-ErrCode clearWindow(Window& window, DWORD color)noexcept{
+ErrCode clearWindow(Window& window, DWORD color = RGBA(0, 0, 0))noexcept{
 	WORD buffer_width = window.windowWidth/window.pixelSize;
 	WORD buffer_height = window.windowHeight/window.pixelSize;
 	for(DWORD i=0; i < window.framebuffer.width*window.framebuffer.height; ++i) window.framebuffer.data[i] = color;
@@ -891,7 +891,7 @@ struct Triangle{
 struct Material{
 	std::string name;
 	DWORD baseColor = RGBA(0, 0, 0);
-	Image textures[1];		//TODO sollte dynamisch sein, aktuell wird eh nur 1 Texture verwendet
+	Image textures[3];		//TODO sollte dynamisch sein
 	BYTE textureCount = 0;
 };
 

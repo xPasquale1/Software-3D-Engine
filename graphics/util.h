@@ -258,10 +258,10 @@ void resetData(PerfAnalyzer& pa)noexcept{
 
 //TODO Kompression
 
-DWORD compress(BYTE* input, DWORD size, BYTE* output){
+DWORD compress(BYTE* input, DWORD size, BYTE* output)noexcept{
 	return 0;
 }
 
-DWORD decompress(BYTE* input, DWORD size, BYTE* output){
+DWORD decompress(BYTE* input, DWORD size, BYTE* output)noexcept{
 	return 0;
 }

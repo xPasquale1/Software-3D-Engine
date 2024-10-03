@@ -36,7 +36,7 @@ enum RENDERMODES{
 RENDERMODES renderMode;
 
 //Sliders
-FloatSlider shadowSlider[1];
+FloatSlider shadowSlider[2];
 WORD shadowSliderCount = 0;
 FloatSlider ssaoSlider[4];
 WORD ssaoSliderCount = 0;
@@ -476,94 +476,110 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 			worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
 
 			const WORD samples = ssrcSlider[4].value;
-
+			const WORD importantSamples = 64-samples;
 			float lightStrength = 0.f;
-			for(WORD i=0; i < samples; ++i){
-				fvec3 samplePos = worldPixelPosition;
-				fvec3 preSamplePos = samplePos;
-				fvec3 direction = generateRandomNormalInHemisphere(worldNormal);
-				fvec3 targetDir = normalize({samplePos.x - targetPoint.x, samplePos.y - targetPoint.y, samplePos.z - targetPoint.z});
-				const float brdf = 1/PI;
-				float pdf = 2*PI;
-				const float importanceStrength = ssrcSlider[7].value;
-				if(b == 0 && i%16 == 0){
-					pdf = 1/(0.0625f);
-					direction = direction = normalize({
-						direction.x * (1-importanceStrength) + targetDir.x * importanceStrength,
-						direction.y * (1-importanceStrength) + targetDir.y * importanceStrength,
-						direction.z * (1-importanceStrength) + targetDir.z * importanceStrength
-					});
-					probes[p].directions[i] = direction;
-					if(dot(direction, worldNormal) < 0) continue;	//TODO Kann auch später bei ndotl berechnet werden, aber der Wert wäre eh 0
-				}
-				probes[p].directions[i] = direction;
-				for(int step=0; step < maxSteps; ++step){
-					samplePos.x -= direction.x*stepSize;
-					samplePos.y -= direction.y*stepSize;
-					samplePos.z -= direction.z*stepSize;
 
-					fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, camera.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
-					WORD screenX = (WORD)screenCoords.x;
-					WORD screenY = (WORD)screenCoords.y;
+			auto sampleNTimes = [&](fvec3* directions, WORD N, float brdf, float pdf){
+				for(WORD i=0; i < N; ++i){		//TODO Samples sollte wieder angebbar gemacht werden
+					fvec3 samplePos = worldPixelPosition;
+					probes[p].directions[i] = directions[i];
+					for(int step=0; step < maxSteps; ++step){
+						samplePos.x -= directions[i].x*stepSize;
+						samplePos.y -= directions[i].y*stepSize;
+						samplePos.z -= directions[i].z*stepSize;
 
-					bool leftScreen = false;
-					float depthDiff;
-					DWORD sampleIdx = screenY*renderBuffers.width+screenX;
-					if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) leftScreen = true;
-					if(!leftScreen) depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
-					//Worldspace tracing
-					if(leftScreen || depthDiff >= maxDepth){
-						if(b > 0) break;
-						if(traceSDF(sceneSdf, samplePos, direction, maxSteps, 6) <= 0){
-							float ndotl = dot(direction, worldNormal);
-							const float incomingLight = 0.5;	//Skylight
-							lightStrength += incomingLight * ndotl * brdf * pdf;
-							probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+						fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, camera.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
+						WORD screenX = (WORD)screenCoords.x;
+						WORD screenY = (WORD)screenCoords.y;
+
+						bool leftScreen = false;
+						float depthDiff;
+						DWORD sampleIdx = screenY*renderBuffers.width+screenX;
+						if(screenX >= renderBuffers.width || screenY >= renderBuffers.height) leftScreen = true;
+						if(!leftScreen) depthDiff = screenCoords.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[sampleIdx];
+						//Worldspace tracing
+						if(leftScreen || depthDiff >= maxDepth){
+							if(b > 0) break;
+							if(traceSDF(sceneSdf, samplePos, directions[i], maxSteps, 6) <= 0){
+								float ndotl = dot(directions[i], worldNormal);
+								const float incomingLight = 0.5;	//Skylight
+								lightStrength += incomingLight * ndotl * brdf * pdf;
+								probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+								break;
+							}
+							float dist = getSDFDistanceFromPosition(sceneSdf, samplePos);
+							fvec3 reflDir = directions[i];
+							directions[i] = invSunDir;
+							samplePos.x -= directions[i].x*stepSize;
+							samplePos.y -= directions[i].y*stepSize;
+							samplePos.z -= directions[i].z*stepSize;
+							if(!traceSDF(sceneSdf, samplePos, directions[i], maxSteps, 6)){
+								float ndotl = dot(reflDir, worldNormal);
+								const float incomingLight = 1;
+								lightStrength += incomingLight * ndotl * brdf * pdf;
+								probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+							}
 							break;
 						}
-						float dist = getSDFDistanceFromPosition(sceneSdf, samplePos);
-						fvec3 reflDir = direction;
-						direction = invSunDir;
-						samplePos.x -= direction.x*stepSize;
-						samplePos.y -= direction.y*stepSize;
-						samplePos.z -= direction.z*stepSize;
-						if(!traceSDF(sceneSdf, samplePos, direction, maxSteps, 6)){
-							float ndotl = dot(reflDir, worldNormal);
-							const float incomingLight = 1;
-							lightStrength += incomingLight * ndotl * brdf * pdf;
-							probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+
+						if(depthDiff > minDepth){
+							fvec3 pos;
+							pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
+							pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
+							pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
+
+							fvec3 n;
+							n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
+							n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
+							n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
+							float ndotl = dot(directions[i], worldNormal);
+							lightStrength += lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
+							probes[p].lightStrengths[i] = lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
+							lightStrength += lightingBuffers[1].data[sampleIdx] * ndotl * brdf * pdf;
+							#ifdef VISUALIZESSRCSINGLERAY
+							globalPoints[globalPointCount].pos = samplePos;
+							globalPoints[globalPointCount].color = RGBA(255, 255, 255);
+							globalPointCount++;
+							#endif
+							break;
 						}
-						break;
-					}
-
-					if(depthDiff > minDepth){
-						fvec3 pos;
-						pos.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 5)];
-						pos.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 6)];
-						pos.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 7)];
-
-						fvec3 n;
-						n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
-						n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
-						n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
-						float ndotl = dot(direction, worldNormal);
-						lightStrength += lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
-						probes[p].lightStrengths[i] = lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
-						lightStrength += lightingBuffers[1].data[sampleIdx] * ndotl * brdf * pdf;
 						#ifdef VISUALIZESSRCSINGLERAY
 						globalPoints[globalPointCount].pos = samplePos;
-						globalPoints[globalPointCount].color = RGBA(255, 255, 255);
+						globalPoints[globalPointCount].color = RGBA(255, 0, 0);
 						globalPointCount++;
 						#endif
-						break;
 					}
-					#ifdef VISUALIZESSRCSINGLERAY
-					globalPoints[globalPointCount].pos = samplePos;
-					globalPoints[globalPointCount].color = RGBA(255, 0, 0);
-					globalPointCount++;
-					#endif
+				}
+			};
+
+			fvec3 directions[samples];
+			for(int i=0; i < samples; ++i) directions[i] = generateRandomNormalInHemisphere(worldNormal);
+			const float brdf = 1/PI;
+			float pdf = 2*PI;
+			sampleNTimes(directions, samples, brdf, pdf);
+
+			const WORD importantSamplesCount = 8;
+			const float importanceStrength = ssrcSlider[7].value;
+			pdf = importantSamples;
+			fvec3 importantDirections[importantSamplesCount];
+			BYTE j=0;
+			for(int i=0; i < importantSamples; ++i){
+				if(probes[p].lightStrengths[i] > 0.25){
+					importantDirections[j] = probes[p].directions[i];
+					j += 1;
+					if(j >= importantSamplesCount) j=0;
 				}
 			}
+			for(int i=0; i < importantSamples; ++i){
+				directions[i] = normalize({
+					directions[i].x * (1-importanceStrength) + importantDirections[i/importantSamplesCount].x * importanceStrength,
+					directions[i].y * (1-importanceStrength) + importantDirections[i/importantSamplesCount].y * importanceStrength,
+					directions[i].z * (1-importanceStrength) + importantDirections[i/importantSamplesCount].z * importanceStrength
+				});
+				probes[p].directions[i] = directions[i];
+			}
+			sampleNTimes(directions, importantSamples, brdf, pdf);
+
 			probes[p].lightStrength[radianceFrameIdx] += lightStrength/samples;
 			probes[p].lightStrength[radianceFrameIdx] = clamp(probes[p].lightStrength[radianceFrameIdx], 0.f, 1.f);
 		}
@@ -1043,6 +1059,12 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	shadowSlider[0].maxValue = 10;
 	shadowSlider[0].value = -2;
 	shadowSlider[0].sliderPos = getFloatSliderPosFromValue(shadowSlider[0]);
+	shadowSlider[1].size = {200, 6};
+	shadowSlider[1].sliderRadius = 10;
+	shadowSlider[1].minValue = 0;
+	shadowSlider[1].maxValue = 1;
+	shadowSlider[1].value = 0.25;
+	shadowSlider[1].sliderPos = getFloatSliderPosFromValue(shadowSlider[1]);
 	ssrSlider[0].size = {200, 6};
 	ssrSlider[0].sliderRadius = 10;
 	ssrSlider[0].value = 10;
@@ -1126,8 +1148,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	ssrcSlider[4].size = {200, 6};
 	ssrcSlider[4].sliderRadius = 10;
 	ssrcSlider[4].minValue = 4;
-	ssrcSlider[4].maxValue = 512;
-	ssrcSlider[4].value = 64;
+	ssrcSlider[4].maxValue = 64;
+	ssrcSlider[4].value = 32;
 	ssrcSlider[4].sliderPos = getFloatSliderPosFromValue(ssrcSlider[4]);
 	ssrcSlider[5].size = {200, 6};
 	ssrcSlider[5].sliderRadius = 10;
@@ -1246,7 +1268,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 				for(DWORD i=0; i < totalBufferSize; ++i){
 					float direct = lightingBuffers[0].data[i];
 					float indirect = lightingBuffers[1].data[i];
-					const float ambient = 0.f;
+					const float ambient = shadowSlider[1].value;
 					float strength = clamp(direct + indirect + ambient, 0.f, 1.f);
 					DWORD color = renderBuffers.frameBuffer[i];
 					renderBuffers.frameBuffer[i] = RGBA(R(color)*strength, G(color)*strength, B(color)*strength);
