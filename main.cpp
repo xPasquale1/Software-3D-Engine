@@ -479,6 +479,7 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 			const WORD importantSamples = 64-samples;
 			float lightStrength = 0.f;
 
+			//TODO Lambda, kein C...
 			auto sampleNTimes = [&](fvec3* directions, WORD N, float brdf, float pdf){
 				for(WORD i=0; i < N; ++i){		//TODO Samples sollte wieder angebbar gemacht werden
 					fvec3 samplePos = worldPixelPosition;
@@ -558,16 +559,21 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 			float pdf = 2*PI;
 			sampleNTimes(directions, samples, brdf, pdf);
 
-			const WORD importantSamplesCount = 8;
+			const WORD importantSamplesCount = ssrcSlider[6].value;
 			const float importanceStrength = ssrcSlider[7].value;
 			pdf = importantSamples;
 			fvec3 importantDirections[importantSamplesCount];
-			BYTE j=0;
+			BYTE j=1;
+			float maxStrength = 0;
 			for(int i=0; i < importantSamples; ++i){
-				if(probes[p].lightStrengths[i] > 0.25){
+				if(probes[p].lightStrengths[i] > maxStrength){
+					importantDirections[0] = probes[p].directions[i];
+					maxStrength = probes[p].lightStrengths[i];
+				}
+				if(probes[p].lightStrengths[i] > 0.2){
 					importantDirections[j] = probes[p].directions[i];
 					j += 1;
-					if(j >= importantSamplesCount) j=0;
+					if(j >= importantSamplesCount) j=1;
 				}
 			}
 			for(int i=0; i < importantSamples; ++i){
@@ -1147,7 +1153,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	ssrcSlider[3].sliderPos = getFloatSliderPosFromValue(ssrcSlider[3]);
 	ssrcSlider[4].size = {200, 6};
 	ssrcSlider[4].sliderRadius = 10;
-	ssrcSlider[4].minValue = 4;
+	ssrcSlider[4].minValue = 32;
 	ssrcSlider[4].maxValue = 64;
 	ssrcSlider[4].value = 32;
 	ssrcSlider[4].sliderPos = getFloatSliderPosFromValue(ssrcSlider[4]);
@@ -1160,8 +1166,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	ssrcSlider[6].size = {200, 6};
 	ssrcSlider[6].sliderRadius = 10;
 	ssrcSlider[6].minValue = 1;
-	ssrcSlider[6].maxValue = 80;
-	ssrcSlider[6].value = 20;
+	ssrcSlider[6].maxValue = 32;
+	ssrcSlider[6].value = 8;
 	ssrcSlider[6].sliderPos = getFloatSliderPosFromValue(ssrcSlider[6]);
 	ssrcSlider[7].size = {200, 6};
 	ssrcSlider[7].sliderRadius = 10;

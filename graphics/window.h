@@ -94,8 +94,6 @@ ErrCode destroyApp()noexcept{
 
 typedef LRESULT (*window_callback_function)(HWND, UINT, WPARAM, LPARAM);
 LRESULT CALLBACK default_window_callback(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
-//Setzt bei Erfolg den Parameter window zu einem gültigen window, auf welches man dann zugreifen kann
-//window muss ein nullptr sein/kein vorhandenes window!
 ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, LONG x, LONG y, WORD pixelSize, Window& window, const char* name = "Window", window_callback_function callback = default_window_callback, HWND parentWindow = NULL)noexcept{
 	//Erstelle Fenster Klasse
 	WNDCLASS window_class = {};
@@ -158,7 +156,6 @@ ErrCode createWindow(HINSTANCE hInstance, LONG windowWidth, LONG windowHeight, L
 	return ERR_SUCCESS;
 }
 
-//Zerstört das Fenster und alle allokierten Ressourcen mit diesem
 ErrCode destroyWindow(Window& window)noexcept{
 	if(!UnregisterClassA(window.windowClassName.c_str(), NULL)){
 		std::cerr << GetLastError() << std::endl;
@@ -788,6 +785,25 @@ ErrCode openExplorer(char* filepath, DWORD maxPathLength, const char filterStr[]
     if(GetOpenFileName(&ofn) != TRUE) return ERR_SUCCESS;	//TODO ehhh... es ist nicht zwangsweiße kein Fehler...
 	strcpy(filepath, (char*)ofn.lpstrFile);
 	return ERR_SUCCESS;
+}
+
+struct ProgressBar{
+	ivec2 pos = {0, 0};
+	ivec2 size = {200, 20};
+	DWORD backgroundColor = RGBA(128, 128, 128);
+	DWORD barColor = RGBA(0, 200, 255);
+	float value = 0;
+	float min = 0;
+	float max = 100;
+};
+
+void updateProgressBar(Colorbuffer& buffer, ProgressBar* progressBars, WORD count)noexcept{
+	for(WORD i=0; i < count; ++i){
+		float t = (progressBars[i].value-progressBars[i].min)/(progressBars[i].max-progressBars[i].min);
+		DWORD endX = progressBars[i].size.x*t;
+		drawRectangle(buffer, progressBars[i].pos.x, progressBars[i].pos.y, progressBars[i].size.x, progressBars[i].size.y, progressBars[i].backgroundColor);
+		drawRectangle(buffer, progressBars[i].pos.x, progressBars[i].pos.y, endX, progressBars[i].size.y, progressBars[i].barColor);
+	}
 }
 
 //------------------------------ Für 3D und "erweiterte" Grafiken ------------------------------
