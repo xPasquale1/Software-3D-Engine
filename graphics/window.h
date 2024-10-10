@@ -1561,7 +1561,7 @@ typedef fvec3 (*vertexShaderFunction)(fvec3&, float*)noexcept;
 //TODO sollte noch beachten, dass renderbuffers nicht unbedingt so viele attributebuffer zur verfügung stellt wie es vertex attribute gibt
 //TODO Man sollte die Rotationsmatrix übergeben oder einfach in Camera speichern, damit die nicht immer wieder hier neu berechnet wird
 //TODO Backface + Frontfaceculling sollten ifs sein, die man wärend der runtime ändern kann
-void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
+void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction* vertexShader, WORD vertexShaderCount)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1581,9 +1581,11 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
 		const DWORD currentAttributeLocation = i*totalAttributesCount;
 		Triangle& tri = buffer[0];
     	tri = tris[i];
-		tri.points[0] = vertexShader(tri.points[0], &attributes[currentAttributeLocation]);
-		tri.points[1] = vertexShader(tri.points[1], &attributes[currentAttributeLocation+attributesCount]);
-		tri.points[2] = vertexShader(tri.points[2], &attributes[currentAttributeLocation+attributesCount*2]);
+		for(WORD j=0; j < vertexShaderCount; ++j){
+			tri.points[0] = vertexShader[j](tri.points[0], &attributes[currentAttributeLocation]);
+			tri.points[1] = vertexShader[j](tri.points[1], &attributes[currentAttributeLocation+attributesCount]);
+			tri.points[2] = vertexShader[j](tri.points[2], &attributes[currentAttributeLocation+attributesCount*2]);
+		}
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
 			fvec3 v = mulVec3Mat3x3(d, rotm);
@@ -1631,7 +1633,7 @@ void rasterize(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, 
     return;
 }
 
-void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction vertexShader)noexcept{
+void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attributes, BYTE attributesCount, DWORD startIdx, DWORD endIdx, Camera& cam, vertexShaderFunction* vertexShader, WORD vertexShaderCount)noexcept{
 #ifdef PERFORMANCE_ANALYZER
 	_perfAnalyzer.totalTriangles += endIdx - startIdx;
 #endif
@@ -1647,9 +1649,11 @@ void rasterizeOutline(RenderBuffers& renderBuffers, Triangle* tris, float* attri
     for(DWORD i=startIdx; i < endIdx; ++i){
 		Triangle& tri = buffer[0];
     	tri = tris[i];
-		tri.points[0] = vertexShader(tri.points[0], &attributes[i*attributesCount*3]);
-		tri.points[1] = vertexShader(tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
-		tri.points[2] = vertexShader(tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
+		for(WORD j=0; j < vertexShaderCount; ++j){
+			tri.points[0] = vertexShader[j](tri.points[0], &attributes[i*attributesCount*3]);
+			tri.points[1] = vertexShader[j](tri.points[1], &attributes[i*attributesCount*3+attributesCount]);
+			tri.points[2] = vertexShader[j](tri.points[2], &attributes[i*attributesCount*3+attributesCount*2]);
+		}
     	for(BYTE j=0; j < 3; ++j){
 			fvec3 d = {tri.points[j].x-cam.pos.x, tri.points[j].y-cam.pos.y, tri.points[j].z-cam.pos.z};
 			fvec3 v = mulVec3Mat3x3(d, rotm);

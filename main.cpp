@@ -366,11 +366,17 @@ struct RadianceProbe{
 	float lightStrength[RADIANCEFRAMES];
 	fvec3 normal = {0, 0, 0};
 	DWORD idx;
-	float lightStrengths[64];
-	fvec3 directions[64];
 };
 
 // #define VISUALIZESSRCSINGLERAY
+
+//Macht einen Schritt durch die SDF, um z.B. bei einem Reflexion von der SDF weg zu kommen
+void traceSDFOnce(SDF& sdf, fvec3& position, fvec3& direction, float multiplier)noexcept{
+	float dist = getSDFDistanceFromPosition(sdf, position);
+	position.x -= direction.x*dist*multiplier;
+	position.y -= direction.y*dist*multiplier;
+	position.z -= direction.z*dist*multiplier;
+}
 
 //-1 = maxSteps, 0 = SDF verlassen, 1 = Hit
 SBYTE traceSDF(SDF& sdf, fvec3& position, fvec3& direction, int maxSteps, float maxDist)noexcept{
@@ -477,17 +483,25 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 
 			const WORD samples = ssrcSlider[4].value;
 			const WORD importantSamples = 64-samples;
+			fvec3 directions[samples];
+			float lightStrengths[samples];
 			float lightStrength = 0.f;
 
-			//TODO Lambda, kein C...
+			//TODO Lambda... vllt ok?
+			//TODO DebugColor sollte weg
+			#ifndef VISUALIZESSRCSINGLERAY
 			auto sampleNTimes = [&](fvec3* directions, WORD N, float brdf, float pdf){
+			#else
+			auto sampleNTimes = [&](WORD N, float brdf, float pdf, DWORD debugColor){
+			#endif
 				for(WORD i=0; i < N; ++i){		//TODO Samples sollte wieder angebbar gemacht werden
 					fvec3 samplePos = worldPixelPosition;
-					probes[p].directions[i] = directions[i];
+					fvec3 traceDirection = directions[i];
+					lightStrengths[i] = 0;
 					for(int step=0; step < maxSteps; ++step){
-						samplePos.x -= directions[i].x*stepSize;
-						samplePos.y -= directions[i].y*stepSize;
-						samplePos.z -= directions[i].z*stepSize;
+						samplePos.x -= traceDirection.x*stepSize;
+						samplePos.y -= traceDirection.y*stepSize;
+						samplePos.z -= traceDirection.z*stepSize;
 
 						fvec3 screenCoords = worldCoordinatesToScreenspace(samplePos, rotm, camera.pos, aspect_ratio, renderBuffers.width, renderBuffers.height);
 						WORD screenX = (WORD)screenCoords.x;
@@ -501,24 +515,22 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 						//Worldspace tracing
 						if(leftScreen || depthDiff >= maxDepth){
 							if(b > 0) break;
-							if(traceSDF(sceneSdf, samplePos, directions[i], maxSteps, 6) <= 0){
-								float ndotl = dot(directions[i], worldNormal);
+							if(traceSDF(sceneSdf, samplePos, traceDirection, maxSteps, 6) <= 0){
+								float ndotl = dot(traceDirection, worldNormal);
 								const float incomingLight = 0.5;	//Skylight
 								lightStrength += incomingLight * ndotl * brdf * pdf;
-								probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+								lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
 								break;
 							}
 							float dist = getSDFDistanceFromPosition(sceneSdf, samplePos);
-							fvec3 reflDir = directions[i];
-							directions[i] = invSunDir;
-							samplePos.x -= directions[i].x*stepSize;
-							samplePos.y -= directions[i].y*stepSize;
-							samplePos.z -= directions[i].z*stepSize;
-							if(!traceSDF(sceneSdf, samplePos, directions[i], maxSteps, 6)){
+							fvec3 reflDir = traceDirection;
+							traceDirection = invSunDir;
+							traceSDFOnce(sceneSdf, samplePos, traceDirection, 2);	//TODO Sollte eher entlang der Normalen wegbewegt werden
+							if(traceSDF(sceneSdf, samplePos, traceDirection, maxSteps, 6) == 0){
 								float ndotl = dot(reflDir, worldNormal);
 								const float incomingLight = 1;
 								lightStrength += incomingLight * ndotl * brdf * pdf;
-								probes[p].lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
+								lightStrengths[i] = incomingLight * ndotl * brdf * pdf;
 							}
 							break;
 						}
@@ -533,9 +545,9 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 							n.x = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 2)];
 							n.y = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 3)];
 							n.z = renderBuffers.attributeBuffers[sampleIdx+getAttrLoc(totalBufferSize, 4)];
-							float ndotl = dot(directions[i], worldNormal);
+							float ndotl = dot(traceDirection, worldNormal);
 							lightStrength += lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
-							probes[p].lightStrengths[i] = lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
+							lightStrengths[i] = lightingBuffers[0].data[sampleIdx] * ndotl * brdf * pdf;
 							lightStrength += lightingBuffers[1].data[sampleIdx] * ndotl * brdf * pdf;
 							#ifdef VISUALIZESSRCSINGLERAY
 							globalPoints[globalPointCount].pos = samplePos;
@@ -546,45 +558,43 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 						}
 						#ifdef VISUALIZESSRCSINGLERAY
 						globalPoints[globalPointCount].pos = samplePos;
-						globalPoints[globalPointCount].color = RGBA(255, 0, 0);
+						globalPoints[globalPointCount].color = debugColor;
 						globalPointCount++;
 						#endif
 					}
 				}
 			};
 
-			fvec3 directions[samples];
 			for(int i=0; i < samples; ++i) directions[i] = generateRandomNormalInHemisphere(worldNormal);
 			const float brdf = 1/PI;
 			float pdf = 2*PI;
+			#ifndef VISUALIZESSRCSINGLERAY
 			sampleNTimes(directions, samples, brdf, pdf);
+			#else
+			sampleNTimes(samples, brdf, pdf, RGBA(255, 128, 0));
+			#endif
 
-			const WORD importantSamplesCount = ssrcSlider[6].value;
 			const float importanceStrength = ssrcSlider[7].value;
 			pdf = importantSamples;
-			fvec3 importantDirections[importantSamplesCount];
-			BYTE j=1;
 			float maxStrength = 0;
-			for(int i=0; i < importantSamples; ++i){
-				if(probes[p].lightStrengths[i] > maxStrength){
-					importantDirections[0] = probes[p].directions[i];
-					maxStrength = probes[p].lightStrengths[i];
-				}
-				if(probes[p].lightStrengths[i] > 0.2){
-					importantDirections[j] = probes[p].directions[i];
-					j += 1;
-					if(j >= importantSamplesCount) j=1;
+			BYTE multisamples = 0;
+			for(int i=0; i < samples; ++i){
+				if(lightStrengths[i] > 0.2){
+					fvec3 goodDirection = directions[i];
+					directions[multisamples] = generateRandomNormalInHemisphere(worldNormal);
+					directions[multisamples] = normalize({
+						directions[multisamples].x * (1-importanceStrength) + goodDirection.x * importanceStrength,
+						directions[multisamples].y * (1-importanceStrength) + goodDirection.y * importanceStrength,
+						directions[multisamples].z * (1-importanceStrength) + goodDirection.z * importanceStrength
+					});
+					multisamples++;
 				}
 			}
-			for(int i=0; i < importantSamples; ++i){
-				directions[i] = normalize({
-					directions[i].x * (1-importanceStrength) + importantDirections[i/importantSamplesCount].x * importanceStrength,
-					directions[i].y * (1-importanceStrength) + importantDirections[i/importantSamplesCount].y * importanceStrength,
-					directions[i].z * (1-importanceStrength) + importantDirections[i/importantSamplesCount].z * importanceStrength
-				});
-				probes[p].directions[i] = directions[i];
-			}
-			sampleNTimes(directions, importantSamples, brdf, pdf);
+			#ifndef VISUALIZESSRCSINGLERAY
+			sampleNTimes(directions, multisamples, brdf, pdf);
+			#else
+			sampleNTimes(importantSamples, brdf, pdf, RGBA(255, 0, 0));
+			#endif
 
 			probes[p].lightStrength[radianceFrameIdx] += lightStrength/samples;
 			probes[p].lightStrength[radianceFrameIdx] = clamp(probes[p].lightStrength[radianceFrameIdx], 0.f, 1.f);
@@ -923,22 +933,22 @@ void normalBufferShader(RenderBuffers& renderBuffers)noexcept{
 }
 
 void drawTriangleModel(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, nullptr, 0);
 	if(model.material == nullptr) textureShader(renderBuffers, defaultTexture);
 	else textureShader(renderBuffers, model.material->textures[0]);
 }
 
 void drawTriangleModelOutline(RenderBuffers& renderBuffers, TriangleModel& model)noexcept{
-	rasterizeOutline(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	rasterizeOutline(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, nullptr, 0);
 }
 
 void drawDepthBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, nullptr, 0);
 	depthBufferShader(renderBuffers);
 }
 
 void drawNormalBuffer(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
-	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, vertexShader);
+	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, nullptr, 0);
 	normalBufferShader(renderBuffers);
 }
 
