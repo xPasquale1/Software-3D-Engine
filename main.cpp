@@ -173,19 +173,23 @@ fvec3 waterVertexShader(fvec3& point, float* attributes)noexcept{
 
 fvec3 vertexShader(fvec3& point, float* attributes)noexcept{return point;}
 
-void textureShader(RenderBuffers& renderBuffers, Image& image)noexcept{
+void textureShader(RenderBuffers& renderBuffers, Image& diffuseTexture, Image& specularTexture)noexcept{
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
 	for(DWORD i=0; i < totalBufferSize; ++i){
 		if(renderBuffers.fragmentFlags[i] == 0) continue;
 		renderBuffers.fragmentFlags[i] = 0;
 		float uvx = renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 0)];
 		float uvy = renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 1)];
-		DWORD color = textureRepeated(image, uvx, uvy);
+		DWORD color = textureRepeated(diffuseTexture, uvx, uvy);
 		if(A(color) < 120){
 			renderBuffers.depthBuffer[i] = FLOAT_MAX;
 			continue;
 		}
 		renderBuffers.frameBuffer[i] = color;
+		DWORD specular = textureRepeated(specularTexture, uvx, uvy);
+		renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 8)] = R(specular)/255.f;
+		renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 9)] = G(specular)/255.f;
+		renderBuffers.attributeBuffers[i+getAttrLoc(totalBufferSize, 10)] = B(specular)/255.f;
 	}
 }
 
@@ -254,7 +258,7 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
 			worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
 			float lightStrength = 1.f;
-			// clamp(dot(worldNormal, invSunDir), 0.f, 1.f);
+			lightStrength = clamp(dot(worldNormal, invSunDir), 0.f, 1.f);
 
 			fvec3 viewPos = worldPosToViewSpaceOrtho(worldPixelPosition, rotm, shadowCam.pos, shadowDepthBuffer.width, shadowDepthBuffer.height);
 			DWORD uvx = (DWORD)viewPos.x;
@@ -426,7 +430,6 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 	const float maxDepth = ssrcSlider[6].value*DEPTH_DIVISOR;
 
 	//TODO Alle Arrays hier sollten nicht auf den Stack, da zu groß ):
-
 	DWORD probesCount = 0;
 	const WORD HASHGRIDSIZEX = 64/aspect_ratio;
 	const WORD HASHGRIDSIZEY = 64;
@@ -515,7 +518,7 @@ void ssrc(RenderBuffers& renderBuffers, Camera& camera, SDF& sceneSdf, RadianceP
 						//Worldspace tracing
 						if(leftScreen || depthDiff >= maxDepth){
 							if(b > 0) break;
-							if(traceSDF(sceneSdf, samplePos, traceDirection, maxSteps, 6) <= 0){
+							if(traceSDF(sceneSdf, samplePos, traceDirection, maxSteps, 6) == 0){
 								float ndotl = dot(traceDirection, worldNormal);
 								const float incomingLight = 0.5;	//Skylight
 								lightStrength += incomingLight * ndotl * brdf * pdf;
@@ -708,7 +711,7 @@ void ssao(RenderBuffers& renderBuffers)noexcept{
 		worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
 		worldPixelPosition.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 6)];
 		worldPixelPosition.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 7)];
-		worldPixelPosition.x -= worldNormal.x*2.5;	//TODO Das ist ein sehr billiger fix
+		worldPixelPosition.x -= worldNormal.x*2.5;	//TODO Das ist ein sehr billiger fix der auch Probleme macht
 		worldPixelPosition.y -= worldNormal.y*2.5;
 		worldPixelPosition.z -= worldNormal.z*2.5;
 
@@ -817,11 +820,11 @@ void wsr(RenderBuffers& renderBuffers, SDF& sceneSdf, Camera& cam)noexcept{
 	
 	DWORD totalBufferSize = renderBuffers.width*renderBuffers.height;
 	for(DWORD idx=0; idx < totalBufferSize; ++idx){
+		if(renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 8)] < 0.1) continue;
 		fvec3 worldNormal;
 		worldNormal.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 2)];
 		worldNormal.y = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 3)];
 		worldNormal.z = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 4)];
-		if(worldNormal.y < 0.99) continue;
 
 		fvec3 worldPixelPosition;
 		worldPixelPosition.x = renderBuffers.attributeBuffers[idx+getAttrLoc(totalBufferSize, 5)];
@@ -934,8 +937,8 @@ void normalBufferShader(RenderBuffers& renderBuffers)noexcept{
 
 void drawTriangleModel(RenderBuffers& renderBuffers, TriangleModel& model, Image& defaultTexture)noexcept{
 	rasterize(renderBuffers, model.triangles, model.attributesBuffer, model.attributesCount, 0, model.triangleCount, cam, nullptr, 0);
-	if(model.material == nullptr) textureShader(renderBuffers, defaultTexture);
-	else textureShader(renderBuffers, model.material->textures[0]);
+	if(model.material == nullptr) textureShader(renderBuffers, defaultTexture, defaultTexture);
+	else textureShader(renderBuffers, model.material->textures[0], model.material->textures[1]);
 }
 
 void drawTriangleModelOutline(RenderBuffers& renderBuffers, TriangleModel& model)noexcept{
@@ -959,7 +962,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	if(ErrCheck(initApp(), "App initialisieren") != ERR_SUCCESS) return -1;
 
 	if(ErrCheck(createWindow(hInstance, 1000, 1000, 250, 0, 1, window, "3D!!!", mainWindowProc), "Fenster erstellen") != ERR_SUCCESS) return -1;
-	if(ErrCheck(createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 8), "Renderbuffers erstellen") != ERR_SUCCESS) return -1;
+	if(ErrCheck(createRenderBuffers(renderBuffers, window.windowWidth*resolutionScale, window.windowHeight*resolutionScale, 11), "Renderbuffers erstellen") != ERR_SUCCESS) return -1;
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i){
 		if(ErrCheck(createColorbuffer(colorBuffers[i], renderBuffers.width, renderBuffers.height), "Colorbuffer erstellen") != ERR_SUCCESS) return -1;
 	}
@@ -990,7 +993,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// std::cout << filepath << std::endl;
 
 	resetTimer(loadTimer);
-	if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/SSAO_test.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 10, -10, 10), "Modell laden") != ERR_SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
 	std::cout << "Modell laden: " << getTimerMillis(loadTimer)/1000.f << "s" << std::endl;

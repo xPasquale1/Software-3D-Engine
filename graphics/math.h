@@ -196,6 +196,7 @@ fvec3 closestPointOnLineSegment(const fvec3& point, const fvec3& start, const fv
     return lerp(start, end, clamp(t, 0.f, 1.f));
 }
 
+//TODO Sollte nicht im math.h sein
 //TODO Die Indexberechnung kann optimiert werden
 void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
 	const DWORD totalBufferSize = width*height;
@@ -214,6 +215,7 @@ void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
 	}
 }
 
+//TODO Sollte nicht im math.h sein
 void medianBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
 	const DWORD totalBufferSize = width*height;
 	DWORD idx = 0;

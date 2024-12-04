@@ -1957,10 +1957,11 @@ enum OBJKEYWORD{
 
 enum MTLKEYWORD{	//TODO hier fehlen noch ein paar
 	MTL_NEWMTL = hashKeywords("newmtl"),
-	MTL_MAP_KD = hashKeywords("map_Kd"),
-	MTL_MAP_DISP = hashKeywords("map_Disp"),
-	MTL_MAP_KA = hashKeywords("map_Ka"),
-	MTL_MAP_D = hashKeywords("map_d"),
+	MTL_MAP_KD = hashKeywords("map_Kd"),		//Diffuse
+	MTL_MAP_BUMP = hashKeywords("map_Bump"),	//Normal
+	MTL_MAP_KA = hashKeywords("map_Ka"),		//AO
+	MTL_MAP_KS = hashKeywords("map_Ks"),		//Specular
+	MTL_MAP_D = hashKeywords("map_d"),			//TODO Keine Ahnung eine MTL File hat das als map_Kd genutzt
 	MTL_COMMENT = hashKeywords("#"),
 	MTL_KA = hashKeywords("Ka"),
 	MTL_KD = hashKeywords("Kd"),
@@ -2007,6 +2008,17 @@ bool readWord(std::fstream& file, std::string& buffer)noexcept{
 		break;
 	}
 	return newline;
+}
+
+//Liest so lange Daten in den Buffer, bis ein \n oder eof gefunden wurde
+bool readLine(std::fstream& file, std::string& buffer)noexcept{
+	buffer.clear();
+	int c = file.get();
+	while(1){
+		if(file.eof()) return true;
+		if(c == '\n') return true;
+		buffer += c;
+	}
 }
 
 //Ließt die obj Datei weiter ein bis zum nächsten \n und parsed die Linie basierend auf dem obj keyword, schriebt die Daten in den outData buffer
@@ -2113,8 +2125,13 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 			data[buffer.size()] = '\0';
 			break;
 		}
+		case MTL_MAP_BUMP:{
+			break;
+		}
 		case MTL_MAP_D:
 		case MTL_MAP_KD:
+		case MTL_MAP_KS:
+		case MTL_MAP_KA:
 		case MTL_COMMENT:{
 			std::string buffer;
 			BYTE* data = (BYTE*)outData;
@@ -2135,12 +2152,13 @@ ErrCode parseMtlLine(MTLKEYWORD key, std::fstream& file, void* outData)noexcept{
 
 //TODO noch nicht alle Keywords werden beachtet
 //TODO Theoretisch noch nicht optimal implementiert, da jede Zeile erst in einen Buffer gelesen wird und dieser dann erst geparsed
+//TODO Liest aktuell die Texturen in feste Einträge im Texture Array des Materials
 ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)noexcept{
 	std::fstream file;
 	file.open(filename, std::ios::in);
 	if(!file.is_open()) return ERR_MATERIAL_NOT_FOUND;
 	std::string word;
-	void* data[80];
+	void* data[120];			//TODO Manche Texturenpfade könnten länger sein
 	DWORD lineNumber = 0;
 	while(file >> word){
 		lineNumber++;
@@ -2152,11 +2170,18 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				materials[materialCount-1].name = std::string((char*)data);
 				break;
 			}
-			case MTL_MAP_D:{	//TODO richtig implementieren
-				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+			case MTL_MAP_BUMP:{
 				break;
 			}
+			case MTL_MAP_D:		//Kein Plan ob das richtig ist
+			case MTL_MAP_KS:
 			case MTL_MAP_KD:{
+				BYTE textureIdx = 0;
+				switch(key){
+					case MTL_MAP_KS:
+						textureIdx = 1;
+						break;
+				}
 				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				std::string textureFile = std::string((char*)data);
 				size_t index = 0;
@@ -2166,10 +2191,9 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 					textureFile.replace(index, 2, "/");
 					index += 2;
 				}
-				//TODO das sollte nicht Index 0 sein, sondern irgendwie anders (Material struct hat eh noch arbeit)
-				if(materials[materialCount-1].textureCount > 0) destroyImage(materials[materialCount-1].textures[0]);
-				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[0]), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
-				flipImageVertically(materials[materialCount-1].textures[0]);	//TODO warum nur ist das nötig?
+				if(materials[materialCount-1].textures[textureIdx].data == nullptr) destroyImage(materials[materialCount-1].textures[textureIdx]);
+				if(ErrCheck(loadImage(textureFile.c_str(), materials[materialCount-1].textures[textureIdx]), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				flipImageVertically(materials[materialCount-1].textures[textureIdx]);	//TODO warum nur ist das nötig?
 				materials[materialCount-1].textureCount = 1;
 				//TODO Das ist nur eine Übergangslösung und sollte besser implementiert werden
 				DWORD redBuffer[256]{0};
@@ -2181,10 +2205,10 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				BYTE greenIdx = 0;
 				DWORD blueMax = 0;
 				BYTE blueIdx = 0;
-				for(DWORD i=0; i < materials[materialCount-1].textures[0].width*materials[materialCount-1].textures[0].height; ++i){
-					redBuffer[R(materials[materialCount-1].textures[0].data[i])] += 1;
-					greenBuffer[G(materials[materialCount-1].textures[0].data[i])] += 1;
-					blueBuffer[B(materials[materialCount-1].textures[0].data[i])] += 1;
+				for(DWORD i=0; i < materials[materialCount-1].textures[textureIdx].width*materials[materialCount-1].textures[textureIdx].height; ++i){
+					redBuffer[R(materials[materialCount-1].textures[textureIdx].data[i])] += 1;
+					greenBuffer[G(materials[materialCount-1].textures[textureIdx].data[i])] += 1;
+					blueBuffer[B(materials[materialCount-1].textures[textureIdx].data[i])] += 1;
 				}
 				for(WORD i=0; i < 256; ++i){
 					if(redBuffer[i] > redMax){
@@ -2203,18 +2227,25 @@ ErrCode loadMtl(const char* filename, Material* materials, DWORD& materialCount)
 				materials[materialCount-1].baseColor = RGBA(redIdx, greenIdx, blueIdx);
 				break;
 			}
-			case MTL_KD:{	//TODO Wie das TODO oben und unten (:
+			case MTL_KS:
+			case MTL_KD:{
+				BYTE textureIdx = 0;
+				switch(key){
+					case MTL_KS:
+						textureIdx = 1;
+						break;
+				}
 				if(parseMtlLine(key, file, data) != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				float* values = (float*)data;
-				if(materials[materialCount-1].textureCount > 0) break;
-				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[0], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
+				if(materials[materialCount-1].textures[textureIdx].data != nullptr) break;
+				if(ErrCheck(createBlankImage(materials[materialCount-1].textures[textureIdx], 4, 4, RGBA(values[0]*255, values[1]*255, values[2]*255)), "Texture laden") != ERR_SUCCESS) return ErrCheck(ERR_MATERIAL_BAD_FORMAT, std::string(word + " in Zeile: " + longToString(lineNumber)).c_str());
 				materials[materialCount-1].textureCount = 1;
 				materials[materialCount-1].baseColor = RGBA(values[0]*255, values[1]*255, values[2]*255);
 				break;
 			}
 			case MTL_NS:	//TODO müssen alle noch implementiert werden
+			case MTL_MAP_KA:
 			case MTL_KA:
-			case MTL_KS:
 			case MTL_KE:
 			case MTL_NI:
 			case MTL_D:
