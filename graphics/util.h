@@ -2,6 +2,8 @@
 
 #include <iostream>
 #include <vector>
+#include <unordered_map>
+#include <list>
 #include <math.h>
 #include "math.h"
 
@@ -78,6 +80,78 @@ ErrCode ErrCheck(ErrCode code, const char* msg="\0", ErrCodeFlags flags=ERR_NO_F
 	default: return ERR_SUCCESS;
 	}
 	return ERR_SUCCESS;
+}
+
+/*	TODOs Für das Speicher allokieren/löschen Zeugs hier:
+	1: Es ist beschissen.
+	2: Einzelne Varariablen werden mit new[] angelegt, was unnötiger Overhead sein kann
+	3: Aktuell werden Listen verwendet, Vektoren könnten dennoch schneller/besser sein
+	4: Es ist gar nicht Threadsicher...
+	5: Wenn man den Typ castet vor dem dealloc wird bestimmt die Welt untergehen
+	6: Parameter werden nicht an die Kontruktoren übergeben
+	7: Keine Initialiserliste
+	8: Tags Einträge werden nie gelöscht... Ironisch ein Memory Tracker mit Memory Leak (:
+*/
+
+#define TRACKMEMORY
+
+#ifdef TRACKMEMORY
+struct AllocInfo{
+    std::list<void*>::iterator ptr;
+    std::list<void*>* list;
+    DWORD size;
+};
+std::unordered_map<void*, AllocInfo> _memAllocsMap;
+std::unordered_map<std::string, std::list<void*>> _memAllocsHints;
+#endif
+
+template<typename T>
+T* alloc(DWORD count, const std::string& tag = "Unknown"){
+	T* ptr = new(std::nothrow) T[count];
+    #ifdef TRACKMEMORY
+    if(ptr){
+        auto& list = _memAllocsHints[tag];
+        std::list<void*>::iterator ref = list.insert(list.end(), ptr);
+        AllocInfo& element = _memAllocsMap[ptr];
+        element.size = count*sizeof(T);
+        element.ptr = ref;
+        element.list = &list;
+    }
+    #endif
+    return ptr;
+}
+
+template <typename T>
+void dealloc(T* ptr){
+	if(!ptr) return;
+	delete[] ptr;
+    #ifdef TRACKMEMORY
+    AllocInfo& element = _memAllocsMap[ptr];
+    element.list->erase(element.ptr);
+    _memAllocsMap.erase(ptr);
+    #endif
+}
+
+DWORD getTotalMemoryUsage(){
+    DWORD total = 0;
+    #ifdef TRACKMEMORY
+    for(const auto& it : _memAllocsMap){
+        total += it.second.size;
+    }
+    #endif
+    return total;
+}
+
+DWORD getMemoryUsageByTag(const std::string& tag){
+    DWORD total = 0;
+    #ifdef TRACKMEMORY
+    std::list<void*> list = _memAllocsHints[tag];
+	if(!list.empty()) return 0;
+    for(const auto& ptr : list){
+        total += _memAllocsMap[ptr].size;
+    }
+    #endif
+    return total;
 }
 
 enum MOUSEBUTTONS{

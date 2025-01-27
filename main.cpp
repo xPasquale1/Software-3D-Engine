@@ -10,6 +10,7 @@
 	vllt kann man kein clipping machen, aber eine max. weite und daher auch Auflösung festlegen (clippe einfach alle verticies die zu groß sind? aufwand größer?)
 	TODO Multithreading muss noch korrekt implementiert werden mit locks auf die buffers, "faire" aufteilung,... und die Threads vllt wieder verwenden lol
 	TODO eigene alloc Funktion machen, die ErrCode zurück gibt
+	TODO Nicht linearer Depthbuffer für bessere Präzision
 */
 
 // #define NEWTRIANGLEDRAWINGALGORITHM
@@ -37,7 +38,9 @@ RENDERMODES renderMode;
 
 //Sliders
 FloatSlider shadowSlider[2];
+Checkbox shadowCheckboxes[2];
 WORD shadowSliderCount = 0;
+WORD shadowCheckboxCount = 0;
 FloatSlider ssaoSlider[4];
 WORD ssaoSliderCount = 0;
 FloatSlider ssgiSlider[4];
@@ -51,6 +54,25 @@ FloatSlider resolutionScaleSlider;
 //Checkboxen
 Checkbox checkboxes[6];		//Schatten, SSR, SSAO, SSGI, SSRC, SDF
 WORD checkboxCount = 0;
+
+void initMenu(){
+	checkboxes[0].size = {30, 30};
+	checkboxes[0].label = "Shadows";
+	shadowCheckboxes[0].size = {30, 30};
+	shadowCheckboxes[0].label = "PCF";
+	shadowCheckboxes[1].size = {30, 30};
+	shadowCheckboxes[1].label = "SSCS";
+	checkboxes[1].size = {30, 30};
+	checkboxes[1].label = "SSR";
+	checkboxes[2].size = {30, 30};
+	checkboxes[2].label = "SSAO";
+	checkboxes[3].size = {30, 30};
+	checkboxes[3].label = "SSGI";
+	checkboxes[4].size = {30, 30};
+	checkboxes[4].label = "SSRC";
+	checkboxes[5].size = {30, 30};
+	checkboxes[5].label = "SDF";
+}
 
 Menu settingsMenu;
 // Menü Funktionen
@@ -72,22 +94,27 @@ ErrCode setRenderMode(void* mode)noexcept{
 			ivec2 position = {20, settingsMenu.size.y};
 			position.y += 10;
 			checkboxes[0].pos = position;
-			checkboxes[0].size = {30, 30};
-			checkboxes[0].label = "Shadows";
 			position.y += checkboxes[0].size.y;
 			if(getCheckBoxFlag(checkboxes[0], CHECKBOXFLAG_CHECKED)){
-				position.y += 22;
+				position.y += 10;
+				shadowCheckboxCount = sizeof(shadowCheckboxes)/sizeof(Checkbox);
+				for(int i=0; i < shadowCheckboxCount; ++i){
+					shadowCheckboxes[i].pos = {position.x+10, position.y};
+					position.y += shadowCheckboxes[i].size.y+10;
+				}
+				position.y += 12;
 				shadowSliderCount = sizeof(shadowSlider)/sizeof(FloatSlider);
 				for(int i=0; i < shadowSliderCount; ++i){
 					shadowSlider[i].pos = {position.x, position.y};
 					if(i != shadowSliderCount-1) position.y += shadowSlider[i].sliderRadius*2+10;
 				}
 				position.y += 12;
-			}else shadowSliderCount = 0;
+			}else{
+				shadowCheckboxCount = 0;
+				shadowSliderCount = 0;
+			}
 			position.y += 10;
 			checkboxes[1].pos = position;
-			checkboxes[1].size = {30, 30};
-			checkboxes[1].label = "SSR";
 			position.y += checkboxes[1].size.y;
 			if(getCheckBoxFlag(checkboxes[1], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
@@ -100,8 +127,6 @@ ErrCode setRenderMode(void* mode)noexcept{
 			}else ssrSliderCount = 0;
 			position.y += 10;
 			checkboxes[2].pos = position;
-			checkboxes[2].size = {30, 30};
-			checkboxes[2].label = "SSAO";
 			position.y += checkboxes[2].size.y;
 			if(getCheckBoxFlag(checkboxes[2], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
@@ -114,8 +139,6 @@ ErrCode setRenderMode(void* mode)noexcept{
 			}else ssaoSliderCount = 0;
 			position.y += 10;
 			checkboxes[3].pos = position;
-			checkboxes[3].size = {30, 30};
-			checkboxes[3].label = "SSGI";
 			position.y += checkboxes[3].size.y;
 			if(getCheckBoxFlag(checkboxes[3], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
@@ -128,8 +151,6 @@ ErrCode setRenderMode(void* mode)noexcept{
 			}else ssgiSliderCount = 0;
 			position.y += 10;
 			checkboxes[4].pos = position;
-			checkboxes[4].size = {30, 30};
-			checkboxes[4].label = "SSRC";
 			position.y += checkboxes[4].size.y;
 			if(getCheckBoxFlag(checkboxes[4], CHECKBOXFLAG_CHECKED)){
 				position.y += 22;
@@ -142,8 +163,6 @@ ErrCode setRenderMode(void* mode)noexcept{
 			}else ssrcSliderCount = 0;
 			position.y += 10;
 			checkboxes[5].pos = position;
-			checkboxes[5].size = {30, 30};
-			checkboxes[5].label = "SDF";
 			break;
 		}
 	}
@@ -196,6 +215,8 @@ void textureShader(RenderBuffers& renderBuffers, Image& diffuseTexture, Image& s
 #define RANDOMNORMALSCOUNT 211
 fvec3 randomNormalVectorBuffer[RANDOMNORMALSCOUNT];
 
+//TODO Blue Noise
+//TODO Anstatt Random in den Array zu Indexen, könnte man den Array random befüllen (klar dann größer machen), damit der Cache besser genutzt wird
 fvec3 generateRandomNormalInHemisphere(const fvec3& normal)noexcept{
 	fvec3 random = randomNormalVectorBuffer[nextrand()%RANDOMNORMALSCOUNT];
     if(dot(normal, random) < 0){
@@ -270,49 +291,58 @@ void shadowMappingShader(RenderBuffers& renderBuffers, Depthbuffer& shadowDepthB
 			}
 
 			float shadowColor = 0;
-			bool valid = true;
-			for(SBYTE dy=-1; dy <= 1; ++dy){
-				if(!valid) break;
-				WORD yIdx = uvy+dy;
-				if(yIdx >= shadowDepthBuffer.height){
-					valid = false;
-					break;
-				}
-				for(SBYTE dx=-1; dx <= 1; ++dx){
-					WORD xIdx = uvx+dx;
-					if(xIdx >= shadowDepthBuffer.width){
+			//PCF
+			if(getCheckBoxFlag(shadowCheckboxes[0], CHECKBOXFLAG_CHECKED)){
+				bool valid = true;
+				for(SBYTE dy=-1; dy <= 1; ++dy){
+					if(!valid) break;
+					WORD yIdx = uvy+dy;
+					if(yIdx >= shadowDepthBuffer.height){
 						valid = false;
 						break;
 					}
-					float shadowDepth = shadowDepthBuffer.data[yIdx*shadowDepthBuffer.width+xIdx];
-					if(viewPos.z*DEPTH_DIVISOR-shadowSlider[0].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
+					for(SBYTE dx=-1; dx <= 1; ++dx){
+						WORD xIdx = uvx+dx;
+						if(xIdx >= shadowDepthBuffer.width){
+							valid = false;
+							break;
+						}
+						float shadowDepth = shadowDepthBuffer.data[yIdx*shadowDepthBuffer.width+xIdx];
+						if(viewPos.z*DEPTH_DIVISOR-shadowSlider[0].value*DEPTH_DIVISOR <= shadowDepth) shadowColor += 1;
+					}
+				}
+				if(!valid){
+					lightingBuffers[0].data[idx] = 0.f;
+					continue;
+				}
+				shadowColor /= 9;
+			}else{
+				float shadowDepth = shadowDepthBuffer.data[uvy*shadowDepthBuffer.width+uvx];
+				if(viewPos.z*DEPTH_DIVISOR-shadowSlider[0].value*DEPTH_DIVISOR <= shadowDepth) shadowColor = 1;
+			}
+			
+			//SSCS
+			if(getCheckBoxFlag(shadowCheckboxes[1], CHECKBOXFLAG_CHECKED)){
+				const float stepSize = 1;
+				const float maxSteps = 8;
+				for(int step=0; step < maxSteps; ++step){
+					worldPixelPosition.x += sunDir.x * stepSize;
+					worldPixelPosition.y += sunDir.y * stepSize;
+					worldPixelPosition.z += sunDir.z * stepSize;
+
+					fvec3 viewPos = worldCoordinatesToScreenspace(worldPixelPosition, sceneCamRotm, cam.pos, aspectRatio, renderBuffers.width, renderBuffers.height);
+					WORD uvx = (WORD)viewPos.x;
+					WORD uvy = (WORD)viewPos.y;
+
+					if(uvx >= renderBuffers.width || uvy >= renderBuffers.height) break;
+
+					float depthDiff = viewPos.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[uvy*renderBuffers.width+uvx];
+					if(depthDiff > 2*DEPTH_DIVISOR && depthDiff < 5*DEPTH_DIVISOR){
+						shadowColor = 0;
+						break;
+					}
 				}
 			}
-			if(!valid){
-				lightingBuffers[0].data[idx] = 0.f;
-				continue;
-			}
-			shadowColor /= 9;
-			
-			// const float stepSize = 1;
-			// const float maxSteps = 8;
-			// for(int step=0; step < maxSteps; ++step){
-			// 	worldPixelPosition.x += sunDir.x * stepSize;
-			// 	worldPixelPosition.y += sunDir.y * stepSize;
-			// 	worldPixelPosition.z += sunDir.z * stepSize;
-
-			// 	fvec3 viewPos = worldCoordinatesToScreenspace(worldPixelPosition, sceneCamRotm, cam.pos, aspectRatio, renderBuffers.width, renderBuffers.height);
-			// 	WORD uvx = (WORD)viewPos.x;
-			// 	WORD uvy = (WORD)viewPos.y;
-
-			// 	if(uvx >= renderBuffers.width || uvy >= renderBuffers.height) break;
-
-			// 	float depthDiff = viewPos.z*DEPTH_DIVISOR-renderBuffers.depthBuffer[uvy*renderBuffers.width+uvx];
-			// 	if(depthDiff > 2*DEPTH_DIVISOR && depthDiff < 4*DEPTH_DIVISOR){
-			// 		shadowColor = 0;
-			// 		break;
-			// 	}
-			// }
 			
 			lightStrength *= shadowColor;
 			lightStrength = clamp(lightStrength, 0.f, 1.f);
@@ -975,10 +1005,10 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 
 	//TODO dynamisch
 	#define MODELSTORAGECOUNT 50
-	TriangleModel* models = new(std::nothrow) TriangleModel[MODELSTORAGECOUNT];
+	TriangleModel* models = alloc<TriangleModel>(MODELSTORAGECOUNT, "Modelbuffer");
 	for(int i=0; i < MODELSTORAGECOUNT; ++i) models[i].attributesCount = 8;
 	DWORD modelCount = 0;
-	Material* materials = new(std::nothrow) Material[MODELSTORAGECOUNT];
+	Material* materials = alloc<Material>(MODELSTORAGECOUNT, "Materialbuffer");
 	DWORD materialCount = 0;
 	if(!models || !materials){
 		ErrCheck(ERR_BAD_ALLOC, "Konnte keinen Speicher für Modelle/Materials allokieren!");
@@ -993,8 +1023,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	// std::cout << filepath << std::endl;
 
 	resetTimer(loadTimer);
-	if(ErrCheck(loadObj("objects/SSAO_test.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 10, -10, 10), "Modell laden") != ERR_SUCCESS) return -1;
-	// if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
+	// if(ErrCheck(loadObj("objects/SSAO_test.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 10, -10, 10), "Modell laden") != ERR_SUCCESS) return -1;
+	if(ErrCheck(loadObj("objects/room.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -60, -60, 60), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/sponza.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, 5, -5, 5), "Modell laden") != ERR_SUCCESS) return -1;
 	// if(ErrCheck(loadObj("objects/classroom_low_poly.obj", models, modelCount, materials, materialCount, 3, 0, 0, 0, -100, -100, 100), "Modell laden") != ERR_SUCCESS) return -1;
 	std::cout << "Modell laden: " << getTimerMillis(loadTimer)/1000.f << "s" << std::endl;
@@ -1014,6 +1044,8 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	RECT rect;
 	GetWindowRect(window.handle, &rect);
 	SetCursorPos(window.windowWidth/2+rect.left, window.windowHeight/2+rect.top);
+
+	initMenu();
 
 	ivec2 buttonPos = {20, 20};
 	ivec2 buttonSize = {160, 30};
@@ -1228,9 +1260,26 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	std::cout << "SDF Generation: " << getTimerMillis(loadTimer)/1000.f << "s" << std::endl;
 	float rotDir = 0;
 
-	globalPoints = new ColorPoint[20000000];
+	globalPoints = alloc<ColorPoint>(20000000, "ColorpointBuffer");
 
-	RadianceProbe* radianceProbes = new RadianceProbe[renderBuffers.width*renderBuffers.height];	//TODO Sollte neu allokiert werden bei Änderung des RenderBuffers
+	RadianceProbe* radianceProbes = alloc<RadianceProbe>(renderBuffers.width*renderBuffers.height, "RadianceProbebuffer");	//TODO Sollte neu allokiert werden bei Änderung des RenderBuffers
+
+	for(auto& x : _memAllocsHints){
+		DWORD total = 0;
+		for(void* e : x.second){
+			total += _memAllocsMap[e].size;
+		}
+		const char* sizeNames[] = {"B", "KB", "MB", "GB"};
+		BYTE sizeNameIdx = 0;
+		while(total >= 1000){
+			total /= 1000;
+			sizeNameIdx++;
+		}
+		std::string val = x.first + ": ";
+		val += floatToString(total);
+		val += sizeNames[sizeNameIdx];
+		std::cout << val <<  std::endl;
+	}
 
 	while(_running){
 		getMessages(window);
@@ -1328,6 +1377,17 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 		val = "Punkteanzahl: ";
 		val += longToString(globalPointCount);
 		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*5+12);
+		val = "Speicher: ";
+		float memoryUsage = getTotalMemoryUsage();
+		const char* sizeNames[] = {"B", "KB", "MB", "GB"};
+		BYTE sizeNameIdx = 0;
+		while(memoryUsage >= 1000){
+			memoryUsage /= 1000;
+			sizeNameIdx++;
+		}
+		val += floatToString(memoryUsage);
+		val += sizeNames[sizeNameIdx];
+		drawFontString(window.framebuffer, font, val.c_str(), 5, font.font_size*6+14);
 
 		update(getTimerMillis(_perfAnalyzer.timer[0])+1);
 
@@ -1339,7 +1399,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	for(DWORD i=0; i < materialCount; ++i) destroyMaterial(materials[i]);
 	for(int i=0; i < sizeof(colorBuffers)/sizeof(Colorbuffer); ++i) destroyColorbuffer(colorBuffers[i]);
 	for(int i=0; i < sizeof(lightingBuffers)/sizeof(Floatbuffer); ++i) destroyFloatbuffer(lightingBuffers[i]);
-	delete[] globalPoints;
+	dealloc(globalPoints);
 	destroySDF(sceneSdf);
 	destroyRenderBuffers(renderBuffers);
 	destroyDepthbuffer(shadowDepthBuffer);
@@ -1399,6 +1459,7 @@ void update(const float dt)noexcept{
 		if(renderMode == RENDERMODE_SHADED_MODE){
 			updateCheckBoxes(window.framebuffer, font, checkboxes, sizeof(checkboxes)/sizeof(Checkbox));
 			updateFloatSliders(window.framebuffer, font, shadowSlider, shadowSliderCount);
+			updateCheckBoxes(window.framebuffer, font, shadowCheckboxes, shadowCheckboxCount);
 			updateFloatSliders(window.framebuffer, font, ssrSlider, ssrSliderCount);
 			updateFloatSliders(window.framebuffer, font, ssaoSlider, ssaoSliderCount);
 			updateFloatSliders(window.framebuffer, font, ssgiSlider, ssgiSliderCount);

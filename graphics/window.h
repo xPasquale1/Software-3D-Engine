@@ -27,13 +27,13 @@ struct Colorbuffer{
 ErrCode createColorbuffer(Colorbuffer& buffer, WORD width, WORD height)noexcept{
 	buffer.width = width;
 	buffer.height = height;
-	buffer.data = new(std::nothrow) DWORD[width*height];
+	buffer.data = alloc<DWORD>(width*height, "Colorbuffer");
 	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
 	return ERR_SUCCESS; 
 }
 
 void destroyColorbuffer(Colorbuffer& buffer)noexcept{
-	delete[] buffer.data;
+	dealloc(buffer.data);
 }
 
 struct Floatbuffer{
@@ -45,13 +45,13 @@ struct Floatbuffer{
 ErrCode createFloatbuffer(Floatbuffer& buffer, WORD width, WORD height)noexcept{
 	buffer.width = width;
 	buffer.height = height;
-	buffer.data = new(std::nothrow) float[width*height];
+	buffer.data = alloc<float>(width*height, "Floatbuffer");
 	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
 	return ERR_SUCCESS;
 }
 
 void destroyFloatbuffer(Floatbuffer& buffer)noexcept{
-	delete[] buffer.data;
+	dealloc(buffer.data);
 }
 
 #define WINDOWFLAGSTYPE BYTE
@@ -344,7 +344,7 @@ struct Image{
 };
 
 ErrCode createImage(Image& image, WORD width, WORD height)noexcept{
-	image.data = new(std::nothrow) DWORD[width*height];
+	image.data = alloc<DWORD>(width*height, "Imagebuffer");
 	if(!image.data) return ERR_BAD_ALLOC;
 	image.width = width;
 	image.height = height;
@@ -357,7 +357,7 @@ ErrCode loadImage(const char* name, Image& image)noexcept{
 	if(!file.is_open()) return ERR_FILE_NOT_FOUND;
 	file.read((char*)&image.width, 2);
 	file.read((char*)&image.height, 2);
-	image.data = new(std::nothrow) DWORD[image.width*image.height];
+	image.data = alloc<DWORD>(image.width*image.height, "Imagebuffer");
 	if(!image.data) return ERR_BAD_ALLOC;
 	BYTE val[4];
 	for(DWORD i=0; i < image.width*image.height; ++i){
@@ -384,7 +384,7 @@ Image generateMipMap(Image& image)noexcept{
 	Image out;
 	out.width = image.width/2;
 	out.height = image.height/2;
-	out.data = new DWORD[out.width*out.height];		//TODO Fehler testen
+	out.data = alloc<DWORD>(out.width*out.height, "Imagebuffer");	//TODO Fehler testen
 	for(WORD y=0; y < image.height; y+=2){
 		for(WORD x=0; x < image.width; x+=2){
 			out.data[(y/2)*out.width+(x/2)] = image.data[y*image.width+x];
@@ -394,7 +394,7 @@ Image generateMipMap(Image& image)noexcept{
 }
 
 void destroyImage(Image& image)noexcept{
-	delete[] image.data;
+	dealloc(image.data);
 	image.data = nullptr;
 }
 
@@ -820,13 +820,13 @@ struct Depthbuffer{
 ErrCode createDepthbuffer(Depthbuffer& buffer, WORD width, WORD height)noexcept{
 	buffer.width = width;
 	buffer.height = height;
-	buffer.data = new(std::nothrow) float[width*height];
+	buffer.data = alloc<float>(width*height, "Depthbuffer");
 	if(buffer.data == nullptr) return ERR_BAD_ALLOC;
 	return ERR_SUCCESS;
 }
 
 void destroyDepthbuffer(Depthbuffer& buffer)noexcept{
-	delete[] buffer.data;
+	dealloc(buffer.data);
 }
 
 void clearDepthbuffer(Depthbuffer& buffer)noexcept{
@@ -848,37 +848,37 @@ ErrCode createRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD heigh
 	renderBuffers.width = width;
 	renderBuffers.height = height;
 	renderBuffers.attributeBuffersCount = attributesCount;
-	renderBuffers.frameBuffer = new DWORD[width*height];
+	renderBuffers.frameBuffer = alloc<DWORD>(width*height, "Framebuffer");
 	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
-	renderBuffers.depthBuffer = new float[width*height];
+	renderBuffers.depthBuffer = alloc<float>(width*height, "Depthbuffer");
 	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
-	renderBuffers.fragmentFlags = new BYTE[width*height];
+	renderBuffers.fragmentFlags = alloc<BYTE>(width*height, "Fragmentflagsbuffer");
 	if(renderBuffers.fragmentFlags == nullptr) return ERR_BAD_ALLOC;
-	renderBuffers.attributeBuffers = new float[width*height*attributesCount];
+	renderBuffers.attributeBuffers = alloc<float>(width*height*attributesCount, "Attributebuffer");
 	if(renderBuffers.attributeBuffers == nullptr) return ERR_BAD_ALLOC;
 	return ERR_SUCCESS;
 }
 
 void destroyRenderBuffers(RenderBuffers& renderBuffers)noexcept{
-	delete[] renderBuffers.frameBuffer;
-	delete[] renderBuffers.depthBuffer;
-	delete[] renderBuffers.fragmentFlags;
-	delete[] renderBuffers.attributeBuffers;
+	dealloc(renderBuffers.frameBuffer);
+	dealloc(renderBuffers.depthBuffer);
+	dealloc(renderBuffers.fragmentFlags);
+	dealloc(renderBuffers.attributeBuffers);
 }
 
 //TODO Muss ja eigentlich nur neu allokiert werden, wenn der Größer werden soll
 ErrCode resizeRenderBuffers(RenderBuffers& renderBuffers, WORD width, WORD height)noexcept{
-	delete[] renderBuffers.frameBuffer;
-	renderBuffers.frameBuffer = new(std::nothrow) DWORD[width*height];
+	dealloc(renderBuffers.frameBuffer);
+	renderBuffers.frameBuffer = alloc<DWORD>(width*height, "Framebuffer");
 	if(renderBuffers.frameBuffer == nullptr) return ERR_BAD_ALLOC;
-	delete[] renderBuffers.depthBuffer;
-	renderBuffers.depthBuffer = new(std::nothrow) float[width*height];
+	dealloc(renderBuffers.depthBuffer);
+	renderBuffers.depthBuffer = alloc<float>(width*height, "Depthbuffer");
 	if(renderBuffers.depthBuffer == nullptr) return ERR_BAD_ALLOC;
-	delete[] renderBuffers.fragmentFlags;
-	renderBuffers.fragmentFlags = new(std::nothrow) BYTE[width*height];
+	dealloc(renderBuffers.fragmentFlags);
+	renderBuffers.fragmentFlags = alloc<BYTE>(width*height, "Fragmentflagsbuffer");
 	if(renderBuffers.fragmentFlags == nullptr) return ERR_BAD_ALLOC;
-	delete[] renderBuffers.attributeBuffers;
-	renderBuffers.attributeBuffers = new(std::nothrow) float[width*height*renderBuffers.attributeBuffersCount];
+	dealloc(renderBuffers.attributeBuffers);
+	renderBuffers.attributeBuffers = alloc<float>(width*height*renderBuffers.attributeBuffersCount, "Attributebuffer");
 	if(renderBuffers.attributeBuffers == nullptr) return ERR_BAD_ALLOC;
 	renderBuffers.width = width;
 	renderBuffers.height = height;
@@ -930,14 +930,14 @@ struct TriangleModel{
 };
 
 void destroyTriangleModel(TriangleModel& model)noexcept{
-	delete[] model.triangles;
-	delete[] model.attributesBuffer;
-	// delete model.material;	//TODO hm is doof
+	dealloc(model.triangles);
+	dealloc(model.attributesBuffer);
+	// dealloc(model.material);	//TODO hm is doof
 }
 
 ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)noexcept{
-	Triangle* newArray = new(std::nothrow) Triangle[model.triangleCapacity+additionalCapacity];
-	float* newAttributeArray = new(std::nothrow) float[(model.triangleCapacity+additionalCapacity)*model.attributesCount*3];
+	Triangle* newArray = alloc<Triangle>(model.triangleCapacity+additionalCapacity, "Trianglebuffer");
+	float* newAttributeArray = alloc<float>((model.triangleCapacity+additionalCapacity)*model.attributesCount*3, "Triangleattributebuffer");
 	if(newArray == nullptr || newAttributeArray == nullptr) return ERR_BAD_ALLOC;
 	for(DWORD i=0; i < model.triangleCount; ++i){
 		newArray[i] = model.triangles[i];
@@ -947,10 +947,10 @@ ErrCode increaseTriangleCapacity(TriangleModel& model, DWORD additionalCapacity)
 	}
 	Triangle* oldArray = model.triangles;
 	model.triangles = newArray;
-	delete[] oldArray;
+	dealloc(oldArray);
 	float* oldAttributeArray = model.attributesBuffer;
 	model.attributesBuffer = newAttributeArray;
-	delete[] oldAttributeArray;
+	dealloc(oldAttributeArray);
 	model.triangleCapacity += additionalCapacity;
 	return ERR_SUCCESS;
 }
@@ -1537,7 +1537,7 @@ void clipEdgeY(Triangle* buffer, BYTE& count, const float regionSize, bool(*cmpF
 	}
 }
 
-#define CLIPPINGREGIONSIZE 400
+#define CLIPPINGREGIONSIZE 800
 const float INVCLIPPINGREGIONSIZE = 1.f/CLIPPINGREGIONSIZE;
 BYTE clippingOrthographic(Triangle* triangles)noexcept{
 	BYTE count = 1;
@@ -2410,9 +2410,9 @@ ErrCode createSDF(SDF& sdf, fvec3 pos, fvec3 size, DWORD dx, DWORD dy, DWORD dz)
 	sdf.dx = dx;
 	sdf.dy = dy;
 	sdf.dz = dz;
-	sdf.data = new(std::nothrow) float[dx*dy*dz];
-	sdf.ids = new(std::nothrow) BYTE[dx*dy*dz];
-	sdf.color = new(std::nothrow) DWORD[dx*dy*dz];
+	sdf.data = alloc<float>(dx*dy*dz, "SDFdata");
+	sdf.ids = alloc<BYTE>(dx*dy*dz, "SDFids");
+	sdf.color = alloc<DWORD>(dx*dy*dz, "SDFcolors");
 	if(sdf.data == nullptr) return ERR_BAD_ALLOC;
 	if(sdf.ids == nullptr) return ERR_BAD_ALLOC;
 	if(sdf.color == nullptr) return ERR_BAD_ALLOC;
@@ -2420,9 +2420,9 @@ ErrCode createSDF(SDF& sdf, fvec3 pos, fvec3 size, DWORD dx, DWORD dy, DWORD dz)
 }
 
 void destroySDF(SDF& sdf)noexcept{
-	delete[] sdf.data;
-	delete[] sdf.ids;
-	delete[] sdf.color;
+	dealloc(sdf.data);
+	dealloc(sdf.ids);
+	dealloc(sdf.color);
 }
 
 void setSDFValues(SDF& sdf, float value)noexcept{
@@ -2484,8 +2484,9 @@ void calculateSDFFromMesh(SDF& sdf, const TriangleModel& model, BYTE id)noexcept
     float dx = sdf.size.x/sdf.dx;
 	float dy = sdf.size.y/sdf.dy;
 	float dz = sdf.size.z/sdf.dz;
-	BYTE* marked = new BYTE[sdf.dx*sdf.dy*sdf.dz]{0};
-	uivec3* bfsBuffer = new uivec3[sdf.dx*sdf.dy*sdf.dz*4];		//TODO Solle ein Vektor werden oder so
+	BYTE* marked = alloc<BYTE>(sdf.dx*sdf.dy*sdf.dz, "SDF-Gen-MarkedArray");
+	for(DWORD i=0; i < sdf.dx*sdf.dy*sdf.dz; ++i) marked[i] = 0;
+	uivec3* bfsBuffer = alloc<uivec3>(sdf.dx*sdf.dy*sdf.dz*4, "SDF-Gen-BFSBuffer");		//TODO Solle ein Vektor werden oder so
 	DWORD startIdx = 0;
 	DWORD endIdx = 0;
 	for(DWORD i=0; i < model.triangleCount; ++i){
@@ -2556,7 +2557,8 @@ void calculateSDFFromMesh(SDF& sdf, const TriangleModel& model, BYTE id)noexcept
 			}
 		}
 	}
-	delete[] marked;
+	dealloc(marked);
+	dealloc(bfsBuffer);
 }
 
 void calculateSDFFromMeshOld(SDF& sdf, const TriangleModel& model)noexcept{
@@ -2618,7 +2620,7 @@ constexpr DWORD colorPicker(BYTE id)noexcept{
 }
 
 void drawSDF(RenderBuffers& renderBuffers, SDF& sdf, WORD radius, float maxVal, Camera& cam, float (*pointScalingFunction)(WORD, float) noexcept)noexcept{
-	ColorPoint* pts = new ColorPoint[sdf.dx*sdf.dy*sdf.dz];
+	ColorPoint* pts = alloc<ColorPoint>(sdf.dx*sdf.dy*sdf.dz, "Draw-SDF-ColorpointBuffer");
 	DWORD count = 0;
 	float dx = sdf.size.x/sdf.dx;
 	float dy = sdf.size.y/sdf.dy;
@@ -2643,5 +2645,5 @@ void drawSDF(RenderBuffers& renderBuffers, SDF& sdf, WORD radius, float maxVal, 
 	}
 	for(DWORD i=0; i < renderBuffers.width*renderBuffers.height; ++i) renderBuffers.depthBuffer[i] = FLOAT_MAX;
 	drawPointsDepth(renderBuffers, pts, 0, count, radius, cam, pointScalingFunction);
-	delete[] pts;
+	dealloc(pts);
 }

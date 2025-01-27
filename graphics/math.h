@@ -196,6 +196,8 @@ fvec3 closestPointOnLineSegment(const fvec3& point, const fvec3& start, const fv
     return lerp(start, end, clamp(t, 0.f, 1.f));
 }
 
+//Big TODO Kann man massiv schneller machen indem man erst alle Werte auf einer Achse blurrt und dann diese Werte
+//auf der nächsten Achse blurrt -> O(n^2) -> O(n)!!
 //TODO Sollte nicht im math.h sein
 //TODO Die Indexberechnung kann optimiert werden
 void boxBlur(float* data, WORD width, WORD height, BYTE blurSize)noexcept{
