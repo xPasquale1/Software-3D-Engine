@@ -1004,7 +1004,7 @@ INT WinMain(HINSTANCE hInstance, HINSTANCE hPreviousInst, LPSTR lpszCmdLine, int
 	font.font_size = 26;
 
 	//TODO dynamisch
-	#define MODELSTORAGECOUNT 50
+	#define MODELSTORAGECOUNT 200
 	TriangleModel* models = alloc<TriangleModel>(MODELSTORAGECOUNT, "Modelbuffer");
 	for(int i=0; i < MODELSTORAGECOUNT; ++i) models[i].attributesCount = 8;
 	DWORD modelCount = 0;
