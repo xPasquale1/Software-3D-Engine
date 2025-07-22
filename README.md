@@ -6,20 +6,20 @@ This Project is a 2D and 3D software renderer written in C++ using the CPU.
 
 # Features
 
-Font rendering using .ttf
-.obj und .png support
-Simple UI Elements like Buttons
-3D capabilities
-G-Buffers and Wireframe rendering
-Perspective corrected texturing
-Dynamic sun shadows (wip)
-Screen space contact shadows (SSCS)
-Screen space reflections (SSR, only mirror like reflections)
-World space reflections (WSR, uses SDF as fallback if SSR fails)
-Screen space ambient occlusion (SSAO)
-Screen space global illumination (SSGI)
-Screen Space Radiance Caching (SSRC) (wip)
-Signed distance field generation
+Font rendering using .ttf <br>
+.obj und .png support <br>
+Simple UI Elements like Buttons <br>
+3D capabilities <br>
+G-Buffers and Wireframe rendering <br>
+Perspective corrected texturing <br>
+Dynamic sun shadows (wip) <br>
+Screen space contact shadows (SSCS) <br>
+Screen space reflections (SSR, only mirror like reflections) <br>
+World space reflections (WSR, uses SDF as fallback if SSR fails) <br>
+Screen space ambient occlusion (SSAO) <br>
+Screen space global illumination (SSGI) <br>
+Screen Space Radiance Caching (SSRC) (wip) <br>
+Signed distance field generation <br>
 
 # Installation
 
